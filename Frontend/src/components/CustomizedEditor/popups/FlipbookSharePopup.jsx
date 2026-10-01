@@ -11,6 +11,7 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
     // Download states
     const [downloadFormat, setDownloadFormat] = useState('JPG');
     const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const qrRef = useRef(null);
     const dropdownRef = useRef(null);
 
@@ -24,35 +25,30 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleDownloadQR = () => {
-        if (!qrRef.current) return;
+    const handleDownloadQR = async () => {
+        if (!qrRef.current || isDownloading) return;
+        
         const svg = qrRef.current.querySelector('svg');
         if (!svg) return;
 
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-        const svgUrl = URL.createObjectURL(svgBlob);
+        setIsDownloading(true);
+        try {
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
 
-        if (downloadFormat === 'SVG') {
-            const downloadLink = document.createElement('a');
-            downloadLink.href = svgUrl;
-            downloadLink.download = `${bookName || 'flipbook'}_QR.svg`;
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-            URL.revokeObjectURL(svgUrl);
-            setShowDownloadDropdown(false);
-            return;
-        }
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = svgUrl;
+            });
 
-        const img = new Image();
-        img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width = 1024;
             canvas.height = 1024;
             const ctx = canvas.getContext('2d');
 
-            // Draw background for JPG
             if (downloadFormat === 'JPG') {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -60,8 +56,13 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
 
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            const format = downloadFormat === 'JPG' ? 'image/jpeg' : 'image/png';
-            const dataUrl = canvas.toDataURL(format, 1.0);
+            const formatMap = {
+                'JPG': 'image/jpeg',
+                'PNG': 'image/png',
+                'WebP': 'image/webp'
+            };
+            const mimeType = formatMap[downloadFormat] || 'image/jpeg';
+            const dataUrl = canvas.toDataURL(mimeType, 1.0);
 
             const downloadLink = document.createElement('a');
             downloadLink.href = dataUrl;
@@ -71,9 +72,46 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
             document.body.removeChild(downloadLink);
             URL.revokeObjectURL(svgUrl);
             setShowDownloadDropdown(false);
-        };
-        img.src = svgUrl;
+        } catch (error) {
+            console.error('QR download error:', error);
+        } finally {
+            setIsDownloading(false);
+        }
     };
+
+    const shareModel = (platform) => {
+        const shareUrl = localUrl || "https://flipbook/page";
+        const text = encodeURIComponent(`Check out this flipbook: ${bookName}`);
+        const encodedUrl = encodeURIComponent(shareUrl);
+        
+        let shareLink = '';
+        switch (platform) {
+            case 'facebook':
+                shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+                break;
+            case 'whatsapp':
+                shareLink = `https://api.whatsapp.com/send?text=${text}%20${encodedUrl}`;
+                break;
+            case 'twitter':
+                shareLink = `https://twitter.com/intent/tweet?text=${text}&url=${encodedUrl}`;
+                break;
+            case 'gmail':
+                shareLink = `mailto:?subject=${text}&body=${encodedUrl}`;
+                break;
+            case 'linkedin':
+                shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+                break;
+            case 'instagram':
+                navigator.clipboard.writeText(shareUrl);
+                alert("Link copied! You can now paste it in Instagram.");
+                return;
+        }
+        
+        if (shareLink) {
+            window.open(shareLink, '_blank', 'width=600,height=400');
+        }
+    };
+
 
     const containerStyle = {
         backgroundColor: popupSettings?.backgroundColor?.fill || '#ffffff',
@@ -86,9 +124,10 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
         fontFamily: popupSettings?.textProperties?.font || 'Poppins'
     };
 
-    return createPortal(
+    return (
         <div
-            className={`absolute inset-0 z-[5000] flex items-center justify-center pointer-events-auto bg-transparent ${isMobile ? 'p-4' : ''}`}
+            className={`absolute top-0 left-0 w-full h-full z-[5000] flex items-center justify-center pointer-events-auto bg-transparent overflow-hidden ${isMobile ? 'p-3' : ''}`}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
             onClick={onClose}
         >
             <div
@@ -123,22 +162,22 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                         <div className="flex-1 h-[1px] bg-gray-100" />
                     </div>
                     <div className={`flex items-center w-full ${isLandscape ? 'gap-1.5' : 'gap-2'}`}>
-                        <div className={`flex-1 flex items-center gap-1.5 border border-gray-300 rounded-lg bg-gray-50 shadow-sm overflow-hidden focus-within:border-black transition-colors ${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-3') : 'h-[2.5vw] px-[0.8vw]'}`}>
+                        <div className={`flex-1 flex items-center gap-1.5 border border-gray-300 rounded-lg bg-white shadow-sm overflow-hidden focus-within:border-black transition-colors ${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-3') : 'h-[2.5vw] px-[0.8vw]'}`}>
                             <Icon icon="lucide:link" className={`shrink-0 ${isMobile ? (isLandscape ? 'w-3 h-3' : 'w-3.5 h-3.5') : 'w-[0.9vw] h-[0.9vw]'} text-gray-400`} />
                             <input
                                 type="text"
                                 value={isPublished ? localUrl : 'Publish flipbook to enable link sharing'}
                                 readOnly
-                                className={`flex-1 min-w-0 h-full bg-transparent outline-none text-gray-600 truncate ${isMobile ? (isLandscape ? 'text-[10px]' : 'text-[12px]') : 'text-[0.8vw]'} ${!isPublished ? 'italic text-amber-600 font-medium' : ''}`}
+                                className={`flex-1 min-w-0 h-full bg-transparent outline-none truncate font-medium ${isMobile ? (isLandscape ? 'text-[10px]' : 'text-[12px]') : 'text-[0.8vw]'} ${isPublished ? 'text-gray-600' : 'text-amber-600 italic'}`}
                             />
                         </div>
                         <button
                             disabled={!isPublished}
-                            className={`flex items-center gap-1 transition-colors shadow-sm ${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} rounded-lg ${!isPublished
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                            className={`flex items-center gap-1 transition-all shadow-sm ${isMobile ? (isLandscape ? 'h-7 px-2' : 'h-9 px-2.5') : 'h-[2.5vw] px-[1.2vw]'} rounded-lg ${!isPublished
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60 shadow-none'
                                     : copied
-                                        ? 'bg-green-500 text-white cursor-pointer'
-                                        : 'bg-black text-white hover:bg-gray-800 cursor-pointer'
+                                        ? 'bg-green-500 text-white cursor-pointer active:scale-95'
+                                        : 'bg-[#4A3AFF] text-white hover:bg-blue-700 cursor-pointer active:scale-95'
                                 }`}
                             onClick={() => {
                                 if (!isPublished) {
@@ -149,13 +188,14 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                                 setCopied(true);
                                 setTimeout(() => setCopied(false), 2000);
                             }}
+                            title={!isPublished ? "Please publish your flipbook first to copy link" : "Copy link"}
                         >
-                            <Icon icon={copied ? "lucide:check" : "solar:copy-bold-duotone"} className={isMobile ? (isLandscape ? 'w-3 h-3' : 'w-3.5 h-3.5') : 'w-[1.2vw] h-[1.2vw]'} />
+                            <Icon icon={copied ? "lucide:check" : "lucide:copy"} className={isMobile ? (isLandscape ? 'w-3 h-3' : 'w-3.5 h-3.5') : 'w-[1.2vw] h-[1.2vw]'} />
                             <span className={`${isMobile ? (isLandscape ? 'text-[10px]' : 'text-[11px]') : 'text-[0.8vw]'} font-semibold`}>{copied ? 'Copied' : 'Copy'}</span>
                         </button>
                     </div>
                     {!isPublished && (
-                        <p className="text-[10px] text-gray-500 italic mt-1 leading-tight">
+                        <p className={`text-amber-600 font-medium ${isMobile ? (isLandscape ? 'text-[9px]' : 'text-[10px]') : 'text-[0.65vw]'}`}>
                             * Flipbook is currently unpublished. Click "Publish" in top bar to enable link sharing.
                         </p>
                     )}
@@ -181,35 +221,45 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                         <div className="relative flex items-center bg-white border border-gray-200 rounded-lg shadow-sm h-9 flex-1 max-w-[140px]" ref={dropdownRef}>
                             <button
                                 onClick={handleDownloadQR}
-                                className="flex-1 px-2 font-bold text-[11px] flex items-center justify-center gap-1.5 text-gray-700 hover:bg-gray-50 transition-colors h-full whitespace-nowrap rounded-l-lg"
+                                disabled={isDownloading}
+                                className={`flex-1 px-2 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors h-full whitespace-nowrap rounded-l-lg ${isDownloading ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
                             >
-                                <Icon icon="lucide:download" className="w-3.5 h-3.5 text-gray-400" />
-                                <span>Download {downloadFormat}</span>
+                                {isDownloading ? (
+                                    <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-3.5 h-3.5 shrink-0" />
+                                ) : (
+                                    <Icon icon="lucide:download" className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                )}
+                                <span className="truncate">{isDownloading ? 'Generating...' : `Download ${downloadFormat}`}</span>
                             </button>
                             <div className="w-[1px] h-5 bg-gray-200 shrink-0" />
                             <button
-                                onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
-                                className="px-2 h-full hover:bg-gray-50 transition-colors flex items-center justify-center shrink-0 rounded-r-lg"
+                                onClick={() => !isDownloading && setShowDownloadDropdown(!showDownloadDropdown)}
+                                disabled={isDownloading}
+                                className={`px-2 h-full transition-colors flex items-center justify-center shrink-0 rounded-r-lg ${isDownloading ? 'bg-gray-50 cursor-not-allowed opacity-50' : (showDownloadDropdown ? 'bg-gray-100' : 'hover:bg-gray-50')}`}
                             >
                                 <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showDownloadDropdown ? 'rotate-180' : ''}`} />
                             </button>
 
                             {/* Dropdown Menu */}
                             {showDownloadDropdown && (
-                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-20">
-                                    {['JPG', 'PNG', 'SVG'].map((format) => (
-                                        <button
-                                            key={format}
-                                            onClick={() => {
-                                                setDownloadFormat(format);
-                                                setShowDownloadDropdown(false);
-                                            }}
-                                            className="w-full px-3 py-2 text-[11px] font-bold text-gray-700 hover:bg-gray-50 text-left"
-                                        >
-                                            {format}
-                                        </button>
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowDownloadDropdown(false)} />
+                                    <div className="absolute top-[calc(100%+4px)] left-0 right-0 bg-white border border-gray-100 rounded-lg shadow-xl z-50 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        {['JPG', 'PNG', 'WebP'].map((format) => (
+                                            <button
+                                                key={format}
+                                                onClick={() => {
+                                                    setDownloadFormat(format);
+                                                    setShowDownloadDropdown(false);
+                                                }}
+                                                className={`w-full text-left px-3 py-2 text-[11px] font-bold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${downloadFormat === format ? 'text-[#4A3AFF]' : 'text-gray-600'}`}
+                                            >
+                                                {format}
+                                                {downloadFormat === format && <Icon icon="lucide:check" className="w-3.5 h-3.5" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
@@ -232,30 +282,30 @@ const FlipbookSharePopup = ({ onClose, bookName = "Flipbook Name", url = "https:
                             <Icon icon="lucide:code-2" className={`${isMobile ? (isLandscape ? 'w-3.5 h-3.5' : 'w-4 h-4') : 'w-[2vw] h-[2vw]'} text-gray-600`} />
                         </button>
                         {[
-                            { id: 'whatsapp', icon: 'ic:baseline-whatsapp', color: '#25D366', url: `https://wa.me/?text=${encodeURIComponent(`Check out this flipbook: ${bookName} - ${url}`)}` },
-                            { id: 'twitter', icon: 'ri:twitter-x-fill', color: '#000000', url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out this flipbook: ${bookName}`)}&url=${encodeURIComponent(url)}` },
-                            { id: 'gmail', icon: 'logos:google-gmail', color: '#ffffff', url: `mailto:?subject=${encodeURIComponent(bookName)}&body=${encodeURIComponent(`Check out this flipbook: ${url}`)}`, hasBorder: true },
-                            { id: 'linkedin', icon: 'ri:linkedin-fill', color: '#0A66C2', url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}` },
-                            { id: 'instagram', icon: 'skill-icons:instagram', color: '#ffffff', url: `https://www.instagram.com/` }
+                            { id: 'facebook', icon: 'ri:facebook-fill', color: '#1877F2' },
+                            { id: 'whatsapp', icon: 'ic:baseline-whatsapp', color: '#25D366' },
+                            { id: 'twitter', icon: 'ri:twitter-x-fill', color: '#000000' },
+                            { id: 'gmail', icon: 'logos:google-gmail', color: '#ffffff', hasBorder: true },
+                            { id: 'linkedin', icon: 'ri:linkedin-fill', color: '#0A66C2' },
+                            { id: 'instagram', icon: 'skill-icons:instagram', color: '#ffffff' }
                         ].map((social) => (
                             <button
                                 key={social.id}
-                                onClick={() => window.open(social.url, '_blank')}
+                                onClick={() => shareModel(social.id)}
                                 className={`${isMobile ? (isLandscape ? 'w-7 h-7 rounded-md' : 'w-9 h-9 rounded-xl') : 'w-[3.2vw] h-[3.2vw] rounded-[0.6vw]'} flex items-center justify-center hover:scale-110 transition-transform shadow-sm ${social.hasBorder ? 'border border-gray-100' : ''}`}
                                 style={{ backgroundColor: social.color }}
                             >
                                 <Icon
                                     icon={social.icon}
                                     className={`${isMobile ? (isLandscape ? 'w-3.5 h-3.5' : 'w-5 h-5') : 'w-[2vw] h-[2vw]'}`}
-                                    style={{ color: social.id === 'twitter' || social.id === 'whatsapp' || social.id === 'linkedin' ? 'white' : undefined }}
+                                    style={{ color: social.id === 'twitter' || social.id === 'whatsapp' || social.id === 'linkedin' || social.id === 'facebook' ? 'white' : undefined }}
                                 />
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
-        </div>,
-        document.fullscreenElement || document.getElementById('device-screen-container') || document.body
+        </div>
     );
 };
 

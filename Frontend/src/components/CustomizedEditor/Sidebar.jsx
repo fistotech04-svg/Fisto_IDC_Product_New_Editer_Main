@@ -182,16 +182,16 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   };
 
   const tabConfigs = {
-    'logo': { icon: 'lucide:gem', top: 154 },
+    'logo': { icon: 'fluent-mdl2:verified-brand', top: 154 },
     'profile': { icon: 'lucide:user', top: 206 },
-    'background': { icon: 'mdi:texture', top: 326 },
+    'background': { icon: 'fa6-regular:image', top: 326 },
     'layout': { icon: 'lucide:layout-panel-left', top: 378 },
-    'bookappearance': { icon: 'lucide:settings-2', top: 430 },
-    'menubar': { icon: 'mingcute:menu-fill', top: 482 },
+    'bookappearance': { icon: 'basil:book-open-outline', top: 430 },
+    'menubar': { icon: 'ant-design:control-outlined', top: 482 },
     'othersetup': { icon: 'qlementine-icons:page-setup-16', top: 534 },
     'leadform': { icon: 'fluent:form-48-regular', top: 586 },
-    'visibility': { icon: 'mdi:visibility-outline', top: 638 },
-    'statistic': { icon: 'material-symbols:leaderboard-rounded', top: 690 },
+    'visibility': { icon: 'si:lock-line', top: 638 },
+    'statistic': { icon: 'oui:ws-analytics', top: 690 },
   };
 
   const activeTab = tabConfigs[activeSubView];
@@ -245,7 +245,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           {/* The Draggable icon itself - repositioned to overlap with the line */}
           <div
             onMouseDown={handleMouseDown}
-            className={`absolute flex items-stretch rounded-r-[0.8vw] cursor-pointer shadow-[0.2vw_0_1vw_rgba(0,0,0,0.2)] pointer-events-auto select-none group ${isDragging ? 'cursor-grabbing scale-100' : 'cursor-grab'
+            className={`absolute flex items-stretch rounded-r-[0.6vw] cursor-pointer shadow-[0.2vw_0_1vw_rgba(0,0,0,0.2)] pointer-events-auto select-none group ${isDragging ? 'cursor-grabbing scale-100' : 'cursor-grab'
               }`}
             style={{
               top: `${tabTop}px`,
@@ -256,13 +256,13 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
             <AttachedCurve position="top-left" />
             <AttachedCurve position="bottom-left" />
             {/* Internal overflow-hidden container for icons/background */}
-            <div className="flex items-stretch rounded-r-[0.8vw] overflow-hidden min-h-[3vw] ">
+            <div className="flex items-stretch rounded-r-[0.6vw] overflow-hidden min-h-[2.6vw] ">
               {/* Connector strip to ensure no gap with the line */}
               <div className="w-[0.25vw] h-full bg-black flex-shrink-0 " />
-              <div className="w-[3vw] h-[3vw] bg-black text-white flex items-center justify-center select-none">
+              <div className="w-[2.6vw] h-[2.6vw] bg-black text-white flex items-center justify-center select-none">
                 <Icon
                   icon={activeTab.icon}
-                  className="w-[1.5vw] h-[1.5vw]"
+                  className="w-[1.3vw] h-[1.3vw]"
                 />
               </div>
             </div>
@@ -281,57 +281,64 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
             </div>
           </div>
         ) : (
-          <div className={`bg-white rounded-[0.6vw] border ${isNameDuplicate ? 'border-red-500 bg-red-50' : 'border-gray-200/80'} shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex flex-col justify-between transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]`}>
-            <input
-              ref={bookNameInputRef}
-              type="text"
-              value={bookName}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => {
-                const val = e.target.value;
-                setBookName(val);
-                checkDuplicate(val);
-              }}
-              onBlur={() => {
-                if (isNameDuplicate) {
-                  alert('Book name already exists. Please choose a different name.');
-                  if (bookNameInputRef.current) bookNameInputRef.current.select();
-                } else if (onSave) {
-                  onSave();
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+          <div className={`bg-white rounded-[0.6vw] border ${isNameDuplicate ? 'border-red-500 bg-red-50' : 'border-gray-200/80'} shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-[0.75vw] py-[0.45vw] flex items-center gap-[0.75vw] transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]`}>
+            {/* File Icon */}
+            <div className="flex-shrink-0 text-[#EC5137]">
+              <Icon icon="basil:document-outline" className="w-[1.8vw] h-[1.8vw]" />
+            </div>
+
+            <div className="flex flex-col flex-grow">
+              <input
+                ref={bookNameInputRef}
+                type="text"
+                value={bookName}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBookName(val);
+                  checkDuplicate(val);
+                }}
+                onBlur={() => {
                   if (isNameDuplicate) {
                     alert('Book name already exists. Please choose a different name.');
                     if (bookNameInputRef.current) bookNameInputRef.current.select();
-                  } else {
-                    e.target.blur();
-                    if (onSave) onSave();
+                  } else if (onSave) {
+                    onSave();
                   }
-                }
-              }}
-              className={`text-[0.92vw] font-medium bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug tracking-tight ${isNameDuplicate ? 'text-red-600 placeholder-red-300 font-sans' : 'text-gray-900 placeholder-gray-400 font-sans'}`}
-              placeholder="Name of the Book"
-            />
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (isNameDuplicate) {
+                      alert('Book name already exists. Please choose a different name.');
+                      if (bookNameInputRef.current) bookNameInputRef.current.select();
+                    } else {
+                      e.target.blur();
+                      if (onSave) onSave();
+                    }
+                  }
+                }}
+                className={`text-[0.92vw] font-medium bg-transparent border-none focus:ring-0 focus:outline-none w-full p-0 leading-snug tracking-tight ${isNameDuplicate ? 'text-red-600 placeholder-red-300 font-sans' : 'text-gray-900 placeholder-gray-400 font-sans'}`}
+                placeholder="Name of the Book"
+              />
 
-            <div className="flex items-center justify-between mt-[0.25vw]">
-              <span className="text-[0.72vw] text-gray-500 font-medium tracking-wide">
-                Pages : {pageCount || 10}
-              </span>
-              <div className="relative group/tooltip flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setIsInfoModalOpen(true)}
-                  className="text-[#373d8a] hover:text-[#2a2e6b] transition-colors cursor-pointer p-[0.1vw] rounded-[0.2vw] hover:bg-indigo-50/80"
-                >
-                  <Icon icon="ph:pencil-simple-fill" className="w-[0.95vw] h-[0.95vw]" />
-                </button>
-                {/* Styled Tooltip on Hover - Positioned below pen icon */}
-                <div className="absolute right-0 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                  <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90 mr-[0.3vw]" />
-                  <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                    Edit Flipbook Information
+              <div className="flex items-center justify-between mt-[0.25vw]">
+                <span className="text-[0.72vw] text-gray-500 font-medium tracking-wide">
+                  Pages : {pageCount || 10}
+                </span>
+                <div className="relative group/tooltip flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsInfoModalOpen(true)}
+                    className="text-[#EC5137] hover:text-[#d4432b] transition-colors cursor-pointer p-[0.1vw] rounded-[0.2vw] hover:bg-orange-50/80"
+                  >
+                    <Icon icon="mdi:rename" className="w-[0.95vw] h-[0.95vw]" />
+                  </button>
+                  {/* Styled Tooltip on Hover - Positioned below pen icon */}
+                  <div className="absolute right-0 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
+                    <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90 mr-[0.3vw]" />
+                    <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                      Edit Flipbook Information
+                    </div>
                   </div>
                 </div>
               </div>
@@ -356,76 +363,78 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
         ) : (
           <>
             <SidebarItem
+              id="section-background"
+              icon="fa6-regular:image"
+              label="Background"
+              isActive={activeSubView === 'background'}
+              onClick={() => setActiveSubView('background')}
+              hasDropdown={false}
+            />
+
+            <SidebarItem
+              id="section-layout"
+              icon="lucide:layout-panel-left"
+              label="Layout Design"
+              isActive={activeSubView === 'layout'}
+              onClick={() => setActiveSubView('layout')}
+              hasDropdown={false}
+            />
+
+            <SidebarItem
+              id="section-menubar"
+              icon="ant-design:control-outlined"
+              label="Layout Settings"
+              isActive={activeSubView === 'menubar'}
+              onClick={() => setActiveSubView('menubar')}
+              hasDropdown={false}
+            />
+
+            <SidebarItem
+              id="section-bookappearance"
+              icon="basil:book-open-outline"
+              label="Book Appearance"
+              isActive={activeSubView === 'bookappearance'}
+              onClick={() => setActiveSubView('bookappearance')}
+              hasDropdown={false}
+            />
+
+            <SidebarItem
+              id="section-leadform"
+              icon="fluent:form-48-regular"
+              label="Lead Form"
+              isActive={activeSubView === 'leadform'}
+              onClick={() => setActiveSubView('leadform')}
+              hasDropdown={false}
+            />
+
+            <SidebarItem
+              id="section-visibility"
+              icon="si:lock-line"
+              label="Visibility & Privacy"
+              isActive={activeSubView === 'visibility'}
+              onClick={() => setActiveSubView('visibility')}
+              hasDropdown={false}
+            />
+
+            <SidebarItem
+              id="section-statistic"
+              icon="oui:ws-analytics"
+              label="Analytics"
+              isActive={activeSubView === 'statistic'}
+              onClick={() => setActiveSubView('statistic')}
+              hasDropdown={false}
+            />
+
+            <div className="w-[calc(100%-2vw)] h-[1px] bg-gray-200 mx-[1vw] my-[0.5vh]"></div>
+
+            <SidebarItem
               id="section-branding"
-              icon="lucide:gem"
+              icon="fluent-mdl2:verified-brand"
               label="Branding"
               isActive={activeSubView === 'branding' || activeSubView === 'logo'}
               onClick={() => setActiveSubView('logo')}
               hasDropdown={false}
             />
-
-        <SidebarItem
-          id="section-background"
-          icon="mdi:texture"
-          label="Background"
-          isActive={activeSubView === 'background'}
-          onClick={() => setActiveSubView('background')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
-          id="section-layout"
-          icon="lucide:layout-panel-left"
-          label="Layout"
-          isActive={activeSubView === 'layout'}
-          onClick={() => setActiveSubView('layout')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
-          id="section-menubar"
-          icon="mingcute:menu-fill"
-          label="Layout Settings"
-          isActive={activeSubView === 'menubar'}
-          onClick={() => setActiveSubView('menubar')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
-          id="section-bookappearance"
-          icon="lucide:book-open"
-          label="Book Appearance"
-          isActive={activeSubView === 'bookappearance'}
-          onClick={() => setActiveSubView('bookappearance')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
-          id="section-leadform"
-          icon="fluent:form-48-regular"
-          label="Lead Form"
-          isActive={activeSubView === 'leadform'}
-          onClick={() => setActiveSubView('leadform')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
-          id="section-visibility"
-          icon="mdi:visibility-outline"
-          label="Visibility"
-          isActive={activeSubView === 'visibility'}
-          onClick={() => setActiveSubView('visibility')}
-          hasDropdown={false}
-        />
-
-        <SidebarItem
-          id="section-statistic"
-          icon="material-symbols:leaderboard-rounded"
-          label="Statistic"
-          isActive={activeSubView === 'statistic'}
-          onClick={() => setActiveSubView('statistic')}
-          hasDropdown={false}
-        />
           </>
         )}
       </div>

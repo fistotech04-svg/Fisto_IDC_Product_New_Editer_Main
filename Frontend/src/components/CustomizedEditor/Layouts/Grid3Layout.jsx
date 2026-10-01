@@ -588,7 +588,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
     );
 
     return (
-        <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={{ backgroundColor: backgroundSettings?.color || '#DADBE8' }}>
+        <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={{ backgroundColor: backgroundSettings?.color || '#D9D9D9' }}>
             <div
                 className="absolute inset-0 z-0"
                 style={backgroundStyle}
@@ -620,11 +620,11 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     >
                                         <style>{`
                                     #quick-search-v3::placeholder {
-                                        color: ${getLayoutColor('search-text-v1', '#575C9C')} !important;
+                                        color: ${getLayoutColor('search-text-v1', '#555555')} !important;
                                         opacity: var(--search-text-v1-opacity, 1);
                                     }
                                 `}</style>
-                                        <Icon icon="lucide:search" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }} />
+                                        <Icon icon="lucide:search" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' }} />
                                         <input
                                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                             id="quick-search-v3"
@@ -679,7 +679,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             onFocus={() => { if (recommendations.length > 0) setShowSuggestions(true); }}
                                             className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-normal`}
                                             style={{
-                                                color: getLayoutColor('search-text-v1', '#575C9C'),
+                                                color: getLayoutColor('search-text-v1', '#555555'),
                                                 opacity: 'var(--search-text-v1-opacity, 1)'
                                             }}
                                         />
@@ -692,14 +692,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1') }}
                                         >
                                             <div className={`${isMobileLandscape ? 'px-[0.8vw] py-[0.4vw]' : 'px-[1.2vw] py-[0.8vw]'} bg-gray-50/10`}>
-                                                <span className={`${isMobileLandscape ? 'text-[0.65vw]' : 'text-[0.9vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Suggestion</span>
+                                                <span className={`${isMobileLandscape ? 'text-[0.65vw]' : 'text-[0.9vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Suggestion</span>
                                             </div>
                                             <div className="flex flex-col py-[0.4vw]">
                                                 {recommendations.map((rec, idx) => (
                                                     <button
                                                         key={`${rec.word}-${rec.pageNumber}-${idx}`}
                                                         className={`flex items-center justify-between ${isMobileLandscape ? 'px-[0.8vw] py-[0.4vw]' : 'px-[1.2vw] py-[0.7vw]'} transition-colors group hover:bg-black/5`}
-                                                        style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 'var(--dropdown-text-opacity, 1)' }}
+                                                        style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 'var(--dropdown-text-opacity, 1)' }}
                                                         onClick={() => {
                                                             onPageClick(rec.pageNumber - 1);
                                                             const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
@@ -966,7 +966,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         {(settings?.navigation?.pageQuickAccess ?? true) && (
                             <div className="flex items-center translate-y-[0.3vh]">
                                 <div className={`rounded-[0.3vw] flex items-center justify-center ${!isBigBars ? (isMobileLandscape ? 'px-[0.6vw] h-[1.8vh] min-w-[4vw]' : isTablet ? 'px-[0.3vw] h-[2vh] min-w-[3.5vw]' : 'px-[0.7vw] pb-[0.3vh] h-[3.5vh] min-w-[5.5vw]') : (isMobileLandscape ? 'px-[1.2vw] h-[3.5vh] min-w-[7vw]' : isTablet ? 'px-[0.6vw] h-[2.8vh] min-w-[5vw]' : 'px-[0.6vw] pb-[0.1vw] pt-0 h-[3.5vh] min-w-[5.8vw]')} text-center shadow-sm`} style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
-                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
+                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#555555') }}>Page </span>
                                     <input
                                         type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                         value={pageInputValue}
@@ -998,7 +998,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         className={`${!isBigBars ? (isTablet ? 'text-[0.5vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]') : (isTablet ? 'text-[0.6vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : 'text-[0.65vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]')} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner leading-none`}
                                         style={{
                                             width: `${String(pages.length).length + 1.2}ch`,
-                                            color: getLayoutColor('search-text-v1', '#575C9C'),
+                                            color: getLayoutColor('search-text-v1', '#555555'),
                                             opacity: 'var(--search-text-v1-opacity, 1)',
                                             backgroundColor: getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.1),
                                             border: `1px solid ${getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.2)}`
@@ -1018,7 +1018,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             }
                                         }}
                                     />
-                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
+                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.8vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
                                 </div>
                             </div>
                         )}
@@ -1073,14 +1073,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                             'Zoom Out',
                                             () => zoomOut(),
-                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' },
+                                            { color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' },
                                             '',
                                             false,
                                             true,
                                             'top'
                                         )}
                                         <span className={`font-bold ${!isBigBars ? (isTablet ? 'text-[0.55vw]' : 'text-[0.75vw]') : (isTablet ? 'text-[0.65vw]' : 'text-[0.7vw]')} tracking-tight tabular-nums select-none min-w-[2.0vw]`}
-                                            style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                            style={{ color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' }}
                                         >
                                             {Math.round((dimWidth / initialWidth) * 100)}%
                                         </span>
@@ -1088,7 +1088,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             <Icon icon="lucide:zoom-in" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                             'Zoom In',
                                             () => zoomIn(),
-                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' },
+                                            { color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' },
                                             '',
                                             false,
                                             true,
@@ -1187,14 +1187,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         >
                                             {/* Label at Top (Screenshot 1 Style) */}
                                             <div className={`w-full ${isTablet ? 'mb-[0.35vw]' : 'mb-[0.5vw]'} text-center`}>
-                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 'var(--dropdown-text-opacity, 1)', fontFamily: "'Poppins', sans-serif" }}>
+                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.9vw]'} font-medium`} style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 'var(--dropdown-text-opacity, 1)', fontFamily: "'Poppins', sans-serif" }}>
                                                     {progressHover.spread.label}
                                                 </span>
                                             </div>
 
                                             {/* Preview Spread */}
                                             <div className={`relative overflow-hidden ${isTablet ? 'rounded-[0.15vw]' : 'rounded-[0.3vw]'} shadow-inner border border-gray-100`}>
-                                                <div className="flex gap-[1px] bg-gray-200">
+                                                <div className="flex gap-0 bg-gray-200">
                                                     {progressHover.spread.pages.map((page, pIdx) => {
                                                         const boxHeight = isTablet ? 45 : 85;
                                                         const scale = boxHeight / dimHeight;
@@ -1228,13 +1228,13 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
 
                 {/* In-Layout Thumbnails Bar overlay matching the exact Layout 3 spec */}
                 {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (() => {
-                    let maxItems = 4;
+                    let maxItems = 6;
                     let actualMaxItems = Math.min(maxItems, spreads.length);
                     let availableHeightVw = isTablet ? 2.5 : 4;
                     let pageRatio = dimWidth / dimHeight;
                     let singlePageWidthVw = availableHeightVw * pageRatio;
                     let onePixelVw = typeof window !== 'undefined' ? 100 / window.innerWidth : 0.05;
-                    let doublePageInnerWidthVw = singlePageWidthVw * 2 + onePixelVw;
+                    let doublePageInnerWidthVw = singlePageWidthVw * 2;
                     let thumbnailPaddingVw = isTablet ? 0.3 : 0.6; // p-[0.15vw] is 0.15*2, p-[0.3vw] is 0.3*2
                     let thumbnailOuterWidthVw = doublePageInnerWidthVw + thumbnailPaddingVw;
                     
@@ -1254,7 +1254,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 style={{
                                     width: 'fit-content',
                                     maxWidth: `${dynamicMaxWidthVw}vw`,
-                                    backgroundColor: getLayoutColor('dropdown-bg', '#575C9C')
+                                    backgroundColor: getLayoutColor('dropdown-bg', '#555555')
                                 }}
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -1278,7 +1278,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     const vwToPx = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
                                     const availableHeight = (isTablet ? 2.5 : 4) * vwToPx;
                                     const singlePageWidth = availableHeight * (dimWidth / dimHeight);
-                                    const doublePageInnerWidth = singlePageWidth * 2 + 1;
+                                    const doublePageInnerWidth = singlePageWidth * 2;
                                     const thumbScale = availableHeight / dimHeight;
 
                                     return (
@@ -1292,7 +1292,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                 onPageClick(spread.indices[0]);
                                             }}
                                         >
-                                            <div className={`flex gap-[1px] ${isTablet ? 'h-[2.5vw]' : 'h-[4vw]'} overflow-hidden rounded-[0.15vw] justify-center shadow-sm`}
+                                            <div className={`flex gap-0 ${isTablet ? 'h-[2.5vw]' : 'h-[4vw]'} overflow-hidden rounded-[0.15vw] justify-center shadow-sm`}
                                                 style={{ width: `${doublePageInnerWidth}px`, backgroundColor: 'transparent' }}
                                             >
                                                 {spread.pages.map((page, pIdx) => {
@@ -1310,7 +1310,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                 })}
                                             </div>
                                             <span className={`${isTablet ? 'text-[0.42vw]' : 'text-[0.55vw]'} font-bold tracking-tight relative z-10 pt-[0.2vw]`}
-                                                style={{ color: isSelected ? getLayoutColor('dropdown-bg', '#575C9C') : getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                                style={{ color: isSelected ? getLayoutColor('dropdown-bg', '#555555') : getLayoutColor('dropdown-text', '#FFFFFF') }}>
                                                 {spread.label}
                                             </span>
                                         </div>

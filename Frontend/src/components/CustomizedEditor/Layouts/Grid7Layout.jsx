@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<video\b[^<]*(?:(?!<\/video>)<[^<]*)*<\/video>/gi, '<div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">Video</div>')
@@ -20,8 +20,8 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                         padding: 0; 
                         overflow: hidden; 
                         background: white; 
-                        width: 400px; 
-                        height: 566px; 
+                        width: ${baseWidth}px; 
+                        height: ${baseHeight}px; 
                         position: relative;
                     }
                     * { box-sizing: border-box; }
@@ -30,7 +30,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -38,20 +38,20 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <iframe
-                className="border-none pointer-events-none"
-                srcDoc={srcDoc}
-                title={`Thumb ${index}`}
-                loading="lazy"
-                style={{
-                    width: '400px',
-                    height: '566px',
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    backgroundColor: 'white'
-                }}
-            />
+        <div className="w-full h-full relative overflow-hidden bg-white">
+            <div className="absolute left-1/2 top-1/2" style={{ transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}>
+                <iframe
+                    className="border-none pointer-events-none"
+                    srcDoc={srcDoc}
+                    title={`Thumb ${index}`}
+                    loading="lazy"
+                    style={{
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
+                        backgroundColor: 'white'
+                    }}
+                />
+            </div>
         </div>
     );
 });
@@ -453,7 +453,7 @@ const Grid7Layout = ({
         }
     }, [showThumbnails, currentPage]);
 
-    const primaryColor = layoutColors?.primary || '#575C9C';
+    const primaryColor = layoutColors?.primary || '#555555';
     const baseBgColor = layoutColors?.secondary || '#E3E4EF';
 
     const hexToRgba = (hex, opacity = 100) => {
@@ -761,7 +761,7 @@ const Grid7Layout = ({
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
-                            style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#555555') }}
                             onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
                         >
                             <Icon icon="lucide:chevron-left" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:-translate-x-1 transition-transform`} />
@@ -772,7 +772,7 @@ const Grid7Layout = ({
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
-                            style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#555555') }}
                             onClick={() => bookRef.current?.pageFlip()?.flipNext()}
                         >
                             <Icon icon="lucide:chevron-right" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:translate-x-1 transition-transform`} />
@@ -786,7 +786,7 @@ const Grid7Layout = ({
                 <div
                     className={`absolute left-[3vw] ${isTablet ? 'bottom-[9vh]' : 'bottom-[12vh]'} rounded-[0.4vw] ${isTablet ? 'px-[0.4vw] py-[0.15vw]' : 'px-[0.5vw] py-[0.2vw]'} shadow-sm z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                     style={{
-                        backgroundColor: getLayoutColor('page-number-bg', getLayoutColor('toolbar-bg', '#575C9C')),
+                        backgroundColor: getLayoutColor('page-number-bg', getLayoutColor('toolbar-bg', '#555555')),
                         opacity: isFullscreen && isCanvasHovered ? 0 : 1
                     }}
                 >
@@ -852,7 +852,7 @@ const Grid7Layout = ({
             <div
                 className={`absolute bottom-0 left-0 right-0 ${bbHeight} flex flex-col justify-center items-center ${bbPt} z-[105] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'} shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
                 style={{
-                    backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
+                    backgroundColor: getLayoutColor('toolbar-bg', '#555555'),
                     opacity: isFullscreen && isCanvasHovered ? 0 : 1
                 }}
                 onMouseMove={(e) => setDockMousePos({ x: e.clientX, y: e.clientY })}
@@ -1068,7 +1068,7 @@ const Grid7Layout = ({
                                         {/* Header Bar - Dark Blue as in screenshot 1 */}
                                         <div
                                             className="w-full flex justify-center items-center py-[0.5vh] px-[1vw]"
-                                            style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                                            style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}
                                         >
                                             <span
                                                 className="font-bold whitespace-nowrap text-white"
@@ -1083,25 +1083,29 @@ const Grid7Layout = ({
                                             <div
                                                 className="flex justify-center overflow-hidden rounded-[0.3vw] shadow-inner"
                                                 style={{
-                                                    width: `${(400 * (isTablet ? 50 : 70) / 566) * 2 + 1}px`,
+                                                    width: `${((dimWidth || 400) * (isTablet ? 50 : 70) / (dimHeight || 566)) * progressHover.spread.pages.length}px`,
                                                     backgroundColor: '#f3f4f6'
                                                 }}
                                             >
-                                                <div className="flex gap-[1px] bg-gray-100 p-[1px]">
+                                                <div className="flex gap-0 bg-gray-100 justify-center w-full h-full">
                                                     {progressHover.spread.pages.map((page, pIdx) => {
+                                                        const pageWidth = dimWidth || 400;
+                                                        const pageHeight = dimHeight || 566;
                                                         const boxHeight = isTablet ? 50 : 70;
-                                                        const scale = boxHeight / 566;
-                                                        const boxWidth = 400 * scale;
+                                                        const scale = boxHeight / pageHeight;
+                                                        const boxWidth = pageWidth * scale;
                                                         return (
                                                             <div
                                                                 key={`${progressHover.spread.indices[0]}-${pIdx}`}
-                                                                className="bg-white overflow-hidden relative flex items-center justify-center border border-gray-100"
+                                                                className="bg-white overflow-hidden relative flex items-center justify-center border-0"
                                                                 style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
                                                             >
                                                                 <PageThumbnail
                                                                     html={page.html || page.content}
                                                                     index={progressHover.spread.indices[pIdx]}
                                                                     scale={scale}
+                                                                    baseWidth={pageWidth}
+                                                                    baseHeight={pageHeight}
                                                                 />
                                                             </div>
                                                         );
@@ -1160,7 +1164,7 @@ const Grid7Layout = ({
                         {/* Header */}
                         <div
                             className="flex items-center justify-between px-[1.5vw] py-[0.8vh] relative"
-                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
+                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#555555') }}
                         >
                             <span className="text-[0.9vw] font-semibold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Thumbnails</span>
 
@@ -1184,37 +1188,55 @@ const Grid7Layout = ({
                             className="flex flex-wrap gap-[1vw] px-[1.2vw] py-[1.5vh] pb-[2vh] overflow-y-auto max-h-[35vh]"
                             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}
                         >
-                            {pages.map((page, idx) => (
-                                <div
-                                    key={idx}
-                                    data-thumb-index={idx}
-                                    onClick={() => { onPageClick(idx); setShowThumbnails(false); }}
-                                    className="flex-shrink-0 flex flex-col items-center gap-[0.5vh] cursor-pointer group"
-                                >
+                            {spreads.map((spread, idx) => {
+                                const isSelected = spread.indices.includes(currentPage);
+                                const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                const pageWidth = dimWidth || 400;
+                                const pageHeight = dimHeight || 566;
+                                const availableHeightVw = 4.5;
+                                const availableHeightPx = availableHeightVw * vw;
+                                const thumbScale = availableHeightPx / pageHeight;
+                                const scaledWidthPx = pageWidth * thumbScale;
+                                const totalWidthPx = scaledWidthPx * 2;
+                                
+                                return (
                                     <div
-                                        className="rounded-[0.3vw] overflow-hidden transition-all duration-200"
-                                        style={{
-                                            width: '6.5vw',
-                                            height: '4.5vw',
-                                            border: idx === currentPage ? `0.15vw solid ${getLayoutColor('dropdown-bg', '#575C9C')}` : '0.15vw solid transparent',
-                                            boxShadow: idx === currentPage ? `0 0 0 0.15vw ${getLayoutColor('dropdown-bg', '#575C9C')}` : '0 0.2vw 0.5vw rgba(0,0,0,0.15)',
-                                            padding: '0.15vw',
-                                            backgroundColor: 'white'
-                                        }}
+                                        key={idx}
+                                        data-thumb-index={idx}
+                                        onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
+                                        className="flex-shrink-0 flex flex-col items-center gap-[0.5vh] cursor-pointer group"
                                     >
-                                        <div className="w-full h-full overflow-hidden bg-white rounded-[0.15vw] relative flex items-center justify-center">
-                                            <PageThumbnail
-                                                html={page.html || page.content || ''}
-                                                index={idx}
-                                                scale={0.11}
-                                            />
+                                        <div
+                                            className="rounded-[0.3vw] overflow-hidden transition-all duration-200 flex justify-center"
+                                            style={{
+                                                width: `${totalWidthPx + (0.3 * vw)}px`, // padding included
+                                                height: `${availableHeightVw + 0.3}vw`, // padding included
+                                                border: isSelected ? `0.15vw solid ${getLayoutColor('dropdown-bg', '#555555')}` : '0.15vw solid transparent',
+                                                boxShadow: isSelected ? `0 0 0 0.15vw ${getLayoutColor('dropdown-bg', '#555555')}` : '0 0.2vw 0.5vw rgba(0,0,0,0.15)',
+                                                padding: '0.15vw',
+                                                backgroundColor: 'white'
+                                            }}
+                                        >
+                                            <div className="w-full h-full overflow-hidden bg-gray-100 rounded-[0.15vw] relative flex items-center justify-center gap-0">
+                                                {spread.pages.map((page, pIdx) => (
+                                                    <div key={`${idx}-${pIdx}`} className="bg-white overflow-hidden relative flex items-center justify-center border-0" style={{ width: `${scaledWidthPx}px`, height: '100%' }}>
+                                                        <PageThumbnail
+                                                            html={page.html || page.content || ''}
+                                                            index={spread.indices[pIdx]}
+                                                            scale={thumbScale}
+                                                            baseWidth={pageWidth}
+                                                            baseHeight={pageHeight}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
+                                        <span className="text-[0.65vw] font-medium transition-colors" style={{ color: getLayoutColor('dropdown-bg', '#555555'), opacity: isSelected ? 1 : 0.6 }}>
+                                            {spread.label}
+                                        </span>
                                     </div>
-                                    <span className="text-[0.65vw] font-medium transition-colors" style={{ color: getLayoutColor('dropdown-bg', '#575C9C'), opacity: idx === currentPage ? 1 : 0.6 }}>
-                                        Page {idx + 1}
-                                    </span>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </motion.div>
                 )}

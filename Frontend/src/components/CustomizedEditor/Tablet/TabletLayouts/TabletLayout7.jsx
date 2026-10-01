@@ -295,7 +295,7 @@ const TabletLayout7 = ({
                         {/* Header */}
                         <div
                             className="flex items-center justify-between px-[2cqw] py-[1cqw] relative"
-                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
+                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#555555') }}
                         >
                             <span className="text-[1.3cqw] font-bold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Thumbnails</span>
 
@@ -333,8 +333,8 @@ const TabletLayout7 = ({
                                             style={{
                                                 width: '9cqw',
                                                 height: '6.5cqw',
-                                                border: idx === currentPage ? `0.2cqw solid ${getLayoutColor('dropdown-bg', '#575C9C')}` : '0.2cqw solid transparent',
-                                                boxShadow: idx === currentPage ? `0 0 0 0.2cqw ${getLayoutColor('dropdown-bg', '#575C9C')}` : '0 0.2cqw 0.5cqw rgba(0,0,0,0.1)',
+                                                border: idx === currentPage ? `0.2cqw solid ${getLayoutColor('dropdown-bg', '#555555')}` : '0.2cqw solid transparent',
+                                                boxShadow: idx === currentPage ? `0 0 0 0.2cqw ${getLayoutColor('dropdown-bg', '#555555')}` : '0 0.2cqw 0.5cqw rgba(0,0,0,0.1)',
                                                 padding: '0.2cqw',
                                                 backgroundColor: 'white'
                                             }}
@@ -349,7 +349,7 @@ const TabletLayout7 = ({
                                                 )}
                                             </div>
                                         </div>
-                                        <span className="text-[1cqw] font-medium transition-colors" style={{ color: getLayoutColor('dropdown-bg', '#575C9C'), opacity: idx === currentPage ? 1 : 0.6 }}>
+                                        <span className="text-[1cqw] font-medium transition-colors" style={{ color: getLayoutColor('dropdown-bg', '#555555'), opacity: idx === currentPage ? 1 : 0.6 }}>
                                             Page {idx + 1}
                                         </span>
                                     </div>

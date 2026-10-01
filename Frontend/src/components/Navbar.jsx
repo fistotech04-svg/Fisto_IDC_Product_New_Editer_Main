@@ -11,6 +11,21 @@ import EditorSettingsModal from './EditorSettingsModal';
 
 const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDeleteFlipbook, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
+  const [userProfile, setUserProfile] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user_profile') || localStorage.getItem('user');
+      if (stored) {
+        const p = JSON.parse(stored);
+        const email = p.emailId || p.email || '';
+        return {
+          name: p.name || (email ? email.split('@')[0] : 'User'),
+          picture: p.picture || null,
+          avatarBgColor: p.avatarBgColor || '#f97316'
+        };
+      }
+    } catch (e) {}
+    return { name: 'User', picture: null, avatarBgColor: '#f97316' };
+  });
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditorSettingsOpen, setIsEditorSettingsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -98,7 +113,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
         style={{ height: '8vh' }}
       >
         {/* Left Section - Logo and Navigation */}
-        <div className="flex items-center gap-[3.5vw]">
+        <div className="flex items-center gap-[1.5vw]">
           <Link to="/" className="flex-shrink-0" onClick={handleLinkClick}>
             <img 
               className="h-[2.5vw] w-auto object-contain" 
@@ -108,35 +123,43 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
           </Link>
 
           {/* Navigation Links */}
-          <div className="flex items-center gap-[2.5vw]">
+          <div className="flex items-center gap-[1vw]">
             <Link 
               to="/my-flipbooks" 
               onClick={handleLinkClick}
-              className={isActive('/my-flipbooks') ? activeLinkStyle : baseLinkStyle}
+              className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-[#D9D9D9] rounded-[0.5vw] hover:bg-gray-50 transition-colors text-gray-700"
             >
-              My Flipbook
+              <Icon icon="boxicons:home-alt" className="w-[1.1vw] h-[1.1vw] text-[#EC5137]" />
+              <span className="font-medium text-[0.85vw] whitespace-nowrap">Go to My Flipbook</span>
             </Link>
-            <Link 
-              to="/features" 
-              onClick={handleLinkClick}
-              className={isActive('/features') ? activeLinkStyle : baseLinkStyle}
+
+            <button 
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
+                    return;
+                  }
+                }
+                navigate(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor');
+              }}
+              className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-[#D9D9D9] rounded-[0.5vw] hover:bg-gray-50 transition-colors text-gray-700"
             >
-              Features
-            </Link>
-            <Link 
-              to="/support" 
-              onClick={handleLinkClick}
-              className={isActive('/support') ? activeLinkStyle : baseLinkStyle}
-            >
-              Support
-            </Link>
-            <Link 
-              to="/help" 
-              onClick={handleLinkClick}
-              className={isActive('/help') ? activeLinkStyle : baseLinkStyle}
-            >
-              Help
-            </Link>
+              {isThreedEditor ? (
+                <Icon icon="lucide:layout" className="w-[1.1vw] h-[1.1vw] text-[#4A3AFF]" />
+              ) : (
+                <svg className="w-[1.1vw] h-[1.1vw]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {/* Top face (Red/Orange) */}
+                  <path d="M12 2L21.5 7.5L12 13L2.5 7.5L12 2Z" fill="#EC5137"/>
+                  {/* Left face (Blue/Purple) */}
+                  <path d="M2.5 7.5L12 13V24L2.5 18.5V7.5Z" fill="#4A3AFF"/>
+                  {/* Right face (Green) */}
+                  <path d="M21.5 7.5L12 13V24L21.5 18.5V7.5Z" fill="#22C55E"/>
+                </svg>
+              )}
+              <span className="font-medium text-[0.85vw] whitespace-nowrap">
+                {isThreedEditor ? "Go To Editor" : "Go to 3D Editor"}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -153,17 +176,26 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             </div>
           )}
 
+          {/* Device switcher moved to right section */}
+        </div>
+
+        {/* Right Section - Actions */}
+        <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
+
+
+
           {/* Device Switcher (Customized Editor only) */}
           {location.pathname.includes('customized_editor') && (
-            <div className="relative group/tooltip flex items-center" ref={deviceMenuRef}>
+            <div className="relative group/tooltip flex items-center mr-[0.5vw]" ref={deviceMenuRef}>
               <button
                 onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)}
-                className="flex items-center gap-[0.4vw] p-[0.6vw] px-[0.8vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
+                className="transition-all relative flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-[#D9D9D9] rounded-[0.5vw] text-gray-700 hover:bg-gray-50 cursor-pointer flex-shrink-0"
               >
                 {activeDevice === 'Desktop' && <Monitor size="1.2vw" />}
                 {activeDevice === 'Tablet' && <Tablet size="1.2vw" />}
                 {activeDevice === 'Mobile' && <Smartphone size="1.2vw" />}
                 <span className="font-medium text-[0.85vw]">{activeDevice}</span>
+                <div className="w-[1px] h-[1.2vw] bg-[#D9D9D9] mx-[0.2vw]"></div>
                 <ChevronDown size="1vw" className={`transition-transform duration-300 ${isDeviceMenuOpen ? 'rotate-180' : ''}`} />
               </button>
               
@@ -186,7 +218,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                           setActiveDevice('Mobile');
                           setIsDeviceMenuOpen(false);
                         }}
-                        className={`flex-1 flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Mobile' ? 'border-indigo-500 text-indigo-600 shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
+                        className={`flex-1 flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Mobile' ? 'border-[#EC5137] text-[#EC5137] shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
                       >
                         <Smartphone strokeWidth={1.5} className="w-[1.4vw] h-[1.4vw] mb-[0.3vw]" />
                         <span className="text-[0.75vw] font-medium">Mobile</span>
@@ -196,7 +228,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                           setActiveDevice('Tablet');
                           setIsDeviceMenuOpen(false);
                         }}
-                        className={`flex-1 flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Tablet' ? 'border-indigo-500 text-indigo-600 shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
+                        className={`flex-1 flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Tablet' ? 'border-[#EC5137] text-[#EC5137] shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
                       >
                         <Tablet strokeWidth={1.5} className="w-[1.4vw] h-[1.4vw] mb-[0.3vw]" />
                         <span className="text-[0.75vw] font-medium">Tablet</span>
@@ -208,7 +240,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                         setActiveDevice('Desktop');
                         setIsDeviceMenuOpen(false);
                       }}
-                      className={`w-full flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Desktop' ? 'border-indigo-500 text-indigo-600 shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
+                      className={`w-full flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Desktop' ? 'border-[#EC5137] text-[#EC5137] shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
                     >
                       <Monitor strokeWidth={1.5} className="w-[1.4vw] h-[1.4vw] mb-[0.3vw]" />
                       <span className="text-[0.75vw] font-medium">Desktop</span>
@@ -218,54 +250,43 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
               )}
             </div>
           )}
-        </div>
 
-        {/* Right Section - Actions */}
-        <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
-
-          {/* Action Button (Add 3D Model / Go To Editor) */}
-          <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-            <button 
-              onClick={() => {
-                if (hasUnsavedChanges) {
-                  if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
-                    return;
-                  }
-                }
-                navigate(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor');
-              }}
-              className={`flex items-center gap-[0.4vw] px-[1.2vw] cursor-pointer py-[0.6vw] text-white rounded-[0.5vw] transition-all duration-300 active:scale-95
-                ${isThreedEditor 
-                  ? 'bg-[#4A3AFF] shadow-[0_0_1.2vw_rgba(74,58,255,0.5)] hover:bg-[#3b2eff]' 
-                  : 'bg-[#f3b105] shadow-[0_0_1.2vw_rgba(243,177,5,0.5)] hover:bg-[#e5a600]'
-                }`}
-            >
-              <Icon icon={isThreedEditor ? "lucide:layout" : "ph:cube-bold"} className="w-[1.1vw] h-[1.1vw]" />
-              <span className="font-medium text-[0.85vw] whitespace-nowrap">
-                {isThreedEditor ? "Go To Editor" : "Add 3D Model"}
-              </span>
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-              <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-              <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                {isThreedEditor ? "Back to Editor" : "Add 3D Model"}
-              </div>
+          {/* Save & Toast Container */}
+          {location.pathname.includes('customized_editor') ? (
+            <div className="relative flex items-center ml-[0.2vw]">
+              <button 
+                disabled
+                className="transition-all relative flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-[#D9D9D9] rounded-[2vw] text-gray-700 cursor-default flex-shrink-0"
+              >
+                <Icon icon="reicon:tick-circle-filled" className="w-[1.2vw] h-[1.2vw] text-[#22c55e]" />
+                <span className="font-medium text-[0.85vw]">Saved</span>
+              </button>
             </div>
-          </div>
-
-          {/* Save & Toast Container (Hidden in Customized Editor) */}
-          {!location.pathname.includes('customized_editor') && (
+          ) : (
             <div className="relative group/tooltip flex items-center ml-[0.2vw]">
                 <button 
                   onClick={onSave}
                   disabled={!hasUnsavedChanges}
-                  className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm
-                    ${hasUnsavedChanges 
-                        ? 'bg-[#FFFBEB] text-yellow-600 cursor-pointer hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
-                        : 'bg-[#F2FDF8] text-green-600 cursor-default opacity-80 ring-[0.06vw] ring-green-300'
-                    }`}
+                  className={`transition-all relative flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-[#D9D9D9] rounded-[2vw] text-gray-700 flex-shrink-0 ${
+                    hasUnsavedChanges ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'
+                  }`}
                 >
-                  {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
+                  {isSaving ? (
+                    <>
+                      <Loader2 size="1.2vw" className="animate-spin text-yellow-500" />
+                      <span className="font-medium text-[0.85vw]">Saving</span>
+                    </>
+                  ) : hasUnsavedChanges ? (
+                    <>
+                      <Save size="1.2vw" className="text-yellow-500" />
+                      <span className="font-medium text-[0.85vw]">Save</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon icon="reicon:tick-circle-filled" className="w-[1.2vw] h-[1.2vw] text-[#22c55e]" />
+                      <span className="font-medium text-[0.85vw]">Saved</span>
+                    </>
+                  )}
                 </button>
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
                   <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
@@ -294,86 +315,20 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             </div>
           )}
 
-          {/* Share */}
-          <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-            <button 
-              onClick={() => setIsShareOpen(true)}
-              className={`p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ${isThreedEditor ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
-              disabled={isThreedEditor}
-            >
-              <Share2 size="1.2vw" />
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-              <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-              <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                Share
-              </div>
-            </div>
-          </div>
 
-          {/* Export */}
-          <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-            <button 
-              onClick={onExport}
-              disabled={isThreedEditor}
-              className={`p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ${
-                isThreedEditor 
-                  ? 'opacity-50 cursor-not-allowed pointer-events-none' 
-                  : ''
-              }`}
-            >
-              <Download size="1.2vw" />
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-              <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-              <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                Export
-              </div>
-            </div>
-          </div>
 
-          {/* Profile */}
-          <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-            <button 
-              onClick={() => setIsProfileOpen(true)}
-              className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
-            >
-              <User size="1.2vw" />
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-              <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-              <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                Profile
-              </div>
-            </div>
-          </div>
 
-          {/* Settings Button - In-between Profile and Preview (Hidden in Customized Editor) */}
-          {!isCustomizedEditor && (
-            <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-              <button 
-                onClick={() => setIsEditorSettingsOpen(true)}
-                className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
-              >
-                <Settings size="1.2vw" />
-              </button>
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-                <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-                <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                  Editor Settings
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* Preview Button - Hidden on 3D Editor */}
           {!isThreedEditor && (
             <div className="relative group/tooltip flex items-center ml-[0.2vw]">
               <button 
                 onClick={onPreview}
-                className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0"
+                className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-[#D9D9D9] rounded-[2vw] text-gray-700 hover:bg-gray-50 transition-colors flex-shrink-0"
               >
-                <Icon icon="ic:baseline-preview" className="w-[1.25vw] h-[1.25vw]" />
+                <Icon icon="carbon:view" className="w-[1.2vw] h-[1.2vw]" />
+                <span className="font-medium text-[0.85vw]">Preview</span>
               </button>
               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
                 <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
@@ -386,13 +341,13 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
 
           {/* Publish Split Button */}
           <div className="relative flex items-center ml-[0.5vw]">
-            <div className="flex items-center bg-[#00A58E] text-white rounded-[0.5vw] shadow-[0_0_1.2vw_rgba(0,165,142,0.5)]">
+            <div className="flex items-center bg-[#EC5137] text-white rounded-[0.5vw]">
               <div className="relative group/publish-tooltip flex items-center">
                 <button 
                   onClick={onPublish}
-                  className="flex items-center gap-[0.4vw] px-[1.2vw] py-[0.6vw] hover:bg-[#008A76] transition-all duration-300 active:scale-95 cursor-pointer rounded-l-[0.5vw]"
+                  className="flex items-center gap-[0.4vw] px-[0.9vw] py-[0.6vw] hover:bg-[#D5452E] transition-all duration-300 active:scale-95 cursor-pointer rounded-l-[0.5vw]"
                 >
-                  <Icon icon="lucide:upload" className="w-[1.1vw] h-[1.1vw]" />
+                  <Icon icon="entypo:publish" className="w-[1.1vw] h-[1.1vw]" />
                   <span className="font-medium text-[0.85vw] whitespace-nowrap">{(currentBook?.isPublished || currentBook?.published || currentBook?.is_published || currentBook?.status === 'publish' || currentBook?.meta?.isPublished) ? 'Unpublish' : 'Publish'}</span>
                 </button>
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/publish-tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
@@ -403,12 +358,12 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                 </div>
               </div>
               
-              <div className="w-[0.1vw] h-[1.5vw] bg-white/20"></div>
+              <div className="w-[1px] h-[1.3vw] bg-white/40"></div>
 
               <div className="relative group/chevron-tooltip flex items-center">
                 <button 
                   onClick={() => setIsPublishMenuOpen(!isPublishMenuOpen)}
-                  className="px-[0.6vw] py-[0.6vw] hover:bg-[#008A76] transition-all duration-300 active:scale-95 flex items-center justify-center border-l border-white/10 cursor-pointer rounded-r-[0.5vw]"
+                  className="px-[0.4vw] py-[0.6vw] hover:bg-[#D5452E] transition-all duration-300 active:scale-95 flex items-center justify-center cursor-pointer rounded-r-[0.5vw]"
                 >
                   <ChevronDown size="1.1vw" className={`transition-transform duration-300 ${isPublishMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -426,7 +381,29 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
             {isPublishMenuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setIsPublishMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-[0.6vw] bg-white border-[0.12vw] border-[#00A58E] shadow-xl rounded-[0.8vw] w-[11vw] z-50 overflow-hidden py-[0.4vw] animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 top-full mt-[0.6vw] bg-white border-[0.12vw] border-[#EC5137] shadow-xl rounded-[0.8vw] w-[11vw] z-50 overflow-hidden py-[0.4vw] animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button 
+                    onClick={() => {
+                      setIsPublishMenuOpen(false);
+                      setIsShareOpen(true);
+                    }}
+                    disabled={isThreedEditor}
+                    className={`w-full px-[1vw] py-[0.6vw] flex items-center justify-center gap-[0.5vw] text-gray-700 hover:bg-gray-50 transition-colors font-medium text-[0.8vw] cursor-pointer ${isThreedEditor ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <Share2 size="1vw" />
+                    <span>Share</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsPublishMenuOpen(false);
+                      if (onExport) onExport();
+                    }}
+                    disabled={isThreedEditor}
+                    className={`w-full px-[1vw] py-[0.6vw] flex items-center justify-center gap-[0.5vw] text-gray-700 hover:bg-gray-50 transition-colors font-medium text-[0.8vw] cursor-pointer ${isThreedEditor ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <Download size="1vw" />
+                    <span>Export</span>
+                  </button>
                   <button 
                     onClick={() => {
                       setIsPublishMenuOpen(false);
@@ -448,6 +425,47 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, onClearFlipbook, onDel
                 </div>
               </>
             )}
+          </div>
+
+          {/* Settings Button - In-between Profile and Preview (Hidden in Customized Editor) */}
+          {!isCustomizedEditor && (
+            <div className="relative group/tooltip flex items-center ml-[0.5vw]">
+              <button 
+                onClick={() => setIsEditorSettingsOpen(true)}
+                className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
+              >
+                <Settings size="1.2vw" />
+              </button>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
+                <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
+                <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                  Editor Settings
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Profile (Moved next to Publish) */}
+          <div className="relative group/tooltip flex items-center ml-[0.5vw]">
+            <button 
+              onClick={() => setIsProfileOpen(true)}
+              className="w-[2.4vw] h-[2.4vw] rounded-full overflow-hidden border-[0.1vw] border-gray-200 hover:border-gray-300 transition-colors flex items-center justify-center cursor-pointer flex-shrink-0"
+              style={{ backgroundColor: userProfile.picture ? 'transparent' : userProfile.avatarBgColor }}
+            >
+              {userProfile.picture ? (
+                <img src={userProfile.picture} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-semibold text-[1.1vw]">
+                  {userProfile.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
+              <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
+              <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                Profile
+              </div>
+            </div>
           </div>
         </div>
       </nav>

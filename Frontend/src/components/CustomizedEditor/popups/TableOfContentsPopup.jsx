@@ -95,7 +95,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) =>
         `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
 
-    const tocBgHex = layoutColorsArray.length > 0 ? layoutColorsArray.find(c => c && c.id === 'toc-bg')?.hex || '#575C9C' : '#575C9C';
+    const tocBgHex = layoutColorsArray.length > 0 ? layoutColorsArray.find(c => c && c.id === 'toc-bg')?.hex || '#555555' : '#555555';
     const tocTextHex = layoutColorsArray.length > 0 ? layoutColorsArray.find(c => c && c.id === 'toc-text')?.hex || '#FFFFFF' : '#FFFFFF';
     let bodyTextColor = isLightColor(tocBgHex) ? tocTextHex : tocBgHex;
     if (isLightColor(bodyTextColor)) {
@@ -193,7 +193,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 <svg width="100%" height="100%" viewBox="0 0 250 600" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
                                     <path
                                         d="M0 35C0 15 15 0 35 0C55 0 70 15 70 35V100C70 120 75 135 90 135H230C241.05 135 250 143.95 250 155V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V35Z"
-                                        fill={getLayoutColor('toc-bg', '#575C9C')}
+                                        fill={getLayoutColor('toc-bg', '#555555')}
                                         fillOpacity={getLayoutOpacity('toc-bg', '0.95')}
                                     />
                                 </svg>
@@ -306,8 +306,8 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         />
                                     </clipPath>
                                 </defs>
-                                <path d="M0 87C0 75.9543 8.95431 67 20 67H213V330C213 341.046 204.046 350 193 350H20C8.9543 350 0 341.046 0 330V87Z" fill={getLayoutColor('toc-bg', '#575C9C')} fillOpacity={getLayoutOpacity('toc-bg', '0.6')} />
-                                <path d="M146.818 33.0909C146.818 14.8153 161.633 0 179.909 0C198.185 0 213 14.8153 213 33.0909V67H122C140.752 67 146.818 52.7213 146.818 41.7377V33.0909Z" fill={getLayoutColor('toc-bg', '#575C9C')} fillOpacity={getLayoutOpacity('toc-bg', '0.6')} />
+                                <path d="M0 87C0 75.9543 8.95431 67 20 67H213V330C213 341.046 204.046 350 193 350H20C8.9543 350 0 341.046 0 330V87Z" fill={getLayoutColor('toc-bg', '#555555')} fillOpacity={getLayoutOpacity('toc-bg', '0.6')} />
+                                <path d="M146.818 33.0909C146.818 14.8153 161.633 0 179.909 0C198.185 0 213 14.8153 213 33.0909V67H122C140.752 67 146.818 52.7213 146.818 41.7377V33.0909Z" fill={getLayoutColor('toc-bg', '#555555')} fillOpacity={getLayoutOpacity('toc-bg', '0.6')} />
                             </svg>
                         </div>
 
@@ -354,11 +354,11 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                 className="flex items-center justify-between px-[1vw] py-[0.5vw] bg-white rounded-full cursor-pointer group shadow-sm transition-transform active:scale-95"
                                             >
                                                 <div className="flex items-center gap-[0.5vw] truncate">
-                                                    <span className="text-[0.88vw] font-medium tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
+                                                    <span className="text-[0.88vw] font-medium tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-bg', '#555555') }}>
                                                         {heading.title}
                                                     </span>
                                                 </div>
-                                                <span className="text-[0.85vw] font-medium tabular-nums transition-colors whitespace-nowrap shrink-0" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
+                                                <span className="text-[0.85vw] font-medium tabular-nums transition-colors whitespace-nowrap shrink-0" style={{ color: getLayoutColor('toc-bg', '#555555') }}>
                                                     {heading.page < 10 ? `0${heading.page}` : heading.page}
                                                 </span>
                                             </div>
@@ -375,10 +375,10 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                             }}
                                                             className="flex items-center justify-between px-[1vw] py-[0.4vw] ml-auto w-[85%] bg-white rounded-full cursor-pointer group shadow-sm transition-transform active:scale-95"
                                                         >
-                                                            <span className="text-[0.78vw] font-medium tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
+                                                            <span className="text-[0.78vw] font-medium tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-bg', '#555555') }}>
                                                                 {sub.title}
                                                             </span>
-                                                            <span className="text-[0.75vw] font-medium tabular-nums transition-colors whitespace-nowrap shrink-0" style={{ color: getLayoutColor('toc-bg', '#575C9C') }}>
+                                                            <span className="text-[0.75vw] font-medium tabular-nums transition-colors whitespace-nowrap shrink-0" style={{ color: getLayoutColor('toc-bg', '#555555') }}>
                                                                 {sub.page < 10 ? `0${sub.page}` : sub.page}
                                                             </span>
                                                         </div>
@@ -409,7 +409,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     className={`${isMobile && !isLandscape ? 'absolute right-4 top-[10%] bottom-0 w-[280px] rounded-t-[20px] shadow-2xl' : 'absolute ' + (isTablet ? 'right-[3.1vw] top-[1.5vh] w-[16vw]' : 'right-[4.5vw] top-[2vh] w-[18vw]') + ' bottom-0 rounded-t-[1.5vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]'} z-[1001] flex flex-col overflow-hidden border backdrop-blur-xl pointer-events-auto`}
                     style={{
                         backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
-                        borderColor: getLayoutColor('toc-text', '#575C9C') + '4D'
+                        borderColor: getLayoutColor('toc-text', '#555555') + '4D'
                     }}
                     onClick={(e) => e.stopPropagation()}
                     initial={{ y: '100%', opacity: 0 }}
@@ -417,9 +417,9 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     exit={{ y: '100%', opacity: 0 }}
                     transition={{ duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
                 >
-                    <div className={`${isMobile && !isLandscape ? 'h-[48px]' : (isTablet ? 'h-[7vh]' : 'h-[8vh]')} flex items-center justify-between px-[1.5vw] border-b shrink-0`} style={{ borderColor: getLayoutColor('toc-text', '#575C9C') + '33' }}>
-                        <span className={`${isMobile && !isLandscape ? 'text-[14px]' : (isTablet ? 'text-[0.85vw]' : 'text-[1.1vw]')} font-bold`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Table of Contents</span>
-                        <button onClick={onClose} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}>
+                    <div className={`${isMobile && !isLandscape ? 'h-[48px]' : (isTablet ? 'h-[7vh]' : 'h-[8vh]')} flex items-center justify-between px-[1.5vw] border-b shrink-0`} style={{ borderColor: getLayoutColor('toc-text', '#555555') + '33' }}>
+                        <span className={`${isMobile && !isLandscape ? 'text-[14px]' : (isTablet ? 'text-[0.85vw]' : 'text-[1.1vw]')} font-bold`} style={{ color: getLayoutColor('toc-text', '#555555') }}>Table of Contents</span>
+                        <button onClick={onClose} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.6 }}>
                             <Icon icon="lucide:x" className={`${isMobile && !isLandscape ? 'w-4 h-4' : (isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]')}`} />
                         </button>
                     </div>
@@ -433,17 +433,17 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                     borderColor: 'rgba(0,0,0,0.05)'
                                 }}
                             >
-                                <Icon icon="lucide:search" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.4 }} />
+                                <Icon icon="lucide:search" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.4 }} />
                                 <input
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search in TOC..."
                                     className={`bg-transparent border-0 outline-none focus:ring-0 ${isMobile && !isLandscape ? 'text-[11px]' : (isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]')} ml-[0.5vw] w-full font-sans`}
-                                    style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                    style={{ color: getLayoutColor('toc-text', '#555555') }}
                                 />
                                 {searchQuery && (
-                                    <button onClick={() => setSearchQuery('')} style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.4 }}>
+                                    <button onClick={() => setSearchQuery('')} style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.4 }}>
                                         <Icon icon="lucide:x" className="w-[0.8vw] h-[0.8vw]" />
                                     </button>
                                 )}
@@ -459,7 +459,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         <div key={idx} className="flex flex-col mb-[0.8vh]">
                                             <div
                                                 className={`flex items-center justify-between ${isMobile && !isLandscape ? 'py-1.5 px-2.5' : (isTablet ? 'py-[0.5vh] px-[0.6vw]' : 'py-[0.8vh] px-[0.8vw]')} hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group`}
-                                                style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                 onClick={() => { speakText(item.title); onNavigate && onNavigate(item.page - 1); onClose(); }}
                                             >
                                                 <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw]">
@@ -482,7 +482,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                         <div
                                                             key={sIdx}
                                                             className={`flex items-center justify-between ${isMobile && !isLandscape ? 'py-1 px-2.5 pl-6' : 'py-[0.6vh] px-[0.8vw] pl-[1.5vw]'} hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group`}
-                                                            style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                            style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                             onClick={() => { speakText(sub.title); onNavigate && onNavigate(sub.page - 1); onClose(); }}
                                                         >
                                                             <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw]">
@@ -507,8 +507,8 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-[10vh] opacity-30 select-none">
-                                    <Icon icon="ph:list-bullets-bold" className="w-[3vw] h-[3vw] mb-[1.5vh]" style={{ color: getLayoutColor('toc-icon', '#575C9C') }} />
-                                    <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>No Table of Contents</span>
+                                    <Icon icon="ph:list-bullets-bold" className="w-[3vw] h-[3vw] mb-[1.5vh]" style={{ color: getLayoutColor('toc-icon', '#555555') }} />
+                                    <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('toc-text', '#555555') }}>No Table of Contents</span>
                                 </div>
                             )}
                         </div>
@@ -527,7 +527,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                         {/* Header */}
                         <div
                             className="w-full px-3 py-2 flex items-center justify-between"
-                            style={{ backgroundColor: getLayoutColor('toc-bg', '#575C9C') }}
+                            style={{ backgroundColor: getLayoutColor('toc-bg', '#555555') }}
                         >
                             <h2 className="text-[12px] font-bold tracking-wide" style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>Table of Contents</h2>
                             <button onClick={onClose} className="hover:opacity-70 transition-opacity">
@@ -613,7 +613,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                         {/* Header */}
                         <div
                             className="w-full px-[0.8vw] py-[0.5vw] flex items-center justify-between"
-                            style={{ backgroundColor: getLayoutColor('toc-bg', '#575C9C') }}
+                            style={{ backgroundColor: getLayoutColor('toc-bg', '#555555') }}
                         >
                             <h2 className="text-[0.75vw] font-bold tracking-wide" style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>Table of Contents</h2>
                         </div>

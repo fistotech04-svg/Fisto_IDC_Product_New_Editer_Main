@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<video\b[^<]*(?:(?!<\/video>)<[^<]*)*<\/video>/gi, '<div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">Video</div>')
@@ -16,14 +16,14 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: 400px; height: 566px; position: relative; }
+                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: ${baseWidth}px; height: ${baseHeight}px; position: relative; }
                     * { box-sizing: border-box; }
                     ::-webkit-scrollbar { width: 0px; background: transparent; }
                     img { max-width: 100%; height: auto; display: block; }
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -31,20 +31,20 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <iframe
-                className="border-none pointer-events-none"
-                srcDoc={srcDoc}
-                title={`Thumb ${index}`}
-                loading="lazy"
-                style={{
-                    width: '400px',
-                    height: '566px',
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    backgroundColor: 'white'
-                }}
-            />
+        <div className="w-full h-full relative overflow-hidden bg-white">
+            <div className="absolute left-1/2 top-1/2" style={{ transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}>
+                <iframe
+                    className="border-none pointer-events-none"
+                    srcDoc={srcDoc}
+                    title={`Thumb ${index}`}
+                    loading="lazy"
+                    style={{
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
+                        backgroundColor: 'white'
+                    }}
+                />
+            </div>
         </div>
     );
 });
@@ -554,7 +554,7 @@ const Grid5Layout = ({
                                 <Icon
                                     icon="ph:magnifying-glass-bold"
                                     className={`${isMobileLandscape ? 'w-[0.6vw] h-[0.6vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'}`}
-                                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                                    style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                                 />
                                 <input
                                     type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -604,7 +604,7 @@ const Grid5Layout = ({
                                     }}
                                     placeholder="Quick Search..."
                                     className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
-                                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                                    style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                                 />
                             </div>
 
@@ -709,7 +709,7 @@ const Grid5Layout = ({
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
-                            style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#555555') }}
                             onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
                         >
                             <Icon icon="ph:caret-left" className={`${isMobileLandscape ? 'w-[1vw] h-[1vw]' : isTablet ? 'w-[1.5vw] h-[1.5vw]' : 'w-[2vw] h-[2vw]'} hover:-translate-x-1 transition-transform`} />
@@ -720,7 +720,7 @@ const Grid5Layout = ({
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
                             className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
-                            style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#555555') }}
                             onClick={() => bookRef.current?.pageFlip()?.flipNext()}
                         >
                             <Icon icon="ph:caret-right" className={`${isMobileLandscape ? 'w-[1vw] h-[1vw]' : isTablet ? 'w-[1.5vw] h-[1.5vw]' : 'w-[2vw] h-[2vw]'} hover:translate-x-1 transition-transform`} />
@@ -742,7 +742,7 @@ const Grid5Layout = ({
                     >
                         <span
                             className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.78vw]'} font-bold select-none whitespace-nowrap`}
-                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
+                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#555555') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                         >Page: </span>
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -775,7 +775,7 @@ const Grid5Layout = ({
                             className={`${isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.78vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-bold rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                             style={{
                                 width: `${String(pages.length).length + 1.2}ch`,
-                                color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
+                                color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#555555') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
                                 backgroundColor: currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.2),
                                 border: `1px solid ${currentPage === 0 ? getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2) : getLayoutColorAlpha('toolbar-text-main', '255, 255, 255', 0.3)}`
                             }}
@@ -796,7 +796,7 @@ const Grid5Layout = ({
                         />
                         <span
                             className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.78vw]'} font-bold select-none whitespace-nowrap`}
-                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
+                            style={{ color: currentPage === 0 ? getLayoutColor('toolbar-bg', '#555555') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1) }}
                         > / {totalPages}</span>
                     </div>
                 )}
@@ -895,25 +895,29 @@ const Grid5Layout = ({
                                             <div
                                                 className="flex justify-center overflow-hidden rounded-[0.3vw] shadow-inner"
                                                 style={{
-                                                    width: `${(400 * (isTablet ? 50 : 70) / 566) * 2 + 1}px`,
+                                                    width: `${((dimWidth || 400) * (isTablet ? 50 : 70) / (dimHeight || 566)) * progressHover.spread.pages.length}px`,
                                                     backgroundColor: '#f3f4f6'
                                                 }}
                                             >
-                                                <div className="flex gap-[1px] bg-gray-100 p-[1px]">
+                                                <div className="flex gap-0 bg-gray-100 justify-center w-full h-full">
                                                     {progressHover.spread.pages.map((page, pIdx) => {
+                                                        const pageWidth = dimWidth || 400;
+                                                        const pageHeight = dimHeight || 566;
                                                         const boxHeight = isTablet ? 50 : 70;
-                                                        const scale = boxHeight / 566;
-                                                        const boxWidth = 400 * scale;
+                                                        const scale = boxHeight / pageHeight;
+                                                        const boxWidth = pageWidth * scale;
                                                         return (
                                                             <div
                                                                 key={`${progressHover.spread.indices[0]}-${pIdx}`}
-                                                                className="bg-white overflow-hidden relative flex items-center justify-center border border-gray-100"
+                                                                className="bg-white overflow-hidden relative flex items-center justify-center border-0"
                                                                 style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
                                                             >
                                                                 <PageThumbnail
                                                                     html={page.html || page.content}
                                                                     index={progressHover.spread.indices[pIdx]}
                                                                     scale={scale}
+                                                                    baseWidth={pageWidth}
+                                                                    baseHeight={pageHeight}
                                                                 />
                                                             </div>
                                                         );
@@ -966,7 +970,7 @@ const Grid5Layout = ({
                             {showTOC && (
                                 <>
                                     <div
-                                        className={`magazine-popup absolute ${isTablet ? 'bottom-[2.8vw] -translate-x-[20%]' : 'bottom-[3.2vw] -translate-x-[15%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
+                                        className={`magazine-popup absolute left-1/2 ${isTablet ? 'bottom-[2.8vw] -translate-x-[20%]' : 'bottom-[3.2vw] -translate-x-[15%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <div className="relative">
@@ -1172,7 +1176,7 @@ const Grid5Layout = ({
                             showGalleryPopup
                         )}
                         {/* Music */}
-                        <div className="relative">
+                        <div className="relative" id="layout5-sound-anchor">
                             {(settings?.media?.backgroundAudio ?? true) && renderToolbarBtn(
                                 <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[0.75vw] h-[0.75vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : (isSidebarOpen ? 'w-[1.15vw] h-[1.15vw]' : 'w-[1.3vw] h-[1.3vw]')}`} />,
                                 'Music',
@@ -1211,7 +1215,7 @@ const Grid5Layout = ({
                             {showProfilePopup && (
                                 <>
                                     <div
-                                        className={`absolute ${isTablet ? 'bottom-[2.8vw] -translate-x-[75%]' : 'bottom-[3.2vw] -translate-x-[80%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
+                                        className={`absolute left-1/2 ${isTablet ? 'bottom-[2.8vw] -translate-x-[75%]' : 'bottom-[3.2vw] -translate-x-[80%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <div className="relative">
@@ -1409,7 +1413,7 @@ const Grid5Layout = ({
                             className={`${isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.25vw]' : 'text-[0.8vw] px-[1vw] py-[0.4vw]'} font-bold rounded-[0.8vw] hover:brightness-90 transition-all shadow-sm`}
                             style={{
                                 backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', 1),
-                                color: getLayoutColor('bottom-toolbar-bg', '#575C9C')
+                                color: getLayoutColor('bottom-toolbar-bg', '#555555')
                             }}
                         >
                             Reset
@@ -1424,10 +1428,11 @@ const Grid5Layout = ({
                 <>
                     {/* Main Container - Rounded Capsule */}
                     <div
-                        className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-1/2 -translate-x-1/2 w-fit max-w-[47.3vw] ${spreads.length === 1 ? 'rounded-[0.8vw]' : 'rounded-full'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
+                        className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-1/2 -translate-x-1/2 w-fit ${spreads.length === 1 ? 'rounded-[0.8vw]' : 'rounded-full'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
                         style={{
                             backgroundColor: '#FFFFFF',
-                            borderColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1)
+                            borderColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1),
+                            maxWidth: typeof window !== 'undefined' ? `calc(${48 * ((dimWidth || 400) / (dimHeight || 566))}vw + ${2.9 + (canScrollLeft ? 3.5 : 1.5) + (canScrollRight ? 3.5 : 1.5)}vw)` : '47.3vw'
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -1455,40 +1460,41 @@ const Grid5Layout = ({
                                 {spreads.map((spread, idx) => {
                                     const isSelected = spread.indices.includes(currentPage);
 
+                                    const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                    const pageWidth = dimWidth || 400;
+                                    const pageHeight = dimHeight || 566;
+                                    const availableHeightVw = 4;
+                                    const availableHeightPx = availableHeightVw * vw;
+                                    const thumbScale = availableHeightPx / pageHeight;
+                                    const scaledWidthPx = pageWidth * thumbScale;
+                                    const totalWidthPx = scaledWidthPx * 2;
+
                                     return (
                                         <div
                                             key={idx}
                                             className="thumbnail-item relative flex flex-col items-center shrink-0 cursor-pointer transition-all duration-300 group"
-                                            style={{ width: '6.5vw' }}
+                                            style={{ width: `${totalWidthPx}px` }}
                                             onClick={() => onPageClick(spread.indices[0])}
                                         >
                                             {/* Thumbnail Container with Theme-based Border */}
                                             <div
-                                                className="w-full h-[4vw] bg-white border-[1.2px] transition-all rounded-[0.1vw] overflow-hidden relative"
+                                                className="w-full bg-white border-[1.2px] transition-all rounded-[0.1vw] overflow-hidden relative"
                                                 style={{
+                                                    height: `${availableHeightVw}vw`,
                                                     borderColor: getLayoutColorRgba('dropdown-text', '87, 92, 156', 1)
                                                 }}
                                             >
                                                 <div className="flex w-full h-full gap-0 bg-white justify-center relative">
                                                     {spread.pages.map((page, pIdx) => {
-                                                        const pageWidth = 400;
-                                                        const pageHeight = 566;
-                                                        const availableWidth = 3.25 * (window.innerWidth / 100);
-                                                        const availableHeight = 4 * (window.innerWidth / 100);
-                                                        const thumbScale = Math.min(availableWidth / pageWidth, availableHeight / pageHeight) * 0.95;
-
                                                         return (
-                                                            <div key={`${idx}-${pIdx}`} className="flex-1 max-w-[50%] bg-white overflow-hidden relative flex items-center justify-center">
+                                                            <div key={`${idx}-${pIdx}`} className="bg-white overflow-hidden relative flex items-center justify-center" style={{ width: `${scaledWidthPx}px` }}>
                                                                 <PageThumbnail
                                                                     html={page.html || page.content}
                                                                     index={spread.indices[pIdx]}
                                                                     scale={thumbScale}
+                                                                    baseWidth={pageWidth}
+                                                                    baseHeight={pageHeight}
                                                                 />
-                                                                {/* Simple Page Fold/Curl Effect for Visual Match */}
-                                                                {pIdx === 1 && (
-                                                                    <div className="absolute top-0 right-0 w-[0.8vw] h-[0.8vw] bg-white shadow-[-1px_1px_2px_rgba(0,0,0,0.1)] z-10"
-                                                                        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%)', transform: 'rotate(180deg)' }} />
-                                                                )}
                                                             </div>
                                                         );
                                                     })}

@@ -273,7 +273,7 @@ export const DraggableSpan = ({ label, value, onChange, min = 0, max = 100, clas
 };
 
 export const solidPalette = [
-    '#DADBE8','#ffe0ffff','#FFD1DC',  '#F8C8DC','#FFB7C5','#FFFACD', '#FFF4B5',
+    '#D9D9D9','#ffe0ffff','#FFD1DC',  '#F8C8DC','#FFB7C5','#FFFACD', '#FFF4B5',
     '#FFE5B4', '#FFD8B1', '#FFCBA4',
       '#e0ffd0ff','#c9fcceff','#C1F0C1',
       '#dceaf8ff', '#B3E5FC',

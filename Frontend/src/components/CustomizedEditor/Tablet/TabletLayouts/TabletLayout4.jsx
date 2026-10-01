@@ -183,7 +183,7 @@ const TabletLayout4 = ({
             {/* Top Navigation Bar */}
             <div 
                 className="flex items-center justify-between px-[2cqw] py-[0.5cqh] shrink-0 w-full z-50 shadow-md h-[7cqh]" 
-                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}
             >
                 <div className="flex items-center w-[25cqw]">
                     {settings?.brandingProfile?.logo && logoSettings?.src && (
@@ -205,7 +205,7 @@ const TabletLayout4 = ({
                 <div className="flex items-center justify-end w-[20cqw]">
                     {(settings?.interaction?.search ?? true) && (
                         <div className="flex items-center px-[1cqw] py-[0.4cqh] rounded-[0.5cqw] shadow-inner w-full" style={{ backgroundColor: getLayoutColor('search-bg-v2', '#E0E3F5') }}>
-                            <Icon icon="lucide:search" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
+                            <Icon icon="lucide:search" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('search-text-v1', '#555555') }} />
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                 value={localSearchQuery}
@@ -213,7 +213,7 @@ const TabletLayout4 = ({
                                 onKeyDown={handleSearchKeyDown}
                                 placeholder="Quick Search..."
                                 className="bg-transparent border-0 outline-none ml-[0.8cqw] w-full text-[1.5cqw] font-medium"
-                                style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
+                                style={{ color: getLayoutColor('search-text-v1', '#555555') }}
                             />
                         </div>
                     )}
@@ -226,7 +226,7 @@ const TabletLayout4 = ({
                 {/* Left Sidebar */}
                 <div 
                     className="w-[6cqw] flex flex-col items-center pt-[4cqh] pb-[2cqh] gap-[4cqh] shrink-0 shadow-lg z-40"
-                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}
                 >
                     {(settings?.navigation?.tableOfContents ?? true) && (
                         <SidebarButton 
@@ -320,12 +320,12 @@ const TabletLayout4 = ({
                             onClick={(e) => e.stopPropagation()}
                         >
                             <div className="flex items-center justify-between p-[2cqw] pb-[1cqw]">
-                                <h2 className="text-[1.8cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Thumbnail</h2>
-                                <button onClick={() => setShowThumbnailBarMemo(false)} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                                <h2 className="text-[1.8cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Thumbnail</h2>
+                                <button onClick={() => setShowThumbnailBarMemo(false)} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                                     <Icon icon="lucide:x" className="w-[2cqw] h-[2cqw]" />
                                 </button>
                             </div>
-                            <div className="h-[1px] w-full mb-[1cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.1 }}></div>
+                            <div className="h-[1px] w-full mb-[1cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#555555'), opacity: 0.1 }}></div>
 
                             <div className="flex-1 overflow-y-auto px-[2cqw] pb-[2cqw]" style={{ scrollbarWidth: 'thin', scrollbarColor: 'darkgray transparent' }}>
                                 <div className="flex flex-col gap-[2cqw]">
@@ -344,16 +344,16 @@ const TabletLayout4 = ({
                                                     }
                                                 }}
                                             >
-                                                <div className={`relative overflow-hidden w-[20cqw] h-[14cqw] border ${isActive ? 'shadow-lg' : 'shadow-md'}`} style={{ backgroundColor: getLayoutColor('thumbnail-outer-v2', '#FFFFFF'), borderColor: isActive ? getLayoutColor('dropdown-text', '#575C9C') : 'rgba(0,0,0,0.1)' }}>
+                                                <div className={`relative overflow-hidden w-[20cqw] h-[14cqw] border ${isActive ? 'shadow-lg' : 'shadow-md'}`} style={{ backgroundColor: getLayoutColor('thumbnail-outer-v2', '#FFFFFF'), borderColor: isActive ? getLayoutColor('dropdown-text', '#555555') : 'rgba(0,0,0,0.1)' }}>
                                                     <div className="flex w-full h-full gap-[1px] justify-center" style={{ backgroundColor: getLayoutColor('thumbnail-inner-v2', '#F3F4F6') }}>
                                                         {spread.pages.map((page, pIdx) => (
-                                                            <div key={pIdx} className="flex-1 max-w-[50%] h-full relative border-r last:border-r-0 overflow-hidden flex items-center justify-center" style={{ backgroundColor: getLayoutColor('thumbnail-outer-v2', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '87,92,156', 0.1) }}>
+                                                            <div key={pIdx} className="flex-1 max-w-[50%] h-full relative border-r last:border-r-0 overflow-hidden flex items-center justify-center" style={{ backgroundColor: getLayoutColor('thumbnail-outer-v2', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '85,85,85', 0.1) }}>
                                                                 <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={0.14} />
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <span className={`mt-[1cqw] text-[1.4cqw] ${isActive ? 'font-bold' : 'font-medium'}`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                                                <span className={`mt-[1cqw] text-[1.4cqw] ${isActive ? 'font-bold' : 'font-medium'}`} style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                                                     {spread.label}
                                                 </span>
                                             </div>
@@ -371,7 +371,7 @@ const TabletLayout4 = ({
                             profileSettings={profileSettings}
                             layoutColors={settings?.layoutColors}
                             handleContactClick={handleContactClick}
-                            fallbackText="#575C9C"
+                            fallbackText="#555555"
                             onClose={() => setShowProfilePopup(false)}
                         />
                     )}
@@ -380,7 +380,7 @@ const TabletLayout4 = ({
                     <button 
                         onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
                         className={`absolute left-[4cqw] w-[4cqw] h-[4cqw] rounded-full flex items-center justify-center transition-all z-10 shadow-lg ${currentPage === 0 ? 'opacity-40 cursor-not-allowed' : 'opacity-100 hover:scale-105 cursor-pointer'}`}
-                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}
                         disabled={currentPage === 0}
                     >
                         <Icon icon="mdi:chevron-left" className="w-[2.5cqw] h-[2.5cqw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }} />
@@ -398,7 +398,7 @@ const TabletLayout4 = ({
                     <button 
                         onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
                         className={`absolute right-[4cqw] w-[4cqw] h-[4cqw] rounded-full flex items-center justify-center transition-all z-10 shadow-lg ${currentPage >= pagesCount - 1 ? 'opacity-40 cursor-not-allowed' : 'opacity-100 hover:scale-105 cursor-pointer'}`}
-                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}
                         disabled={currentPage >= pagesCount - 1}
                     >
                         <Icon icon="mdi:chevron-right" className="w-[2.5cqw] h-[2.5cqw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }} />
@@ -409,7 +409,7 @@ const TabletLayout4 = ({
             {/* Bottom Toolbar */}
             <div 
                 className="flex items-center justify-between px-[2cqw] py-[0.5cqh] shrink-0 w-full z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] h-[7cqh]"
-                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
+                style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}
             >
                 <div className="flex items-center gap-[2cqw] w-[15cqw] ml-[4cqw]">
                     <button onClick={() => onPageClick(0)} className="transition-colors hover:opacity-80" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
@@ -433,7 +433,7 @@ const TabletLayout4 = ({
                 </div>
 
                 <div className="flex items-center justify-end w-[25cqw]">
-                    <div className="flex items-center rounded-[0.8cqw] overflow-hidden" style={{ backgroundColor: getLayoutColor('reset-bg', '#E5E7EB'), color: getLayoutColor('reset-text', '#575C9C') }}>
+                    <div className="flex items-center rounded-[0.8cqw] overflow-hidden" style={{ backgroundColor: getLayoutColor('reset-bg', '#E5E7EB'), color: getLayoutColor('reset-text', '#555555') }}>
                         <button 
                             onClick={() => setCurrentZoom?.(Math.max(0.5, (currentZoom || 1) - 0.1))} 
                             className="p-[0.5cqw] transition-colors hover:opacity-80"
@@ -452,7 +452,7 @@ const TabletLayout4 = ({
                         <button 
                             onClick={() => setCurrentZoom?.(1)}
                             className="px-[1cqw] py-[0.5cqh] text-[1.6cqw] transition-colors font-medium"
-                            style={{ borderLeft: `1px solid ${getLayoutColorAlpha('reset-text', '87,92,156', 0.2)}` }}
+                            style={{ borderLeft: `1px solid ${getLayoutColorAlpha('reset-text', '85,85,85', 0.2)}` }}
                         >
                             Reset
                         </button>
@@ -462,7 +462,7 @@ const TabletLayout4 = ({
             
             {/* Page Number absolute positioned on canvas as shown in screenshot */}
             <div className="absolute left-[10cqw] bottom-[10cqh] z-20 pointer-events-none">
-                <div className="px-[2cqw] py-[1cqh] rounded-[1cqw] text-[1.8cqw] font-semibold" style={{ backgroundColor: getLayoutColorAlpha('page-number-bg', '0,0,0', 0.1), color: getLayoutColor('page-number-text', '#575C9C'), backdropFilter: 'blur(8px)' }}>
+                <div className="px-[2cqw] py-[1cqh] rounded-[1cqw] text-[1.8cqw] font-semibold" style={{ backgroundColor: getLayoutColorAlpha('page-number-bg', '0,0,0', 0.1), color: getLayoutColor('page-number-text', '#555555'), backdropFilter: 'blur(8px)' }}>
                     Page {currentPage + 1} / {pagesCount}
                 </div>
             </div>

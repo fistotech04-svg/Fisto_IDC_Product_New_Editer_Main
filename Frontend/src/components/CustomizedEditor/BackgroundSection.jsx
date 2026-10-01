@@ -710,8 +710,8 @@ const BackgroundSection = ({
   useEffect(() => {
     if (bgStyle === 'Gradient' && (!backgroundSettings.gradientStops || backgroundSettings.gradientStops.length === 0)) {
       const stops = [
-        { color: '#63D0CD', offset: 0, opacity: 100 },
-        { color: '#4B3EFE', offset: 100, opacity: 100 }
+        { color: '#FFFFFF', offset: 0, opacity: 100 },
+        { color: '#D1D5DB', offset: 100, opacity: 100 }
       ];
       onUpdateBackground({
         ...backgroundSettings,
@@ -791,8 +791,8 @@ const BackgroundSection = ({
 
   const resetGradient = () => {
     const newStops = [
-      { color: '#63D0CD', offset: 0, opacity: 100 },
-      { color: '#4B3EFE', offset: 100, opacity: 100 }
+      { color: '#FFFFFF', offset: 0, opacity: 100 },
+      { color: '#D1D5DB', offset: 100, opacity: 100 }
     ];
     const gradient = generateGradientString('Linear', newStops, 0, 100);
     onUpdateBackground({
@@ -1167,7 +1167,7 @@ const BackgroundSection = ({
                 onUpdateBackground(updates);
               }}
               className={`pb-[1vw] pt-[0.5vw] mb-[-0.15vw] mt-[0.5vw] text-[0.85vw] font-medium transition-all border-b-[0.15vw] flex-1 ${activeTab === tab
-                  ? 'text-gray-900 border-gray-900'
+                  ? 'text-gray-900 border-[#EC5137]'
                   : 'text-gray-400 border-transparent hover:text-gray-600'
                 }`}
             >
@@ -1181,16 +1181,17 @@ const BackgroundSection = ({
         <div className="flex flex-col gap-[0.5vw] mt-[0.5vw]">
           {/* Style Tabs (Solid, Gradient, Media) */}
           <div className="flex items-center justify-between gap-[0.5vw] w-full">
-            {['Solid', 'Gradient', 'Media'].map((styleLabel) => {
-              const isSelected = styleLabel === 'Media'
+            {['Solid Color', 'Gradient', 'Image'].map((styleLabel) => {
+              const mappedStyle = styleLabel === 'Solid Color' ? 'Solid' : styleLabel === 'Image' ? 'Media' : styleLabel;
+              const isSelected = mappedStyle === 'Media'
                 ? bgStyle === 'Media'
-                : bgStyle === styleLabel;
+                : bgStyle === mappedStyle;
               return (
                 <button
                   key={styleLabel}
-                  onClick={() => handleStyleChange(styleLabel)}
-                  className={`flex-1 py-[0.59vw] text-[0.80vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${isSelected
-                      ? 'bg-white text-gray-900 shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
+                  onClick={() => handleStyleChange(mappedStyle)}
+                  className={`flex-1 py-[0.45vw] text-[0.88vw] font-semibold rounded-[0.5vw] transition-all border border-transparent ${isSelected
+                      ? 'bg-white text-[#EC5137] shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)]'
                       : 'bg-white text-gray-400 shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
                     }`}
                 >
@@ -1499,14 +1500,19 @@ const BackgroundSection = ({
                         }}
                       />
                       <div
-                        className="flex-1 h-[2.25vw] border border-gray-600 rounded-[0.5vw] flex items-center px-[0.75vw] justify-start bg-white cursor-pointer hover:border-indigo-400 transition-colors"
-                        onClick={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setPickerPos({ x: rect.left - 0, y: rect.top - 0 });
-                          openGradientStopPicker(idx);
-                        }}
+                        className="flex-1 h-[2.25vw] border border-gray-600 rounded-[0.5vw] flex items-center px-[0.75vw] justify-start bg-white hover:border-indigo-400 transition-colors"
                       >
-                        <span className="text-[0.85vw] font-medium text-gray-700 font-mono">{stop.color.toUpperCase()}</span>
+                        <input
+                          type="text"
+                          value={stop.color.toUpperCase()}
+                          onChange={(e) => {
+                            let newHex = e.target.value;
+                            if (!newHex.startsWith('#')) newHex = '#' + newHex;
+                            const validHex = newHex.slice(0, 9);
+                            updateGradientStop(idx, { color: validHex });
+                          }}
+                          className="text-[0.85vw] font-medium text-gray-700 font-mono bg-transparent outline-none w-full"
+                        />
                       </div>
                       <button onClick={() => removeGradientStop(idx)} className="w-[2.25vw] h-[2.25vw] flex items-center justify-center border border-red-500 rounded-[0.5vw] text-red-500 hover:bg-red-50 transition-colors">
                         <Minus size="1.2vw" />

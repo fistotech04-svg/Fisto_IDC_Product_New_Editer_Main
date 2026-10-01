@@ -189,10 +189,10 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                 {/* Left: Search Bar */}
                 <div className="flex-none flex items-center h-full py-[1.2cqw]">
                     <div className="relative w-[18cqw] h-[70%] rounded-full flex items-center px-[1cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
-                        <Icon icon="lucide:search" className="w-[1.2cqw] h-[1.2cqw]" style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }} />
+                        <Icon icon="lucide:search" className="w-[1.2cqw] h-[1.2cqw]" style={{ color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' }} />
                         <style>{`
                             .tablet-layout3-search::placeholder {
-                                color: ${getLayoutColor('search-text-v1', '#575C9C')} !important;
+                                color: ${getLayoutColor('search-text-v1', '#555555')} !important;
                                 opacity: var(--search-text-v1-opacity, 1);
                             }
                         `}</style>
@@ -200,7 +200,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                             type="text"
                             placeholder="Quick Search..."
                             className="tablet-layout3-search bg-transparent border-none outline-none w-full h-full text-[1cqw] ml-[0.6cqw] font-medium"
-                            style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                            style={{ color: getLayoutColor('search-text-v1', '#555555'), opacity: 'var(--search-text-v1-opacity, 1)' }}
                         />
                     </div>
                 </div>
@@ -317,7 +317,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         {spreads.length > 6 && (
                             <button
                                 className={`flex items-center justify-center shrink-0 transition-opacity z-20 px-[0.5cqw] ${canScrollLeft ? 'opacity-100 cursor-pointer' : 'opacity-30 cursor-default'}`}
-                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                 onClick={(e) => { e.stopPropagation(); if (canScrollLeft) scroll('left'); }}
                             >
                                 <Icon icon="lucide:chevron-left" className="w-[2cqw] h-[2cqw]" />
@@ -344,8 +344,8 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                                         className={`thumbnail-item flex flex-col items-center shrink-0 cursor-pointer rounded-[0.8cqw] p-[0.4cqw] border-[0.3cqw] transition-all gap-[0.3cqw]`}
                                         style={{
                                             width: '10cqw',
-                                            borderColor: isActive ? getLayoutColor('dropdown-text', '#575C9C') : 'transparent',
-                                            backgroundColor: isActive ? getLayoutColor('dropdown-text', '#575C9C') : 'transparent'
+                                            borderColor: isActive ? getLayoutColor('dropdown-text', '#555555') : 'transparent',
+                                            backgroundColor: isActive ? getLayoutColor('dropdown-text', '#555555') : 'transparent'
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -378,7 +378,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                                         <div className="w-full flex-1 flex items-center justify-center">
                                             <span
                                                 className={`text-[0.95cqw] font-bold tracking-tight pb-[0.2cqw]`}
-                                                style={{ color: isActive ? getLayoutColor('dropdown-bg', '#FFFFFF') : getLayoutColor('dropdown-text', '#575C9C') }}
+                                                style={{ color: isActive ? getLayoutColor('dropdown-bg', '#FFFFFF') : getLayoutColor('dropdown-text', '#555555') }}
                                             >
                                                 {spread.label}
                                             </span>
@@ -391,7 +391,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                         {spreads.length > 6 && (
                             <button
                                 className={`flex items-center justify-center shrink-0 transition-opacity z-20 px-[0.5cqw] ${canScrollRight ? 'opacity-100 cursor-pointer' : 'opacity-30 cursor-default'}`}
-                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                 onClick={(e) => { e.stopPropagation(); if (canScrollRight) scroll('right'); }}
                             >
                                 <Icon icon="lucide:chevron-right" className="w-[2cqw] h-[2cqw]" />
@@ -452,7 +452,7 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
                 <div className="flex items-center justify-between w-full -mt-[0.5cqw]">
                     {/* Left: Page Info */}
-                    <div className="px-[1.2cqw] pb-[0.5cqw] pt-[0.3cqw] rounded-[0.4cqw] text-[1cqw] font-semibold shadow-sm translate-y-[0.2cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'), color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                    <div className="px-[1.2cqw] pb-[0.5cqw] pt-[0.3cqw] rounded-[0.4cqw] text-[1cqw] font-semibold shadow-sm translate-y-[0.2cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'), color: getLayoutColor('search-text-v1', '#555555') }}>
                         Page {displayPage} / {totalPages}
                     </div>
 
@@ -498,11 +498,11 @@ const TabletLayout3 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
 
                     {/* Right: Zoom Controls */}
                     <div className=" rounded-[0.5cqw] flex items-center px-[0.8cqw] py-[0.3cqw] gap-[0.8cqw] shadow-sm translate-y-[0.2cqw]" style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
-                        <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                        <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#555555') }}>
                             <Icon icon="fluent:zoom-out-24-regular" className="w-[1.4cqw] h-[1.4cqw]" />
                         </button>
-                        <span className="text-[1cqw] font-semibold min-w-[3cqw] text-center" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>100%</span>
-                        <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                        <span className="text-[1cqw] font-semibold min-w-[3cqw] text-center" style={{ color: getLayoutColor('search-text-v1', '#555555') }}>100%</span>
+                        <button className="hover:opacity-80 transition-opacity" style={{ color: getLayoutColor('search-text-v1', '#555555') }}>
                             <Icon icon="fluent:zoom-in-24-regular" className="w-[1.4cqw] h-[1.4cqw]" />
                         </button>
                         <button className="px-[1cqw] py-[0.3cqw] rounded-[0.4cqw] text-[0.9cqw] font-semibold hover:opacity-90 transition-colors ml-[0.2cqw]"

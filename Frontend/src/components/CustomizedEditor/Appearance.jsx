@@ -18,7 +18,8 @@ const Appearance = ({
   pages,
   folder,
   flipbookName,
-  v_id
+  v_id,
+  onTocSettingsClick
 }) => {
   return (
     <div className="flex flex-col h-full bg-white font-sans relative">
@@ -32,11 +33,11 @@ const Appearance = ({
       <div className="h-[7.5vh] flex items-center justify-between px-[1.2vw] border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center gap-[0.75vw] text-gray-800">
           <Icon 
-            icon={activeSub === 'bookappearance' ? 'lucide:settings-2' : activeSub === 'background' ? 'mdi:texture' : 'lucide:layout-panel-left'} 
+            icon={activeSub === 'bookappearance' ? 'basil:book-open-outline' : activeSub === 'background' ? 'fa6-regular:image' : 'lucide:layout-panel-left'} 
             className="w-[1.2vw] h-[1.2vw] text-black" 
           />
           <h2 className="text-[1vw] font-semibold text-gray-900">
-            {activeSub === 'background' ? 'Background' : activeSub === 'layout' ? 'Layout' : 'Book Appearance'}
+            {activeSub === 'background' ? 'Background' : activeSub === 'layout' ? 'Layout Design' : 'Book Appearance'}
           </h2>
         </div>
         <button 
@@ -68,6 +69,7 @@ const Appearance = ({
             onUpdateLayout={onUpdateLayout}
             layoutColors={layoutColors}
             onUpdateLayoutColors={onUpdateLayoutColors}
+            onTocSettingsClick={onTocSettingsClick}
           />
         ) : (
           <div className="p-12 flex flex-col items-center justify-center text-center gap-4 text-gray-400">

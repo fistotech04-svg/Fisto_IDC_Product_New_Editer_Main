@@ -79,7 +79,7 @@ const ToolbarBtn = ({ icon, label, onClick, bg, color }) => (
         onClick={onClick}
         className="flex items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95 shadow-sm"
         title={label}
-        style={{ backgroundColor: bg || '#575C9C', color: color || 'white', width: '3cqw', height: '3cqw' }}
+        style={{ backgroundColor: bg || '#555555', color: color || 'white', width: '3cqw', height: '3cqw' }}
     >
         <Icon icon={icon} className="w-[1.6cqw] h-[1.6cqw]" />
     </button>
@@ -213,7 +213,7 @@ const TabletLayout8 = ({
     };
 
     const totalPages = pagesCount;
-    const primaryColor = getLayoutColor('toolbar-bg', '#575C9C');
+    const primaryColor = getLayoutColor('toolbar-bg', '#555555');
     const secondaryColor = '#FFFFFF';
 
     return (
@@ -240,7 +240,7 @@ const TabletLayout8 = ({
                             <Icon
                                 icon="ph:magnifying-glass-regular"
                                 className="w-[1.6cqw] h-[1.6cqw]"
-                                style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
+                                style={{ color: getLayoutColor('search-text-v1', '#555555') }}
                             />
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -451,7 +451,7 @@ const TabletLayout8 = ({
                         profileSettings={profileSettings}
                         layoutColors={settings?.layoutColors}
                         handleContactClick={handleContactClick}
-                        fallbackText="#575C9C"
+                        fallbackText="#555555"
                         onClose={() => setShowProfilePopup(false)}
                     />
                 )}

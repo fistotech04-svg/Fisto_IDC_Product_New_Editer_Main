@@ -102,7 +102,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
             return `var(--${id}, ${defaultColor})`;
         };
 
-        const bgColor = getLayout8Color('toc-bg', '#575C9C');
+        const bgColor = getLayout8Color('toc-bg', '#555555');
         const textColor = getLayout8Color('toc-text', '#FFFFFF');
 
         return (
@@ -175,8 +175,8 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
     }
 
     if (isLayout7) {
-        const bgColor = getLayoutColor('toc-bg', '#575C9C');
-        const textColor = getLayoutColor('toc-text', '#575C9C');
+        const bgColor = getLayoutColor('toc-bg', '#555555');
+        const textColor = getLayoutColor('toc-text', '#555555');
 
         return (
             <div className="absolute inset-0 z-50 pointer-events-none flex items-end justify-start pb-[14%] pl-[24%]">
@@ -206,7 +206,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="w-full rounded-[0.4cqw] pl-[2.6cqw] pr-[1cqw] py-[0.6cqw] text-[1.1cqw] outline-none border transition-colors bg-white"
-                                    style={{ borderColor: getLayoutColorAlpha('toc-text', '87,92,156', 0.2), color: textColor }}
+                                    style={{ borderColor: getLayoutColorAlpha('toc-text', '85,85,85', 0.2), color: textColor }}
                                 />
                             </div>
                         )}
@@ -289,12 +289,12 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                 <div className={isLayout5 ? "flex items-center justify-between mb-[1.5cqw]" : (isLayout4 || isLayout6 || isLayout6) ? "flex items-center justify-between p-[2cqw] pb-[1cqw]" : isLayout3 ? "mb-[1.5cqw]" : isLayout2 ? "flex items-center mb-[1.5cqw]" : "flex-none text-center mb-[1cqw] pt-[2cqw]"}>
                     <h2
                         className={isLayout5 ? "text-[1.5cqw] font-bold" : (isLayout4 || isLayout6 || isLayout6) ? "text-[1.8cqw] font-bold" : isLayout3 ? "text-[1.3cqw] font-bold" : isLayout2 ? "text-[1.4cqw] font-bold text-white mr-[1cqw]" : "text-[1.8cqw] font-bold mb-[1cqw] text-white px-[2cqw]"}
-                        style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#575C9C') } : {}}
+                        style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#555555') } : {}}
                     >
                         Table of Contents
                     </h2>
                     {(isLayout4 || isLayout6 || isLayout6) && (
-                        <button onClick={onClose} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
+                        <button onClick={onClose} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('toc-text', '#555555') }}>
                             <Icon icon="lucide:x" className="w-[2cqw] h-[2cqw]" />
                         </button>
                     )}
@@ -306,7 +306,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                         )
                     )}
                 </div>
-                {(isLayout4 || isLayout6 || isLayout6) && <div className="h-[1px] w-full mb-[1.5cqw]" style={{ backgroundColor: getLayoutColorAlpha('toc-text', '87,92,156', 0.1) }}></div>}
+                {(isLayout4 || isLayout6 || isLayout6) && <div className="h-[1px] w-full mb-[1.5cqw]" style={{ backgroundColor: getLayoutColorAlpha('toc-text', '85,85,85', 0.1) }}></div>}
 
                 {addSearch && (
                     <div className={isLayout5 ? "relative mb-[2cqw] w-full flex-none" : (isLayout4 || isLayout6 || isLayout6) ? "relative mb-[2cqw] px-[2cqw] flex-none" : isLayout3 ? "flex items-center mb-[1.5cqw] w-full" : isLayout2 ? "relative mb-[2cqw]" : "relative mb-[2cqw] px-[2cqw] flex-none"}>
@@ -337,7 +337,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                                             ? "w-full rounded-[0.8cqw] pl-[2.8cqw] pr-[0.8cqw] py-[0.6cqw] text-[1cqw] outline-none transition-colors placeholder:text-white/50 text-white"
                                             : "w-full rounded-full pl-[4cqw] pr-[1.5cqw] py-[0.8cqw] text-[1.4cqw] outline-none border transition-colors placeholder:text-white/50 text-white"}
                             style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6)
-                                ? { color: getLayoutColor('toc-text', '#575C9C'), backgroundColor: (isLayout5 || isLayout6 || isLayout6) ? getLayoutColorAlpha('toc-text', '87,92,156', 0.05) : undefined, borderColor: (isLayout4 || isLayout5 || isLayout6 || isLayout6) ? getLayoutColorAlpha('toc-text', '87,92,156', 0.2) : undefined }
+                                ? { color: getLayoutColor('toc-text', '#555555'), backgroundColor: (isLayout5 || isLayout6 || isLayout6) ? getLayoutColorAlpha('toc-text', '85,85,85', 0.05) : undefined, borderColor: (isLayout4 || isLayout5 || isLayout6 || isLayout6) ? getLayoutColorAlpha('toc-text', '85,85,85', 0.2) : undefined }
                                 : isLayout2
                                     ? { backgroundColor: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.3)', boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.1)' }
                                     : { backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.2)' }
@@ -353,7 +353,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                             <React.Fragment key={heading.id || hIdx}>
                                 <div
                                     className={isLayout5 ? "flex items-center justify-between px-[1cqw] py-[0.8cqw] hover:bg-black/5 rounded-[0.6cqw] transition-colors cursor-pointer group" : (isLayout4 || isLayout6 || isLayout6) ? "flex items-center justify-between px-[1.5cqw] py-[1cqw] hover:bg-black/5 rounded-[0.5cqw] transition-colors cursor-pointer group" : isLayout3 ? "flex items-center justify-between px-[1cqw] py-[0.8cqw] rounded-[0.6cqw] transition-colors cursor-pointer group hover:opacity-80" : "flex items-center justify-between px-[1.5cqw] py-[0.8cqw] hover:bg-white/10 rounded-[0.8cqw] transition-colors cursor-pointer group text-white"}
-                                    style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#575C9C') } : {}}
+                                    style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#555555') } : {}}
                                     onClick={() => {
                                         speakText(heading.title || heading.label); onNavigate(heading.page - 1);
                                         onClose();
@@ -376,7 +376,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                                     <div
                                         key={sub.id || sIdx}
                                         className={isLayout5 ? "flex items-center justify-between px-[1cqw] py-[0.6cqw] ml-[1.5cqw] hover:bg-black/5 rounded-[0.5cqw] transition-colors cursor-pointer group" : (isLayout4 || isLayout6 || isLayout6) ? "flex items-center justify-between px-[1.5cqw] py-[0.6cqw] ml-[2cqw] hover:bg-black/5 rounded-[0.5cqw] transition-colors cursor-pointer group" : isLayout3 ? "flex items-center justify-between px-[1cqw] py-[0.6cqw] ml-[1.5cqw] rounded-[0.5cqw] transition-colors cursor-pointer group hover:opacity-80" : "flex items-center justify-between px-[1.5cqw] py-[0.6cqw] ml-[2cqw] hover:bg-white/10 rounded-[0.5cqw] transition-colors cursor-pointer group text-white/90"}
-                                        style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.9 } : {}}
+                                        style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#555555'), opacity: 0.9 } : {}}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             speakText(sub.title || sub.label); onNavigate(sub.page - 1);
@@ -399,7 +399,7 @@ const TabletTableOfContentsPopup = ({ onClose, onNavigate, settings, variant = '
                             </React.Fragment>
                         ))
                     ) : (
-                        <div className={isLayout6 ? "flex flex-col items-center justify-center py-[10cqw] select-none font-bold opacity-60" : isLayout6 ? "flex flex-col items-center justify-center py-[10cqw] select-none font-bold" : isLayout5 ? "flex flex-col items-center justify-center py-[4cqw] select-none font-medium" : isLayout4 ? "flex flex-col items-center justify-center py-[10cqw] select-none font-medium" : isLayout3 ? "flex flex-col items-center justify-center py-[2cqw] select-none font-medium" : isLayout2 ? "flex flex-col items-center justify-center py-[2cqw] opacity-70 select-none text-white font-bold tracking-wide" : "flex flex-col items-center justify-center py-[4cqw] opacity-60 select-none text-white font-semibold"} style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#575C9C'), opacity: (isLayout6 ? 0.6 : 0.7) } : {}}>
+                        <div className={isLayout6 ? "flex flex-col items-center justify-center py-[10cqw] select-none font-bold opacity-60" : isLayout6 ? "flex flex-col items-center justify-center py-[10cqw] select-none font-bold" : isLayout5 ? "flex flex-col items-center justify-center py-[4cqw] select-none font-medium" : isLayout4 ? "flex flex-col items-center justify-center py-[10cqw] select-none font-medium" : isLayout3 ? "flex flex-col items-center justify-center py-[2cqw] select-none font-medium" : isLayout2 ? "flex flex-col items-center justify-center py-[2cqw] opacity-70 select-none text-white font-bold tracking-wide" : "flex flex-col items-center justify-center py-[4cqw] opacity-60 select-none text-white font-semibold"} style={(isLayout3 || isLayout4 || isLayout5 || isLayout6 || isLayout6) ? { color: getLayoutColor('toc-text', '#555555'), opacity: (isLayout6 ? 0.6 : 0.7) } : {}}>
                             {isLayout6 && (
                                 <Icon icon="fa6-solid:list" className="w-[4cqw] h-[4cqw] mb-[2cqw] opacity-40" />
                             )}

@@ -125,7 +125,7 @@ const flipbookSchema = new mongoose.Schema(
         opacity: { type: Number, default: 100, min: 0, max: 100 },
         gradient: {
           type: String,
-          default: "linear-gradient(90deg, #63D0CD 0%, #4B3EFE 100%)",
+          default: "linear-gradient(90deg, #FFFFFF 0%, #D1D5DB 100%)",
         },
         gradientType: { type: String, default: "linear" },
         gradientAngle: { type: Number, default: 90 },
@@ -139,8 +139,8 @@ const flipbookSchema = new mongoose.Schema(
             },
           ],
           default: [
-            { offset: 0, color: "#63D0CD", opacity: 100 },
-            { offset: 100, color: "#4B3EFE", opacity: 100 },
+            { offset: 0, color: "#FFFFFF", opacity: 100 },
+            { offset: 100, color: "#D1D5DB", opacity: 100 },
           ],
         },
         image: { type: String, default: "" },
@@ -252,7 +252,7 @@ const flipbookSchema = new mongoose.Schema(
           autoFlip: { type: Boolean, default: true },
           autoFlipSettings: {
             duration: { type: Number, default: 4 },
-            countdown: { type: Boolean, default: true },
+            countdown: { type: Boolean, default: false },
           },
           audio: { type: Boolean, default: true },
           audioSettings: {

@@ -486,7 +486,14 @@ const MobileLayout2 = (props) => {
                 <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4 pointer-events-auto">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSharePopup(false)} />
                     <div className="relative z-[4001] w-full max-w-[300px]">
-                        <FlipbookSharePopup onClose={() => setShowSharePopup(false)} bookName={bookName} url={window.location.href} isMobile={true} isLandscape={isLandscape} />
+                        <FlipbookSharePopup
+                    onClose={() => setShowSharePopup(false)}
+                    bookName={props.currentBook?.flipbookName || bookName}
+                    url={props.currentBook?.shareUrl || window.location.href}
+                    isPublished={props.currentBook?.status === 'Published'}
+                    isMobile={true}
+                    isLandscape={isLandscape}
+                />
                     </div>
                 </div>
             )}
@@ -530,7 +537,10 @@ const MobileLayout2 = (props) => {
     const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]">
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ backgroundColor: props.backgroundSettings?.color || '#BDC3D9' }}>
+            <div className="absolute inset-0 z-0" style={props.backgroundStyle} />
+            <div className="flex flex-col h-full w-full z-10 relative pointer-events-none">
+                <div className="pointer-events-auto flex flex-col h-full w-full">
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
             {!isPhysicalMobile && <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />}
             <header className="z-40 bg-[#4B528C] shadow-md border-b border-white/10">
@@ -758,6 +768,8 @@ const MobileLayout2 = (props) => {
 
             {/* Popups Layer */}
             {renderPopups()}
+                </div>
+            </div>
         </div>
     );
 };

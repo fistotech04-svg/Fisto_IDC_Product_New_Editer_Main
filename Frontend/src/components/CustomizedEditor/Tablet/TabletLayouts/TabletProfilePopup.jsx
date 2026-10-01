@@ -52,17 +52,17 @@ const TabletProfilePopup = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between p-[2cqw] pb-[1cqw]">
-                    <h2 className="text-[1.8cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Profile</h2>
-                    <button onClick={onClose} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                    <h2 className="text-[1.8cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Profile</h2>
+                    <button onClick={onClose} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                         <Icon icon="lucide:x" className="w-[2cqw] h-[2cqw]" />
                     </button>
                 </div>
-                <div className="w-full h-[1px] mb-[1cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.2 }}></div>
+                <div className="w-full h-[1px] mb-[1cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#555555'), opacity: 0.2 }}></div>
 
                 <div className="flex-1 overflow-y-auto p-[2cqw] custom-scrollbar">
                     {!hasData ? (
                         <div className="flex h-full items-center justify-center">
-                            <span className="text-[1.5cqw] font-medium" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.6 }}>No profile found</span>
+                            <span className="text-[1.5cqw] font-medium" style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 0.6 }}>No profile found</span>
                         </div>
                     ) : (
                         <div className="space-y-[2cqw]">
@@ -71,14 +71,14 @@ const TabletProfilePopup = ({
                                 <div className="space-y-[1cqw] mb-[2cqw]">
                                     {name && (
                                         <div className="flex items-start gap-[1cqw]">
-                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Name:</span>
-                                            <span className="text-[1.2cqw] font-medium opacity-80" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{name}</span>
+                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Name:</span>
+                                            <span className="text-[1.2cqw] font-medium opacity-80" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{name}</span>
                                         </div>
                                     )}
                                     {about && (
                                         <div className="flex items-start gap-[1cqw]">
-                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>About:</span>
-                                            <p className="text-[1.1cqw] font-medium leading-relaxed opacity-80" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{about}</p>
+                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>About:</span>
+                                            <p className="text-[1.1cqw] font-medium leading-relaxed opacity-80" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{about}</p>
                                         </div>
                                     )}
                                 </div>
@@ -87,7 +87,7 @@ const TabletProfilePopup = ({
                             {/* Contacts */}
                             {hasValidContacts && (
                                 <div>
-                                    <h3 className="text-[1.2cqw] font-bold mb-[1cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Contact</h3>
+                                    <h3 className="text-[1.2cqw] font-bold mb-[1cqw]" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Contact</h3>
                                     <div className="flex items-center flex-wrap gap-[1cqw]">
                                         {contacts.map((contact) => {
                                             if (!contact.value) return null;
@@ -189,14 +189,14 @@ const TabletProfilePopup = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 {!hasData ? (
-                    <h2 className="text-[1.2cqw] font-semibold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                    <h2 className="text-[1.2cqw] font-semibold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                         No profile found
                     </h2>
                 ) : (
                     <>
                         <div className="text-center mb-[1cqw] relative">
-                            <h2 className="text-[1.4cqw] font-bold leading-tight" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Profile</h2>
-                            <div className="h-[1px] w-full mt-[0.6cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.2 }}></div>
+                            <h2 className="text-[1.4cqw] font-bold leading-tight" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Profile</h2>
+                            <div className="h-[1px] w-full mt-[0.6cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#555555'), opacity: 0.2 }}></div>
                         </div>
 
                         {/* Personal Info */}
@@ -204,14 +204,14 @@ const TabletProfilePopup = ({
                             <div className="space-y-[1cqw] mb-[1.5cqw]">
                                 {name && (
                                     <div className="flex items-start gap-[0.6cqw]">
-                                        <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Name:</span>
-                                        <span className="text-[1.2cqw] font-medium truncate" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.8 }}>{name}</span>
+                                        <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Name:</span>
+                                        <span className="text-[1.2cqw] font-medium truncate" style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 0.8 }}>{name}</span>
                                     </div>
                                 )}
                                 {about && (
                                     <div className="flex items-start gap-[0.6cqw]">
-                                        <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>About:</span>
-                                        <p className="text-[1cqw] font-normal leading-tight text-left tracking-tight opacity-95" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.8 }}>{about}</p>
+                                        <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>About:</span>
+                                        <p className="text-[1cqw] font-normal leading-tight text-left tracking-tight opacity-95" style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 0.8 }}>{about}</p>
                                     </div>
                                 )}
                             </div>
@@ -220,8 +220,8 @@ const TabletProfilePopup = ({
                         {hasValidContacts && (
                             <div className="relative">
                                 <div className="flex items-center gap-[0.8cqw] mb-[1cqw]">
-                                    <h3 className="text-[1cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Contact</h3>
-                                    <div className="flex-1 h-[0.5px]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.2 }}></div>
+                                    <h3 className="text-[1cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Contact</h3>
+                                    <div className="flex-1 h-[0.5px]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#555555'), opacity: 0.2 }}></div>
                                 </div>
                                 <div className="flex items-center flex-wrap gap-[0.8cqw] justify-start mt-[0.2cqw]">
                                     {contacts.map((contact) => {
@@ -258,13 +258,13 @@ const TabletProfilePopup = ({
                 <div className="absolute -bottom-[1.8cqw] right-[4cqw] w-[2.5cqw] h-[2cqw]" style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'), clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }}></div>
 
                 <div className="flex items-center justify-between mb-[1.5cqw]">
-                    <h2 className="text-[1.5cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Profile</h2>
+                    <h2 className="text-[1.5cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Profile</h2>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {!hasData ? (
                         <div className="flex h-full items-center justify-center pt-[2cqw]">
-                            <span className="text-[1.3cqw] font-medium" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.6 }}>No content</span>
+                            <span className="text-[1.3cqw] font-medium" style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 0.6 }}>No content</span>
                         </div>
                     ) : (
                         <div className="space-y-[1.5cqw]">
@@ -273,14 +273,14 @@ const TabletProfilePopup = ({
                                 <div className="space-y-[1cqw]">
                                     {name && (
                                         <div className="flex items-start gap-[0.5cqw]">
-                                            <span className="text-[1.3cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Name :</span>
-                                            <span className="text-[1.3cqw] font-normal" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{name}</span>
+                                            <span className="text-[1.3cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Name :</span>
+                                            <span className="text-[1.3cqw] font-normal" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{name}</span>
                                         </div>
                                     )}
                                     {about && (
                                         <div className="flex items-start gap-[0.5cqw]">
-                                            <span className="text-[1.3cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>About :</span>
-                                            <p className="text-[1.3cqw] font-normal" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{about}</p>
+                                            <span className="text-[1.3cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>About :</span>
+                                            <p className="text-[1.3cqw] font-normal" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{about}</p>
                                         </div>
                                     )}
                                 </div>
@@ -288,8 +288,8 @@ const TabletProfilePopup = ({
 
                             {hasValidContacts && (
                                 <div>
-                                    <div className="w-full h-[1px] mb-[1.5cqw] mt-[0.5cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.2 }}></div>
-                                    <h3 className="text-[1.3cqw] font-bold mb-[1cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Contact</h3>
+                                    <div className="w-full h-[1px] mb-[1.5cqw] mt-[0.5cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#555555'), opacity: 0.2 }}></div>
+                                    <h3 className="text-[1.3cqw] font-bold mb-[1cqw]" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Contact</h3>
                                     <div className="flex items-center flex-wrap gap-[1cqw]">
                                         {contacts.map((contact) => {
                                             if (!contact.value) return null;
@@ -324,17 +324,17 @@ const TabletProfilePopup = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between p-[2cqw] pb-[1cqw]">
-                    <h2 className="text-[1.8cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Profile</h2>
-                    <button onClick={onClose} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                    <h2 className="text-[1.8cqw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Profile</h2>
+                    <button onClick={onClose} className="transition-colors hover:opacity-70" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                         <Icon icon="lucide:x" className="w-[2cqw] h-[2cqw]" />
                     </button>
                 </div>
-                <div className="w-full h-[1px] mb-[1cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.2 }}></div>
+                <div className="w-full h-[1px] mb-[1cqw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#555555'), opacity: 0.2 }}></div>
 
                 <div className="flex-1 overflow-y-auto p-[2cqw] custom-scrollbar">
                     {!hasData ? (
                         <div className="flex h-full items-center justify-center">
-                            <span className="text-[1.5cqw] font-medium" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.6 }}>No profile found</span>
+                            <span className="text-[1.5cqw] font-medium" style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 0.6 }}>No profile found</span>
                         </div>
                     ) : (
                         <div className="space-y-[2cqw]">
@@ -343,14 +343,14 @@ const TabletProfilePopup = ({
                                 <div className="space-y-[1cqw] mb-[2cqw]">
                                     {name && (
                                         <div className="flex items-start gap-[1cqw]">
-                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Name:</span>
-                                            <span className="text-[1.2cqw] font-medium opacity-80" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{name}</span>
+                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Name:</span>
+                                            <span className="text-[1.2cqw] font-medium opacity-80" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{name}</span>
                                         </div>
                                     )}
                                     {about && (
                                         <div className="flex items-start gap-[1cqw]">
-                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>About:</span>
-                                            <p className="text-[1.1cqw] font-medium leading-relaxed opacity-80" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{about}</p>
+                                            <span className="text-[1.2cqw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>About:</span>
+                                            <p className="text-[1.1cqw] font-medium leading-relaxed opacity-80" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{about}</p>
                                         </div>
                                     )}
                                 </div>
@@ -359,7 +359,7 @@ const TabletProfilePopup = ({
                             {/* Contacts */}
                             {hasValidContacts && (
                                 <div>
-                                    <h3 className="text-[1.2cqw] font-bold mb-[1cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Contact</h3>
+                                    <h3 className="text-[1.2cqw] font-bold mb-[1cqw]" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Contact</h3>
                                     <div className="flex items-center flex-wrap gap-[1cqw]">
                                         {contacts.map((contact) => {
                                             if (!contact.value) return null;

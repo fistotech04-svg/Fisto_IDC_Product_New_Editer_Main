@@ -403,7 +403,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
       {/* Sub-header */}
       <div className="h-[8vh] flex items-center justify-between px-[1vw] border-b border-gray-100">
         <div className="flex items-center gap-[0.5vw]">
-          <Icon icon="lucide:menu" className="w-[1vw] h-[1vw] text-gray-700 font-semibold" />
+          <Icon icon="ant-design:control-outlined" className="w-[1.2vw] h-[1.2vw] text-gray-800 font-semibold" />
           <span className="text-[1vw] font-semibold text-gray-900">Layout Settings</span>
         </div>
         <button onClick={onBack} className="text-gray-600 hover:text-gray-900">
@@ -521,7 +521,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                   exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
                   className="border-t border-gray-200 bg-gray-50/50 relative z-10 !overflow-visible rounded-b-[0.8vw]"
                 >
-                  <div className="p-[1vw]">
+                  <div className={`p-[1vw] ${!(settings.navigation?.tableOfContents ?? true) ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                     <div className="space-y-[0.85vw] mb-[1.5vw]">
                       <div className="flex items-center justify-between">
                         <span className="text-[0.75vw] font-semibold text-gray-700">Add Search to the TOC</span>
@@ -839,7 +839,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                       </SettingRow>
                       <SettingRow label="Next Flip Countdown">
                         <Switch
-                          enabled={settings.media?.autoFlipSettings?.countdown ?? true}
+                          enabled={settings.media?.autoFlipSettings?.countdown ?? false}
                           onChange={(val) => updateNestedSetting('media', 'autoFlipSettings', 'countdown', val)}
                           variant="secondary"
                         />

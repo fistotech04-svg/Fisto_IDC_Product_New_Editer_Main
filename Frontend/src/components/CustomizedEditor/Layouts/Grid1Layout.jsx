@@ -144,7 +144,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
             onBlur={() => setShowTooltip(false)}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
-            className={`flex flex-col items-center justify-center relative z-[20] ${extraClassName || ''}`}
+            className={`flex flex-col items-center justify-center relative z-[20] ${(!addTextBelowIcons && isTablet) ? 'translate-y-[0.6vh]' : ''} ${extraClassName || ''}`}
             style={{ ...extraStyle, fontFamily: textFont, border: 'none', outline: 'none', cursor: 'pointer', padding: 0, background: 'transparent' }}
             onClick={(e) => { setShowTooltip(false); if (onClick) onClick(e); }}
         >
@@ -261,7 +261,7 @@ const Grid1Layout = React.memo((props) => {
     // If mobile view is active, delegate entirely to MobileLayout1
     if (isMobile) {
         return (
-            <Suspense fallback={<div className="w-full h-full bg-[#DADBE8] flex items-center justify-center">Loading Mobile Layout...</div>}>
+            <Suspense fallback={<div className="w-full h-full bg-[#D9D9D9] flex items-center justify-center">Loading Mobile Layout...</div>}>
                 <MobileLayout1
                     {...props}
                     pages={pages}
@@ -516,7 +516,7 @@ const Grid1Layout = React.memo((props) => {
     // Helper: renders an icon button with optional text label below
     const renderToolbarBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '') => (
         <button
-            className={`transition-all duration-150 transform hover:scale-125 flex flex-col items-center justify-center relative z-[20] active:scale-95 ${extraClassName}`}
+            className={`transition-all duration-150 transform hover:scale-125 flex flex-col items-center justify-center relative z-[20] active:scale-95 ${(!addTextBelowIcons && isTablet) ? 'translate-y-[0.6vh]' : ''} ${extraClassName}`}
             style={{ ...extraStyle, fontFamily: textFont }}
             onClick={onClick}
         >
@@ -704,7 +704,7 @@ const Grid1Layout = React.memo((props) => {
                 <div className="shrink-0 w-full z-[1000]">
                     <div
                         className={`${isMobileLandscape ? 'h-[5.5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[7vh]'} flex items-center justify-between px-[2vw] w-full shadow-lg z-[1001] relative transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : ''}`}
-                        style={{ backgroundColor: isTablet ? getLayoutColorRgba('bottom-toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
+                        style={{ backgroundColor: isTablet ? getLayoutColorRgba('bottom-toolbar-bg', '#555555') : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
                     >
                         {/* Search Area */}
                         {(settings?.interaction?.search ?? true) && !isPdfProject ? (
@@ -962,19 +962,19 @@ const Grid1Layout = React.memo((props) => {
                 {/* Page Counter Badge */}
                 {(settings?.navigation?.pageQuickAccess ?? true) && (
                     <div
-                        className="absolute shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-[1002] flex items-center transition-all duration-300 backdrop-blur-sm"
+                        className="absolute shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-[900] flex items-center transition-all duration-300 backdrop-blur-sm"
                         style={{
                             backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                             opacity: 'var(--toolbar-text-main-opacity, 1)',
-                            left: isMobileLandscape ? '3vw' : '1vw',
-                            bottom: isFullscreen ? (isMobileLandscape || isTablet ? 'calc(5vh + 1.25vw)' : 'calc(6.5vh + 1.25vw)') : '1.25vw',
+                            left: isMobileLandscape ? '3vw' : (isSidebarOpen ? '0.5vw' : '1vw'),
+                            bottom: isFullscreen ? (isMobileLandscape || isTablet ? 'calc(5vh + 1.25vw)' : 'calc(6.5vh + 1.25vw)') : '1.5vh',
                             borderRadius: isMobileLandscape ? '0.5vw' : isTablet ? '0.7vw' : '1vw',
-                            padding: isMobileLandscape ? '0.2vw 0.4vw' : isTablet ? '0.3vw 0.5vw' : '0.4vw 0.8vw'
+                            padding: isMobileLandscape ? '0.2vw 0.4vw' : isTablet ? '0.3vw 0.5vw' : ((isSidebarOpen && !isFullscreen) ? '0.2vw 0.45vw' : '0.35vw 0.7vw')
                         }}
                     >
                         <span
-                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold transition-colors`}
-                            style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : ((isSidebarOpen && !isFullscreen) ? 'text-[0.6vw]' : 'text-[0.75vw]')} font-bold transition-colors`}
+                            style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                         >Page </span>
                         <input
                             type="text"
@@ -999,12 +999,12 @@ const Grid1Layout = React.memo((props) => {
                                     setPageInputValue(String(currentPage + 1));
                                 }
                             }}
-                            className={`${isMobileLandscape ? 'text-[0.55vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
+                            className={`${isMobileLandscape ? 'text-[0.55vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : ((isSidebarOpen && !isFullscreen) ? 'text-[0.6vw] mx-[0.2vw] px-[0.05vw] py-[0vw]' : 'text-[0.75vw] mx-[0.35vw] px-[0.15vw] py-[0.05vw]')} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
                             style={{
-                                color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                color: getLayoutColor('toolbar-bg', '#555555'),
                                 backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1),
                                 border: `1px solid ${getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2)}`,
-                                width: `${String(pages.length).length + 1.2}ch`
+                                width: `${String(pages.length).length + (isSidebarOpen ? 0.8 : 1.2)}ch`
                             }}
                             onFocus={(e) => {
                                 e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
@@ -1022,8 +1022,8 @@ const Grid1Layout = React.memo((props) => {
                             }}
                         />
                         <span
-                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold transition-colors`}
-                            style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : ((isSidebarOpen && !isFullscreen) ? 'text-[0.6vw]' : 'text-[0.75vw]')} font-bold transition-colors`}
+                            style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                         > / {pages.length}</span>
                     </div>
                 )}
@@ -1047,7 +1047,7 @@ const Grid1Layout = React.memo((props) => {
             <div className="shrink-0 w-full z-[1000]">
                 <div
                     className={`${isMobileLandscape ? 'h-[4vh] mb-[1vh]' : isTablet ? 'h-[5vh]' : 'h-[6.5vh]'} flex items-center justify-between px-[2vw] w-full z-[1001] shadow-[0_-0.5vw_2vw_rgba(0,0,0,0.2)] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') : 'relative'}`}
-                    style={{ backgroundColor: isTablet ? getLayoutColor('bottom-toolbar-bg', '#575C9C') : getLayoutColorRgba('bottom-toolbar-bg', '87, 92, 156', '1') }}
+                    style={{ backgroundColor: isTablet ? getLayoutColor('bottom-toolbar-bg', '#555555') : getLayoutColorRgba('bottom-toolbar-bg', '87, 92, 156', '1') }}
                     onMouseMove={(e) => setDockMousePos({ x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setDockMousePos(null)}
                 >
@@ -1240,14 +1240,14 @@ const Grid1Layout = React.memo((props) => {
                                                     let boxHeight = isMobileLandscape ? 27 : isTablet ? 36 : 54;
                                                     let pageAspectRatio = dimWidth / dimHeight;
                                                     let innerPageWidth = boxHeight * pageAspectRatio;
-                                                    let boxWidth = innerPageWidth * progressHover.spread.pages.length + (progressHover.spread.pages.length > 1 ? 1 : 0);
+                                                    let boxWidth = innerPageWidth * progressHover.spread.pages.length;
                                                     
                                                     return (
                                                         <div
                                                             className={`overflow-hidden transition-all bg-white relative rounded-[0.2vw]`}
                                                             style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
                                                         >
-                                                            <div className="flex w-full h-full gap-[1px] bg-gray-200 justify-center">
+                                                            <div className="flex w-full h-full gap-0 bg-gray-200 justify-center">
                                                                 {progressHover.spread.pages.map((page, pIdx) => {
                                                                     const thumbScale = boxHeight / dimHeight;
 
@@ -1566,7 +1566,7 @@ const Grid1Layout = React.memo((props) => {
                     let pageAspectRatio = dimWidth / dimHeight;
                     let innerHeight = baseBoxHeight - 4;
                     let innerPageWidth = innerHeight * pageAspectRatio;
-                    let doubleBoxWidth = innerPageWidth * 2 + 1 + 4;
+                    let doubleBoxWidth = innerPageWidth * 2 + 4;
                     exactSixWidth += doubleBoxWidth + paddingW;
                 }
                 
@@ -1574,7 +1574,7 @@ const Grid1Layout = React.memo((props) => {
                 let dynamicMaxWidth = Math.floor(exactSixWidth + totalGaps + outerMargin);
 
                 return (
-                <div className="absolute inset-0 z-[250] pointer-events-none">
+                <div className="absolute inset-0 z-[1003] pointer-events-none">
                     <div
                         className="absolute flex items-center group/bar fisto-menu-content thumbnail-bar pointer-events-auto transition-all shadow-[0_8px_32px_rgba(0,0,0,0.3)] rounded-[0.7vw] backdrop-blur-md"
                         style={{
@@ -1589,7 +1589,7 @@ const Grid1Layout = React.memo((props) => {
                             backdropFilter: 'blur(10px)',
                             borderRadius: isTablet ? '0.7vw' : '0.7vw',
                             border: '1px solid rgba(255,255,255,0.2)',
-                            zIndex: 250,
+                            zIndex: 1003,
                             display: 'flex',
                             alignItems: 'center',
                             boxSizing: 'border-box',
@@ -1624,8 +1624,8 @@ const Grid1Layout = React.memo((props) => {
                                 let innerHeight = boxHeight - 4;
                                 let pageAspectRatio = dimWidth / dimHeight;
                                 let innerPageWidth = innerHeight * pageAspectRatio;
-                                let boxWidth = innerPageWidth * spread.pages.length + (spread.pages.length > 1 ? 1 : 0) + 4;
-                                let doubleBoxWidth = innerPageWidth * 2 + 1 + 4;
+                                let boxWidth = innerPageWidth * spread.pages.length + 4;
+                                let doubleBoxWidth = innerPageWidth * 2 + 4;
                                 let paddingW = isMobileLandscape ? 8 : isTablet ? 10 : 20;
 
                                 return (
@@ -1659,7 +1659,7 @@ const Grid1Layout = React.memo((props) => {
                                                 height: `${boxHeight}px`
                                             }}
                                         >
-                                            <div className="flex w-full h-full gap-[1px] bg-gray-200 justify-center">
+                                            <div className="flex w-full h-full gap-0 bg-gray-200 justify-center">
                                                 {spread.pages.map((page, pIdx) => {
                                                     const thumbScale = innerHeight / dimHeight;
 

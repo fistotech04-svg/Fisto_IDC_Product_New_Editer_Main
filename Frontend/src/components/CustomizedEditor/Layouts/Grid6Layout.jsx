@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.2 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.2, baseWidth = 400, baseHeight = 566 }) => {
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<video\b[^<]*(?:(?!<\/video>)<[^<]*)*<\/video>/gi, '<div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">Video</div>')
@@ -16,14 +16,14 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.2 }) => {
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: 400px; height: 566px; position: relative; }
+                    body { margin: 0; padding: 0; overflow: hidden; background: white; width: ${baseWidth}px; height: ${baseHeight}px; position: relative; }
                     * { box-sizing: border-box; }
                     ::-webkit-scrollbar { width: 0px; background: transparent; }
                     img { max-width: 100%; height: auto; display: block; }
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -32,20 +32,18 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.2 }) => {
 
     return (
         <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <div style={{ width: `${400 * scale}px`, height: `${566 * scale}px`, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ width: `${baseWidth * scale}px`, height: `${baseHeight * scale}px`, position: 'relative', overflow: 'hidden' }}>
                 <iframe
                     className="border-none pointer-events-none"
                     srcDoc={srcDoc}
                     title={`Thumb ${index}`}
                     loading="lazy"
                     style={{
-                        width: '400px',
-                        height: '566px',
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
                         transform: `scale(${scale})`,
                         transformOrigin: 'top left',
-                        backgroundColor: '#575C9C',
-                        borderRadius: '24px',
-                        border: '1px solid rgba(255,255,255,0.2)',
+                        backgroundColor: 'white',
                         position: 'absolute',
                         top: 0,
                         left: 0
@@ -438,7 +436,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     icon="lucide:search"
                                     className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`}
                                     style={{
-                                        color: getLayoutColor('search-text-v2', '#575C9C'),
+                                        color: getLayoutColor('search-text-v2', '#555555'),
                                         opacity: getLayoutOpacity('search-text-v2', 1) * 0.6
                                     }}
                                 />
@@ -514,7 +512,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             <button
                                                 key={`${rec.word}-${rec.pageNumber}-${idx}`}
                                                 className="flex items-center justify-between px-[1vw] py-[0.6vw] hover:bg-white/20 transition-colors group"
-                                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                                style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                                 onClick={() => {
                                                     onPageClick(rec.pageNumber - 1);
                                                     const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
@@ -542,7 +540,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 {/* Center: Book Name - Screenshot style */}
                 <div
                     className={`absolute left-1/2 -translate-x-1/2 ${isTablet ? 'text-[1.1vw]' : 'text-[1.2vw]'} font-semibold tracking-wide`}
-                    style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
+                    style={{ color: getLayoutColor('toolbar-text-main', '#555555') }}
                 >
                     {/* bookName hidden */}
                 </div>
@@ -588,11 +586,11 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 <AnimatePresence>
                     {showTOC && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[4vw] top-[1.5vh] w-[16vw]' : 'left-[5.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[4vw] top-[5vh] w-[16vw]' : 'left-[5.5vw] top-[6vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
-                                borderColor: getLayoutColor('toc-text', '#575C9C') + '4D' // 30% opacity of theme text color
+                                borderColor: getLayoutColorAlpha('toc-text', '85, 85, 85', 0.3) // 30% opacity of theme text color
                             }}
                             onClick={(e) => e.stopPropagation()}
                             initial={{ y: '100%', opacity: 0 }}
@@ -600,9 +598,9 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
                         >
-                            <div className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] border-b shrink-0`} style={{ borderColor: getLayoutColor('toc-text', '#575C9C') + '33' }}> {/* 20% opacity underline */}
-                                <span className={`${isTablet ? 'text-[0.85vw]' : 'text-[1.1vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Table of Contents</span>
-                                <button onClick={() => { setShowTOCMemo?.(false); setTocSearchQuery(''); }} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}>
+                            <div className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] border-b shrink-0`} style={{ borderColor: getLayoutColorAlpha('toc-text', '85, 85, 85', 0.2) }}> {/* 20% opacity underline */}
+                                <span className={`${isTablet ? 'text-[0.85vw]' : 'text-[1.1vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#555555') }}>Table of Contents</span>
+                                <button onClick={() => { setShowTOCMemo?.(false); setTocSearchQuery(''); }} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.6 }}>
                                     <Icon icon="lucide:x" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
                                 </button>
                             </div>
@@ -617,17 +615,17 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             borderColor: 'rgba(0,0,0,0.05)'
                                         }}
                                     >
-                                        <Icon icon="lucide:search" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.4 }} />
+                                        <Icon icon="lucide:search" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.4 }} />
                                         <input
                                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                                             value={tocSearchQuery}
                                             onChange={(e) => setTocSearchQuery(e.target.value)}
                                             placeholder="Search in TOC..."
                                             className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} ml-[0.5vw] w-full font-sans`}
-                                            style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                            style={{ color: getLayoutColor('toc-text', '#555555') }}
                                         />
                                         {tocSearchQuery && (
-                                            <button onClick={() => setTocSearchQuery('')} style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.4 }}>
+                                            <button onClick={() => setTocSearchQuery('')} style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.4 }}>
                                                 <Icon icon="lucide:x" className="w-[0.8vw] h-[0.8vw]" />
                                             </button>
                                         )}
@@ -650,7 +648,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                     <div key={idx} className="flex flex-col mb-[0.8vh]">
                                                         <div
                                                             className={`flex items-center justify-between ${isTablet ? 'py-[0.5vh] px-[0.6vw]' : 'py-[0.8vh] px-[0.8vw]'} hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group`}
-                                                            style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                            style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                             onClick={() => { onPageClick(item.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                         >
                                                             <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw]">
@@ -675,7 +673,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                                         <div
                                                                             key={sIdx}
                                                                             className="flex items-center justify-between py-[0.6vh] px-[0.8vw] hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group"
-                                                                            style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                                            style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                                             onClick={() => { onPageClick(sub.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                                         >
                                                                             <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw] pl-[0.5vw]">
@@ -700,8 +698,8 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-[10vh] opacity-30 select-none">
-                                            <Icon icon="ph:list-bullets-bold" className="w-[3vw] h-[3vw] mb-[1.5vh]" style={{ color: getLayoutColor('toc-icon', '#575C9C') }} />
-                                            <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>No Table of Contents</span>
+                                            <Icon icon="ph:list-bullets-bold" className="w-[3vw] h-[3vw] mb-[1.5vh]" style={{ color: getLayoutColor('toc-icon', '#555555') }} />
+                                            <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('toc-text', '#555555') }}>No Table of Contents</span>
                                         </div>
                                     )}
                                 </div>
@@ -714,11 +712,11 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 <AnimatePresence>
                     {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[4vw] top-[1.5vh] w-[17vw]' : 'left-[5.5vw] top-[2vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
+                            className={`absolute ${isTablet ? 'left-[4vw] top-[5vh] w-[17vw]' : 'left-[5.5vw] top-[6vh] w-[19vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0px_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] backdrop-blur-xl`}
                             style={{
                                 backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                                 opacity: 1,
-                                borderColor: getLayoutColor('toc-text', '#575C9C') + '4D' // 30% opacity of theme text color
+                                borderColor: getLayoutColorAlpha('toc-text', '85, 85, 85', 0.3) // 30% opacity of theme text color
                             }}
                             onClick={(e) => e.stopPropagation()}
                             initial={{ y: '100%', opacity: 0 }}
@@ -726,71 +724,130 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
                         >
-                            <div className={`${isTablet ? 'h-[6vh]' : 'h-[6.5vh]'} flex items-center justify-between px-[1.5vw] border-b-[0.1vw] shrink-0`} style={{ borderColor: getLayoutColor('toc-text', '#575C9C') + '33' }}>
-                                <span className={`${isTablet ? 'text-[1vw]' : 'text-[1.2vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Thumbnails</span>
-                                <button onClick={() => setShowThumbnails(false)} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.8 }}>
+                            <div className={`${isTablet ? 'h-[6vh]' : 'h-[6.5vh]'} flex items-center justify-between px-[1.5vw] border-b-[0.1vw] shrink-0`} style={{ borderColor: getLayoutColorAlpha('toc-text', '85, 85, 85', 0.2) }}>
+                                <span className={`${isTablet ? 'text-[1vw]' : 'text-[1.2vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#555555') }}>Thumbnails</span>
+                                <button onClick={() => setShowThumbnails(false)} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.8 }}>
                                     <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
                                 </button>
                             </div>
                             <div className="flex-1 overflow-y-auto px-[1.2vw] py-[1.5vh] custom-scrollbar">
-                                <div className="flex gap-[0.8vw]">
-                                    {/* Left Column */}
-                                    <div className="flex-1 flex flex-col gap-[0.8vw] min-w-0">
-                                        {spreads.filter((_, i) => i % 2 === 0).map((spread, idx) => {
-                                            const isSelected = spread.indices.includes(currentPage);
-                                            return (
-                                                <div
-                                                    key={`l-${idx}`}
-                                                    className={`w-full bg-white rounded-[0.6vw] flex flex-col cursor-pointer transition-all p-[0.3vw] shadow-[0_0.2vw_0.6vw_rgba(0,0,0,0.08)] hover:shadow-[0_0.4vw_1vw_rgba(0,0,0,0.15)] ${isSelected ? 'ring-[0.15vw] ring-white' : 'ring-[0.1vw] ring-transparent'}`}
-                                                    onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
-                                                >
-                                                    <div className="aspect-[1.4/1] rounded-[0.4vw] overflow-hidden bg-gray-50/50 mb-[0.2vw] ring-1 ring-gray-100/50">
-                                                        <div className="flex gap-0 w-full h-full justify-center">
-                                                            {spread.pages.map((page, pIdx) => (
-                                                                <div key={pIdx} className="flex-1 max-w-[50%] flex min-w-0">
-                                                                    <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={isTablet ? 0.09 : 0.13} />
+                                {(() => {
+                                    const pageW = dimWidth || 400;
+                                    const pageH = dimHeight || 566;
+                                    const pageAspectRatio = pageW / pageH;
+                                    const isLandscape = pageAspectRatio > 1;
+
+                                    if (isLandscape) {
+                                        return (
+                                            <div className="flex flex-col gap-[0.8vw]">
+                                                {spreads.map((spread, idx) => {
+                                                    const isSelected = spread.indices.includes(currentPage);
+                                                    const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                                    const availableWidthPx = 16 * vw; // Full width of thumbnail panel
+                                                    const thumbScale = (availableWidthPx / 2) / pageW;
+                                                    return (
+                                                        <div
+                                                            key={`s-${idx}`}
+                                                            className={`w-full bg-white rounded-[0.6vw] flex flex-col cursor-pointer transition-all p-[0.3vw] shadow-[0_0.2vw_0.6vw_rgba(0,0,0,0.08)] hover:shadow-[0_0.4vw_1vw_rgba(0,0,0,0.15)] ${isSelected ? 'ring-[0.15vw] ring-white' : 'ring-[0.1vw] ring-transparent'}`}
+                                                            onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
+                                                        >
+                                                            <div
+                                                                className="rounded-[0.4vw] overflow-hidden bg-gray-50/50 mb-[0.2vw] ring-1 ring-gray-100/50"
+                                                                style={{ aspectRatio: `${pageAspectRatio * 2} / 1` }}
+                                                            >
+                                                                <div className="flex gap-0 w-full h-full justify-center">
+                                                                    {spread.pages.map((page, pIdx) => (
+                                                                        <div key={pIdx} className="flex-1 max-w-[50%] flex min-w-0">
+                                                                            <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={thumbScale} baseWidth={pageW} baseHeight={pageH} />
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            ))}
+                                                            </div>
+                                                            <div className="flex justify-center pb-[0.2vh]">
+                                                                <span className="text-[0.65vw] font-medium text-[#555555]">
+                                                                    {spread.label}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex justify-center pb-[0.2vh]">
-                                                        <span className="text-[0.65vw] font-medium" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                                            {spread.label}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    {/* Right Column */}
-                                    <div className="flex-1 flex flex-col gap-[0.8vw] min-w-0 pt-[3.5vh]">
-                                        {spreads.filter((_, i) => i % 2 !== 0).map((spread, idx) => {
-                                            const isSelected = spread.indices.includes(currentPage);
-                                            return (
-                                                <div
-                                                    key={`r-${idx}`}
-                                                    className={`w-full bg-white rounded-[0.6vw] flex flex-col cursor-pointer transition-all p-[0.3vw] shadow-[0_0.2vw_0.6vw_rgba(0,0,0,0.08)] hover:shadow-[0_0.4vw_1vw_rgba(0,0,0,0.15)] ${isSelected ? 'ring-[0.15vw] ring-white' : 'ring-[0.1vw] ring-transparent'}`}
-                                                    onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
-                                                >
-                                                    <div className="aspect-[1.4/1] rounded-[0.4vw] overflow-hidden bg-gray-50/50 mb-[0.2vw] ring-1 ring-gray-100/50">
-                                                        <div className="flex gap-0 w-full h-full justify-center">
-                                                            {spread.pages.map((page, pIdx) => (
-                                                                <div key={pIdx} className="flex-1 max-w-[50%] flex min-w-0">
-                                                                    <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={isTablet ? 0.09 : 0.13} />
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="flex gap-[0.8vw]">
+                                            {/* Left Column */}
+                                            <div className="flex-1 flex flex-col gap-[0.8vw] min-w-0">
+                                                {spreads.filter((_, i) => i % 2 === 0).map((spread, idx) => {
+                                                    const isSelected = spread.indices.includes(currentPage);
+                                                    const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                                    const availableWidthPx = 10 * vw; // Approximate width of one column content
+                                                    const thumbScale = (availableWidthPx / 2) / pageW;
+                                                    return (
+                                                        <div
+                                                            key={`l-${idx}`}
+                                                            className={`w-full bg-white rounded-[0.6vw] flex flex-col cursor-pointer transition-all p-[0.3vw] shadow-[0_0.2vw_0.6vw_rgba(0,0,0,0.08)] hover:shadow-[0_0.4vw_1vw_rgba(0,0,0,0.15)] ${isSelected ? 'ring-[0.15vw] ring-white' : 'ring-[0.1vw] ring-transparent'}`}
+                                                            onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
+                                                        >
+                                                            <div
+                                                                className="rounded-[0.4vw] overflow-hidden bg-gray-50/50 mb-[0.2vw] ring-1 ring-gray-100/50"
+                                                                style={{ aspectRatio: `${pageAspectRatio * 2} / 1` }}
+                                                            >
+                                                                <div className="flex gap-0 w-full h-full justify-center">
+                                                                    {spread.pages.map((page, pIdx) => (
+                                                                        <div key={pIdx} className="flex-1 max-w-[50%] flex min-w-0">
+                                                                            <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={thumbScale} baseWidth={pageW} baseHeight={pageH} />
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            ))}
+                                                            </div>
+                                                            <div className="flex justify-center pb-[0.2vh]">
+                                                                <span className="text-[0.65vw] font-medium text-[#555555]">
+                                                                    {spread.label}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex justify-center pb-[0.2vh]">
-                                                        <span className="text-[0.65vw] font-medium" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                                            {spread.label}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* Right Column */}
+                                            <div className="flex-1 flex flex-col gap-[0.8vw] min-w-0 pt-[3.5vh]">
+                                                {spreads.filter((_, i) => i % 2 !== 0).map((spread, idx) => {
+                                                    const isSelected = spread.indices.includes(currentPage);
+                                                    const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                                    const availableWidthPx = 10 * vw; // Approximate width of one column content
+                                                    const thumbScale = (availableWidthPx / 2) / pageW;
+                                                    return (
+                                                        <div
+                                                            key={`r-${idx}`}
+                                                            className={`w-full bg-white rounded-[0.6vw] flex flex-col cursor-pointer transition-all p-[0.3vw] shadow-[0_0.2vw_0.6vw_rgba(0,0,0,0.08)] hover:shadow-[0_0.4vw_1vw_rgba(0,0,0,0.15)] ${isSelected ? 'ring-[0.15vw] ring-white' : 'ring-[0.1vw] ring-transparent'}`}
+                                                            onClick={() => { onPageClick(spread.indices[0]); setShowThumbnails(false); }}
+                                                        >
+                                                            <div
+                                                                className="rounded-[0.4vw] overflow-hidden bg-gray-50/50 mb-[0.2vw] ring-1 ring-gray-100/50"
+                                                                style={{ aspectRatio: `${pageAspectRatio * 2} / 1` }}
+                                                            >
+                                                                <div className="flex gap-0 w-full h-full justify-center">
+                                                                    {spread.pages.map((page, pIdx) => (
+                                                                        <div key={pIdx} className="flex-1 max-w-[50%] flex min-w-0">
+                                                                            <PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={thumbScale} baseWidth={pageW} baseHeight={pageH} />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex justify-center pb-[0.2vh]">
+                                                                <span className="text-[0.65vw] font-medium text-[#555555]">
+                                                                    {spread.label}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </motion.div>
                     )}
@@ -800,7 +857,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 <AnimatePresence>
                     {showBookmarks && (
                         <motion.div
-                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[1.5vh] w-[16vw]' : 'left-[4.5vw] top-[2vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw]`}
+                            className={`absolute ${isTablet ? 'left-[3.1vw] top-[5vh] w-[16vw]' : 'left-[4.5vw] top-[6vh] w-[18vw]'} bottom-0 rounded-t-[1.5vw] z-[60] flex flex-col shadow-[-10px_0_40px_rgba(0,0,0,0.15)] overflow-hidden border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw]`}
                             style={{
                                 backgroundColor: getLayoutColor('toc-bg', 'rgba(255,255,255,0.4)'),
                                 opacity: getLayoutOpacity('toc-bg', 1),
@@ -813,8 +870,8 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             transition={{ duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
                         >
                             <div className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] border-b shrink-0`} style={{ borderColor: 'rgba(0,0,0,0.05)' }}>
-                                <span className={`${isTablet ? 'text-[1vw]' : 'text-[1.4vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Bookmarks</span>
-                                <button onClick={() => setShowBookmarks(false)} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}>
+                                <span className={`${isTablet ? 'text-[1vw]' : 'text-[1.4vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#555555') }}>Bookmarks</span>
+                                <button onClick={() => setShowBookmarks(false)} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.6 }}>
                                     <Icon icon="lucide:x" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
                                 </button>
                             </div>
@@ -847,14 +904,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                         style={{
                                                             backgroundColor: 'rgba(0,0,0,0.05)',
                                                             borderColor: 'rgba(0,0,0,0.05)',
-                                                            color: getLayoutColor('toc-text', '#575C9C')
+                                                            color: getLayoutColor('toc-text', '#555555')
                                                         }}
                                                         onClick={(e) => e.stopPropagation()}
                                                     />
                                                 ) : (
                                                     <span
                                                         className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-semibold cursor-pointer truncate flex-1`}
-                                                        style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                        style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                         onClick={() => {
                                                             const pageNum = parseInt(bookmark.pageIndex);
                                                             if (!isNaN(pageNum)) {
@@ -874,7 +931,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                             setEditValue(bookmark.label || `Page ${(parseInt(bookmark.pageIndex) || 0) + 1}`);
                                                         }}
                                                         className="transition-colors"
-                                                        style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}
+                                                        style={{ color: getLayoutColor('toc-icon', '#555555'), opacity: 0.6 }}
                                                     >
                                                         <Icon icon="mdi:rename" className="w-[1.1vw] h-[1.1vw]" />
                                                     </button>
@@ -893,8 +950,8 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center py-[10vh] opacity-30 select-none">
-                                        <Icon icon="ph:bookmark-bold" className="w-[3vw] h-[3vw] mb-[1.5vh]" style={{ color: getLayoutColor('toc-icon', '#575C9C') }} />
-                                        <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>No Bookmarks</span>
+                                        <Icon icon="ph:bookmark-bold" className="w-[3vw] h-[3vw] mb-[1.5vh]" style={{ color: getLayoutColor('toc-icon', '#555555') }} />
+                                        <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('toc-text', '#555555') }}>No Bookmarks</span>
                                     </div>
                                 )}
                             </div>
@@ -937,7 +994,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     <button
                                         className="flex items-center justify-center transition-all hover:scale-110 p-[0.5vw]"
                                         style={{
-                                            color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                            color: getLayoutColor('toolbar-bg', '#555555'),
                                             opacity: getLayoutOpacity('toolbar-bg', 1) * 0.5
                                         }}
                                         onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
@@ -956,7 +1013,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                     <button
                                         className="flex items-center justify-center transition-all hover:scale-110 p-[0.5vw]"
                                         style={{
-                                            color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                            color: getLayoutColor('toolbar-bg', '#555555'),
                                             opacity: getLayoutOpacity('toolbar-bg', 1) * 0.5
                                         }}
                                         onClick={() => bookRef.current?.pageFlip()?.flipNext()}
@@ -970,14 +1027,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 })()}
 
                 <div
-                    className={`absolute ${isTablet ? `left-[1.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `left-[2vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[42%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                    className={`absolute ${isTablet ? `left-[1.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3.2vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `left-[2vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3.3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[38%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                     style={{
                         opacity: isFullscreen && isCanvasHovered ? 0 : 1
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="absolute inset-0 -z-10" style={{
-                        backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
+                        backgroundColor: getLayoutColor('toolbar-bg', '#555555'),
                         opacity: getLayoutOpacity('toolbar-bg', 1),
                         borderRadius: isTablet ? '0.5vw' : '0.7vw'
                     }} />
@@ -995,7 +1052,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Table of<br />Contents</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Table of<br />Contents</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1029,7 +1086,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1062,7 +1119,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1097,7 +1154,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1130,7 +1187,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1160,7 +1217,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1190,7 +1247,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             }}
                         >
                             <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
                             <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
@@ -1220,7 +1277,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         }}
                     >
                         <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} className="transition-transform group-hover:scale-110" />
-                        {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
+                        {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.35vw]' : 'text-[0.45vw]'} font-semibold leading-tight text-center mt-[0.2vh]`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
                         <div className={`absolute left-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                             style={{
                                 background: 'rgba(10, 10, 12, 0.55)',
@@ -1253,7 +1310,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             borderColor: 'rgba(0,0,0,0.05)'
                         }}
                     >
-                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>Page </span>
+                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#555555') }}>Page </span>
                         <input
                             type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
                             value={pageInputValue}
@@ -1285,7 +1342,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             className={`${isTablet ? 'text-[0.65vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.8vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-bold rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                             style={{
                                 width: `${String(pages.length).length + 1.2}ch`,
-                                color: getLayoutColor('bottom-toolbar-bg', '#575C9C'),
+                                color: getLayoutColor('bottom-toolbar-bg', '#555555'),
                                 backgroundColor: getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.2),
                                 border: `1px solid ${getLayoutColorAlpha('bottom-toolbar-bg', '87, 92, 156', 0.35)}`
                             }}
@@ -1304,7 +1361,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 }
                             }}
                         />
-                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}> / {pagesCount}</span>
+                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#555555') }}> / {pagesCount}</span>
                     </div>
                 )}
 
@@ -1344,7 +1401,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 }}
             >
                 <div className="absolute inset-0 -z-10" style={{
-                    backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
+                    backgroundColor: getLayoutColor('toolbar-bg', '#555555'),
                     opacity: getLayoutOpacity('toolbar-bg', 1)
                 }} />
                 {/* Playback Controls */}
@@ -1434,7 +1491,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             className="font-bold whitespace-nowrap"
                                             style={{
                                                 fontSize: isTablet ? '0.7vw' : '0.85vw',
-                                                color: getLayoutColor('dropdown-text', '#575C9C')
+                                                color: getLayoutColor('dropdown-text', '#555555')
                                             }}
                                         >
                                             {progressHover.spread.label}
@@ -1444,7 +1501,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             className="w-full rounded-full"
                                             style={{
                                                 height: isTablet ? '2px' : '2.5px',
-                                                backgroundColor: getLayoutColor('dropdown-text', '#575C9C'),
+                                                backgroundColor: getLayoutColor('dropdown-text', '#555555'),
                                                 margin: isTablet ? '0.4vw 0' : '0.5vw 0'
                                             }}
                                         />
@@ -1549,7 +1606,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-bold px-[0.8vw] py-[0.35vw] rounded-[0.4vw] hover:opacity-90 active:scale-95 transition-all`}
                                 style={{
                                     backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                    color: getLayoutColor('bottom-toolbar-bg', '#575C9C')
+                                    color: getLayoutColor('bottom-toolbar-bg', '#555555')
                                 }}
                             >
                                 Reset
@@ -1567,11 +1624,11 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                     background: transparent;
                 }
                 .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: ${getLayoutColor('toolbar-bg', '#575C9C')}20;
+                    background: ${getLayoutColor('toolbar-bg', '#555555')}20;
                     border-radius: 10px;
                 }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: ${getLayoutColor('toolbar-bg', '#575C9C')}40;
+                    background: ${getLayoutColor('toolbar-bg', '#555555')}40;
                 }
             `}</style>
         </div>
