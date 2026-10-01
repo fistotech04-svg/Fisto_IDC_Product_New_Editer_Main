@@ -505,22 +505,36 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
             existing = await ThreedModel.findOne({ userEmail: emailId, name: finalFileName });
           }
 
+          let parsedHotspots = [];
+          if (req.body.hotspots) {
+            try {
+              parsedHotspots = typeof req.body.hotspots === 'string' ? JSON.parse(req.body.hotspots) : req.body.hotspots;
+            } catch (_) {}
+          }
+          const incomingDisplayName = req.body.displayName || null;
+
           let savedModel;
           if (!existing) {
               const newModel = new ThreedModel({
                   userEmail: emailId,
                   name: finalFileName,
+                  displayName: incomingDisplayName,
                   url: modelUrl,
                   type: type,
-                  size: sizeStr
+                  size: sizeStr,
+                  hotspots: Array.isArray(parsedHotspots) ? parsedHotspots : []
               });
               await newModel.save();
               savedModel = newModel;
           } else {
               existing.name = finalFileName;
+              if (incomingDisplayName) existing.displayName = incomingDisplayName;
               existing.url = modelUrl;
               existing.type = type;
               existing.size = sizeStr;
+              if (Array.isArray(parsedHotspots) && parsedHotspots.length > 0) {
+                existing.hotspots = parsedHotspots;
+              }
               await existing.save();
               savedModel = existing;
           }
@@ -530,6 +544,8 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
               message: "Model uploaded and saved successfully",
               url: savedModel.url,
               name: finalFileName,
+              displayName: savedModel.displayName || null,
+              hotspots: savedModel.hotspots || [],
               modelId: savedModel.modelId
           });
         } catch (mergeErr) {
@@ -577,10 +593,12 @@ router.get("/get-models", async (req, res) => {
     const models = dbModels.map(m => ({
         modelId: m.modelId,
         name: m.name,
+        displayName: m.displayName || null,
         url: m.url,
         thumbnailUrl: m.thumbnailUrl,
         size: m.size,
         type: m.type,
+        hotspots: Array.isArray(m.hotspots) ? m.hotspots : [],
         uploadedAt: m.createdAt
     }));
 
@@ -655,6 +673,8 @@ router.post("/rename-model", async (req, res) => {
         const oldSupabasePath = `${sanitizedEmail}/3D_Modals/${oldName}`;
         const newSupabasePath = `${sanitizedEmail}/3D_Modals/${cleanNewName}`;
         await renamePathInSupabase(oldSupabasePath, newSupabasePath);
+        // Fallback for models stored under 3D_Models
+        await renamePathInSupabase(`${sanitizedEmail}/3D_Models/${oldName}`, newSupabasePath);
 
         const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
         if (!finalUrl) finalUrl = relativeUrl;
@@ -667,6 +687,7 @@ router.post("/rename-model", async (req, res) => {
           const oldThumbPath = `${sanitizedEmail}/3D_Modals/${oldBase}${thumbExt}`;
           const newThumbPath = `${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
           await renamePathInSupabase(oldThumbPath, newThumbPath);
+          await renamePathInSupabase(`${sanitizedEmail}/3D_Models/${oldBase}${thumbExt}`, newThumbPath);
           newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
         }
 
@@ -727,7 +748,11 @@ router.get("/get-session", async (req, res) => {
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
     const sessionPath = `${sanitizedEmail}/3D_Modals/session.json`;
-    const buffer = await downloadFileFromSupabase(sessionPath);
+    let buffer = await downloadFileFromSupabase(sessionPath);
+    if (!buffer) {
+      // Fallback
+      buffer = await downloadFileFromSupabase(`${sanitizedEmail}/3D_Models/session.json`);
+    }
 
     if (buffer) {
       const state = JSON.parse(buffer.toString("utf-8"));
@@ -759,6 +784,7 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
     // Delete model file from Supabase Storage
     const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
     await deleteFileFromSupabase(destinationPath);
+    await deleteFileFromSupabase(`${sanitizedEmail}/3D_Models/${fileName}`);
     if (model.url) {
       await deleteFileFromSupabase(model.url);
     }
@@ -773,6 +799,35 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
   } catch (error) {
     console.error("Delete Error:", error);
     res.status(500).json({ message: "Server error during deletion" });
+  }
+});
+
+// @route   POST /api/3d-models/save-hotspots
+// @desc    Explicitly update hotspots for a 3D model
+// @access  Public
+router.post("/save-hotspots", async (req, res) => {
+  try {
+    const { modelId, hotspots } = req.body;
+    if (!modelId) {
+      return res.status(400).json({ message: "modelId is required" });
+    }
+    const cleanHotspots = Array.isArray(hotspots) ? hotspots : [];
+    let updated = await ThreedModel.findOneAndUpdate(
+      { modelId },
+      { $set: { hotspots: cleanHotspots } },
+      { new: true }
+    );
+    if (!updated) {
+      updated = await InteractionThreedModel.findOneAndUpdate(
+        { v_id: modelId },
+        { $set: { hotspots: cleanHotspots } },
+        { new: true }
+      );
+    }
+    res.json({ success: true, modelId, hotspots: cleanHotspots });
+  } catch (error) {
+    console.error("Error saving hotspots:", error);
+    res.status(500).json({ message: "Server error saving hotspots" });
   }
 });
 
@@ -797,7 +852,8 @@ router.get("/get-model/:modelId", async (req, res) => {
           fileName: interactionModel.fileName,
           url: absoluteUrl,
           size: interactionModel.size,
-          type: interactionModel.type
+          type: interactionModel.type,
+          hotspots: Array.isArray(interactionModel.hotspots) ? interactionModel.hotspots : []
         };
       }
     }

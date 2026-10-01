@@ -34,6 +34,9 @@ function areStatesEqual(a, b) {
         // Compare transformValues
         if (JSON.stringify(a.transformValues) !== JSON.stringify(b.transformValues)) return false;
 
+        // Compare meshTransforms (individual child mesh transforms)
+        if (JSON.stringify(a.meshTransforms || {}) !== JSON.stringify(b.meshTransforms || {})) return false;
+
         // Compare materialSettings
         if (JSON.stringify(a.materialSettings) !== JSON.stringify(b.materialSettings)) return false;
 
@@ -122,6 +125,8 @@ export default function useModalHistory(initialState) {
         redo,
         canUndo: index > 0,
         canRedo: index < history.length - 1,
-        resetHistory
+        resetHistory,
+        historyRef,
+        indexRef
     };
 }

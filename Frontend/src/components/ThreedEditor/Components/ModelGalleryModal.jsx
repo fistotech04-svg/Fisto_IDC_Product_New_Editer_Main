@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense, useMemo, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { Canvas } from "@react-three/fiber";
 import { View, OrbitControls, Environment, PerspectiveCamera, Html } from "@react-three/drei";
@@ -128,7 +129,9 @@ const ModelThumbnail = React.memo(({ model }) => {
     );
 });
 
-export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hideDelete }) {
+export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hideDelete, loadedModels = [], onClearModel }) {
+    const navigate = useNavigate();
+    const { modelId: urlModelId } = useParams();
     const [models, setModels] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -136,12 +139,46 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
     const [selectedForDeletion, setSelectedForDeletion] = useState([]);
     const toast = useToast();
     const containerRef = useRef();
-    
 
-    // Alert states
+    // Guard alerts for currently-in-use model
+    const [inUseReplaceAlert, setInUseReplaceAlert] = useState(null);  // { model }
+    const [inUseDeleteAlert, setInUseDeleteAlert]   = useState(null);  // { model }
+
+    // Derive a Set of name keys that are currently loaded in the editor
+    const loadedModelNames = useMemo(() =>
+        new Set((loadedModels || []).map(m => (m.name || '').replace(/\.[^/.]+$/, '').toLowerCase())),
+        [loadedModels]
+    );
+
+    const isModelInUse = useCallback((model) => {
+        if (!model) return false;
+        const galleryName = (model.name || '').replace(/\.[^/.]+$/, '').toLowerCase();
+        const galleryId = model.modelId ? String(model.modelId) : null;
+
+        // 1. Check against active URL model ID
+        if (galleryId && urlModelId && galleryId === String(urlModelId)) {
+            return true;
+        }
+
+        // 2. Check against loaded models currently in editor
+        if (loadedModels && loadedModels.length > 0) {
+            return loadedModels.some(m => {
+                const mName = (m.name || '').replace(/\.[^/.]+$/, '').toLowerCase();
+                const mId = m.modelId ? String(m.modelId) : (m.id ? String(m.id) : null);
+                if (galleryId && mId && galleryId === mId) return true;
+                if (galleryName && mName && galleryName === mName) return true;
+                return false;
+            });
+        }
+
+        return loadedModelNames.has(galleryName);
+    }, [loadedModels, loadedModelNames, urlModelId]);
+
+    // Regular delete alert for non-in-use models
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, data: null });
 
     useEffect(() => {
+
         if (isOpen) {
             fetchModels();
         }
@@ -174,10 +211,14 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
     );
 
     const handleReplaceClick = () => {
-        if (selectedModel) {
-            onSelectModel(selectedModel);
-            onClose();
+        if (!selectedModel) return;
+        // If the selected model is currently active in the editor, show a guard alert
+        if (isModelInUse(selectedModel)) {
+            setInUseReplaceAlert({ model: selectedModel });
+            return;
         }
+        onSelectModel(selectedModel);
+        onClose();
     };
 
     const handleDeleteModel = async (model) => {
@@ -187,6 +228,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
             return;
         }
         const user = JSON.parse(userStr);
+        const wasInUse = isModelInUse(model);
         
         try {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -205,6 +247,15 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
             // Refresh local list
             fetchModels();
             if (selectedModel?.name === model.name) setSelectedModel(null);
+
+            // If the deleted model was currently open/used in the editor, redirect to /editor/threed_editor
+            if (wasInUse) {
+                if (onClose) onClose();
+                if (onClearModel) {
+                    onClearModel();
+                }
+                navigate("/editor/threed_editor", { replace: true });
+            }
             
         } catch (error) {
             console.error("Delete operation failed!");
@@ -224,6 +275,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
         const userStr = localStorage.getItem('user');
         if (!userStr || !modelsToDelete || modelsToDelete.length === 0) return;
         const user = JSON.parse(userStr);
+        const hasInUse = modelsToDelete.some(m => isModelInUse(m));
         
         try {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -239,6 +291,15 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
             setSelectedForDeletion([]);
             if (modelsToDelete.some(m => m.name === selectedModel?.name)) {
                 setSelectedModel(null);
+            }
+
+            // If any of the deleted models was currently open/used in the editor, redirect to /editor/threed_editor
+            if (hasInUse) {
+                if (onClose) onClose();
+                if (onClearModel) {
+                    onClearModel();
+                }
+                navigate("/editor/threed_editor", { replace: true });
             }
             
         } catch (error) {
@@ -355,7 +416,12 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setAlertConfig({ isOpen: true, data: model, isMultiple: false });
+                                                    // Guard: model is currently loaded in editor
+                                                    if (isModelInUse(model)) {
+                                                        setInUseDeleteAlert({ model });
+                                                    } else {
+                                                        setAlertConfig({ isOpen: true, data: model, isMultiple: false });
+                                                    }
                                                 }}
                                                 className="absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-red-500 hover:bg-red-50 hover:text-red-600 transition-all z-[140] shadow-md opacity-0 group-hover:opacity-100"
                                             >
@@ -395,7 +461,14 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
                                         >
                                             {model.name.replace(/\.[^/.]+$/, "")}
                                         </p>
-                                        <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap shrink-0">{model.size}</span>
+                                        <div className="flex items-center gap-[0.3vw] shrink-0">
+                                            {isModelInUse(model) && (
+                                                <span className="text-[0.55vw] font-bold uppercase tracking-wide px-[0.4vw] py-[0.1vw] bg-green-100 text-green-700 rounded-full border border-green-200">
+                                                    In Use
+                                                </span>
+                                            )}
+                                            <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap">{model.size}</span>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -449,9 +522,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
                 `}</style>
             </div>
 
-
-
-            {/* ALERT MODAL */}
+            {/* ── REGULAR DELETE ALERT (non-in-use model) ── */}
             <AlertModal 
                 isOpen={alertConfig.isOpen}
                 onClose={() => setAlertConfig({ isOpen: false, data: null, isMultiple: false })}
@@ -463,14 +534,57 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
                     }
                 }}
                 type="error"
-                title="Delete Model"
+                title={
+                    alertConfig.isMultiple && alertConfig.data?.some(m => isModelInUse(m))
+                        ? "Delete Selected Models (Active Model Included)?"
+                        : "Delete Model"
+                }
                 message={
                     alertConfig.isMultiple 
-                    ? `Are you sure you want to delete ${alertConfig.data?.length} selected models from your gallery? This action cannot be undone.`
+                    ? (alertConfig.data?.some(m => isModelInUse(m))
+                        ? `You have selected ${alertConfig.data?.length} model(s) including the model currently open in the editor.\n\nDeleting them will permanently remove them from your gallery and redirect the editor to an empty canvas. Are you sure you want to proceed?`
+                        : `Are you sure you want to delete ${alertConfig.data?.length} selected models from your gallery? This action cannot be undone.`)
                     : `Are you sure you want to delete "${alertConfig.data?.name?.replace(/\.[^/.]+$/, "")}" from your gallery? This action cannot be undone.`
                 }
                 showCancel={true}
                 confirmText="Delete"
+            />
+
+            {/* ── IN-USE REPLACE GUARD ALERT ── */}
+            <AlertModal
+                isOpen={!!inUseReplaceAlert}
+                onClose={() => setInUseReplaceAlert(null)}
+                onConfirm={() => {
+                    const model = inUseReplaceAlert?.model;
+                    setInUseReplaceAlert(null);
+                    if (model) {
+                        onSelectModel(model);
+                        onClose();
+                    }
+                }}
+                type="warning"
+                title="Replace Active Model?"
+                message={`"${inUseReplaceAlert?.model?.name?.replace(/\.[^/.]+$/, '') ?? ''}" is currently open in the editor.\n\nYour unsaved changes will be lost if you replace it. Do you still want to continue?`}
+                showCancel={true}
+                confirmText="Replace Anyway"
+                cancelText="Cancel"
+            />
+
+            {/* ── IN-USE DELETE GUARD ALERT ── */}
+            <AlertModal
+                isOpen={!!inUseDeleteAlert}
+                onClose={() => setInUseDeleteAlert(null)}
+                onConfirm={() => {
+                    const model = inUseDeleteAlert?.model;
+                    setInUseDeleteAlert(null);
+                    if (model) handleDeleteModel(model);
+                }}
+                type="error"
+                title="Delete Active Model?"
+                message={`"${inUseDeleteAlert?.model?.name?.replace(/\.[^/.]+$/, '') ?? ''}" is currently open in the editor.\n\nDeleting it will permanently remove it from your gallery and redirect the editor to an empty base (http://localhost:5173/editor/threed_editor). Are you sure you want to proceed?`}
+                showCancel={true}
+                confirmText="Delete Anyway"
+                cancelText="Keep Model"
             />
         </div>
     );

@@ -61,13 +61,20 @@ const SectionHeader = ({ label, showLine = true }) => (
   </div>
 );
 const backendUrlGlobal = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+// Returns:
+//   null          → no texture at all
+//   '__EXISTING__'→ texture exists in Three.js material but no preview URL could be extracted
+//   <string URL>  → valid image URL / data URL / blob URL
 const resolveMapUrl = (url) => {
-    if (!url || url === 'existing') return null;
-    if (typeof url !== 'string') return url;
+    if (!url) return null;
+    if (url === 'existing') return '__EXISTING__';
+    if (typeof url !== 'string') return null;
     if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
     if (url.startsWith('/')) return `${backendUrlGlobal}${url}`;
     return url;
 };
+// Returns true if resolveMapUrl result means a real previewable URL is available
+const hasPreviewUrl = (resolved) => resolved && resolved !== '__EXISTING__';
 
 const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disabled = false }) => {
   const fileInputRef = React.useRef(null);
@@ -197,18 +204,26 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disa
       <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} disabled={disabled} />
       {currentMap ? (
         <div className="w-full h-full relative group/thumb">
-           {resolveMapUrl && resolveMapUrl(currentMap) ? (
-               <img 
-                  src={resolveMapUrl(currentMap)} 
-                  alt="Texture Preview"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                      e.target.style.display = 'none';
-                      if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                  }}
-               />
-           ) : null}
-           <div className={`${resolveMapUrl && resolveMapUrl(currentMap) ? 'hidden' : 'flex'} absolute inset-0 bg-indigo-50 items-center justify-center text-[#5d5efc]`}>
+           {(() => {
+               const resolved = resolveMapUrl(currentMap);
+               if (hasPreviewUrl(resolved)) {
+                   return (
+                       <img 
+                          src={resolved}
+                          alt="Texture Preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) e.target.nextSibling.classList.remove('hidden');
+                              if (e.target.nextSibling) e.target.nextSibling.classList.add('flex');
+                          }}
+                       />
+                   );
+               }
+               return null;
+           })()}
+           {/* Shown when texture exists but no preview URL is available, or after img error */}
+           <div className={`${hasPreviewUrl(resolveMapUrl(currentMap)) ? 'hidden' : 'flex'} absolute inset-0 bg-indigo-50 items-center justify-center text-[#5d5efc]`}>
                <Icon icon="heroicons:check-circle" width="1.25vw" />
            </div>
 
@@ -314,26 +329,38 @@ const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, d
                 
                 <div className="flex gap-[0.65vw] items-start">
                     <div className={`w-[7vw] h-[7vw] rounded-[0.5vw] shrink-0 overflow-hidden relative group border border-gray-300 shadow-inner transition-colors ${disabled ? 'bg-black cursor-not-allowed' : 'bg-white cursor-pointer hover:border-[#5d5efc]'}`}>
-                        {currentMap ? (
-                            resolveMapUrl(currentMap) ? (
-                                <img 
-                                    src={resolveMapUrl(currentMap)} 
-                                    className="w-full h-full object-cover" 
-                                    alt={title} 
-                                    onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                                    }}
-                                />
-                            ) : null
-                        ) : (
-                            <div className={`w-full h-full flex flex-col items-center justify-center gap-[0.4vw] ${disabled ? 'text-white/40' : 'text-gray-300'}`}>
-                                <Icon icon={disabled ? "mdi:block" : "glyphs:image-duo"} width={disabled ? "2.5vw" : "5.5vw"} />
-                                {!disabled && <span className="text-[0.7vw] text-gray-400 font-semibold -mt-[0.5vw]">No Image Found</span>}
-                            </div>
-                        )}
+                        {(() => {
+                            const resolved = currentMap ? resolveMapUrl(currentMap) : null;
+                            if (!currentMap) {
+                                // No texture: show placeholder
+                                return (
+                                    <div className={`w-full h-full flex flex-col items-center justify-center gap-[0.4vw] ${disabled ? 'text-white/40' : 'text-gray-300'}`}>
+                                        <Icon icon={disabled ? "mdi:block" : "glyphs:image-duo"} width={disabled ? "2.5vw" : "5.5vw"} />
+                                        {!disabled && <span className="text-[0.7vw] text-gray-400 font-semibold -mt-[0.5vw]">No Image Found</span>}
+                                    </div>
+                                );
+                            }
+                            if (hasPreviewUrl(resolved)) {
+                                // Valid preview URL available: show the image
+                                return (
+                                    <img 
+                                        src={resolved}
+                                        className="w-full h-full object-cover" 
+                                        alt={title} 
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            // Show the next sibling fallback overlay
+                                            const next = e.target.nextElementSibling;
+                                            if (next) { next.style.display = 'flex'; }
+                                        }}
+                                    />
+                                );
+                            }
+                            // Texture exists in material but no preview URL (e.g. CORS-tainted ImageBitmap)
+                            return null;
+                        })()}
                         {currentMap && (
-                            <div className={`${resolveMapUrl(currentMap) ? 'hidden' : 'flex'} absolute inset-0 flex-col items-center justify-center bg-indigo-50/80 text-[#5d5efc] p-2 text-center pointer-events-none`}>
+                            <div className={`${hasPreviewUrl(resolveMapUrl(currentMap)) ? 'hidden' : 'flex'} absolute inset-0 flex-col items-center justify-center bg-indigo-50/80 text-[#5d5efc] p-2 text-center pointer-events-none`}>
                                 <Icon icon="heroicons:check-circle" className="w-[1.8vw] h-[1.8vw] mb-1" />
                                 <span className="text-[0.65vw] font-bold uppercase tracking-tight">Active Texture</span>
                             </div>
@@ -959,6 +986,10 @@ export default function Customized({
   const [pickerPos, setPickerPos] = useState({ top: 0, right: 0 });
   const lightPadRef = useRef(null);
   const [isDraggingLight, setIsDraggingLight] = useState(false);
+  const controlsRef = useRef(controls);
+  useEffect(() => {
+    controlsRef.current = controls;
+  }, [controls]);
 
   const currentGalleryTexture = useMemo(() => {
     if (!selectedTextureId) return null;
@@ -1014,8 +1045,8 @@ export default function Customized({
       const dy = clientY - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // Limit sun inside the rounded structure (max radius 78% leaves safe margin so sun icon never moves out)
-      const maxVisualRadius = radius * 0.78;
+      // Visual orbit radius matches maxVisualPercent (38% of dome width = radius * 0.76)
+      const maxVisualRadius = radius * 0.76;
       let clampedDx = dx;
       let clampedDy = dy;
       
@@ -1030,21 +1061,25 @@ export default function Customized({
       const normY = clampedDy / maxVisualRadius;
       
       const newX = normX * MAX_COORD;
-      const newY = -normY * MAX_COORD; // Screen up is positive Y
+      const newY = -normY * MAX_COORD; // Screen up is positive Y (North)
       
+      const currentPos = controlsRef.current?.lightPosition || controls.lightPosition || { x: 10, y: 10, z: 10 };
       updateControl('lightPosition', { 
-          ...(controls.lightPosition || { x: 10, y: 10, z: 10 }), 
-          x: Math.round(newX), 
-          y: Math.round(newY) 
+          ...currentPos, 
+          x: Math.round(newX * 10) / 10, 
+          y: Math.round(newY * 10) / 10 
       });
   };
 
   const handleLightWheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -1 : 1;
+      const currentPos = controlsRef.current?.lightPosition || controls.lightPosition || { x: 10, y: 10, z: 10 };
+      const currentZ = currentPos.z ?? 10;
+      const newZ = Math.max(1, Math.min(50, Math.round(currentZ + delta)));
       updateControl('lightPosition', {
-          ...(controls.lightPosition || { x: 10, y: 10, z: 10 }),
-          z: Math.round((controls.lightPosition?.z || 10) + delta)
+          ...currentPos,
+          z: newZ
       });
   };
 
@@ -1316,7 +1351,7 @@ export default function Customized({
                 <div className="space-y-[0.5vw] mt-[0.5vw]">
                     <CustomSlider
                         label="Scale"
-                        value={controls.scale ?? 100}
+                        value={controls.scale ?? 50}
                         onChange={(v) => updateControl("scale", v)}
                         min={1}
                         max={200}
@@ -1574,9 +1609,9 @@ export default function Customized({
                       value={Math.round(controls.lightPosition?.z || 10)} 
                       axisLabel="Z" 
                       compact 
-                      min={-50}
+                      min={1}
                       max={50}
-                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: val })}
+                      onChange={(val) => updateControl('lightPosition', { ...controls.lightPosition, z: Math.max(1, val) })}
                       step={1}
                   />
               </div>

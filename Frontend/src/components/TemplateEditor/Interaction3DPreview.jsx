@@ -1,25 +1,195 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Environment, Center, ContactShadows } from '@react-three/drei';
+import { OrbitControls, useGLTF, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { CustomQRCode } from './Model3DEditor';
 import ColorPicker from './ColorPicker';
+import Hotspot3DOverlay from '../ThreedEditor/Components/Hotspot3DOverlay';
 import axios from 'axios';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 
 const ModelScene = ({ 
   url, 
   autoRotate = true, 
-  autoRotateSpeed = 1.5,
-  shadowStrength = 35,
-  shadowSoftness = 35,
-  lockMaxZoom = true,
-  maxZoom = 4.5
+  autoRotateSpeed = 1.5, 
+  shadowStrength = 35, 
+  shadowSoftness = 35, 
+  lockMaxZoom = true, 
+  maxZoom = 4.5, 
+  hotspots = [], 
+  activeHotspotId = null, 
+  onHotspotClick 
 }) => {
   const { scene, animations } = useGLTF(url);
   const { camera, controls } = useThree();
-  const [modelBounds, setModelBounds] = useState({ radius: 1.5, height: 1 });
   const mixerRef = useRef(null);
+  const sceneWrapperRef = useRef(null);
+  const controlsRef = useRef(null);
+  const cameraAnimRef = useRef(null);
+
+  // Exact viewport normalization matching ThreedEditor (GenericModel)
+  const normTransform = React.useMemo(() => {
+    if (!scene) {
+      return {
+        scale: 1,
+        position: [0, 0, 0],
+        height: 2,
+        radius: 1.5,
+        modelCenter: new THREE.Vector3(0, 1, 0)
+      };
+    }
+
+    // Ensure clean rest transforms on raw scene object before measuring
+    scene.position.set(0, 0, 0);
+    scene.scale.set(1, 1, 1);
+    scene.rotation.set(0, 0, 0);
+    scene.updateMatrixWorld(true);
+
+    const box = new THREE.Box3().setFromObject(scene);
+    if (box.isEmpty() || !isFinite(box.min.x)) {
+      return {
+        scale: 1,
+        position: [0, 0, 0],
+        height: 2,
+        radius: 1.5,
+        modelCenter: new THREE.Vector3(0, 1, 0)
+      };
+    }
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    // Target size 3.5 units for clear, large, prominent framing in the viewport
+    const TARGET_SIZE = 3.5;
+    const targetScale = maxDim > 0 ? (TARGET_SIZE / maxDim) : 1;
+
+    // Center on X and Z, and place the bottom at exactly Y = 0 on the base grid (no floating)
+    const centeredX = -center.x * targetScale;
+    const centeredZ = -center.z * targetScale;
+    const bottomY = -box.min.y * targetScale;
+    const height = size.y * targetScale;
+    const radius = Math.max(0.8, (maxDim * targetScale) / 2);
+    const modelCenter = new THREE.Vector3(0, height / 2, 0);
+
+    return {
+      scale: targetScale,
+      position: [centeredX, bottomY, centeredZ],
+      height,
+      radius,
+      modelCenter
+    };
+  }, [scene]);
+
+  // Clean raw scene transforms
+  useEffect(() => {
+    if (scene) {
+      scene.position.set(0, 0, 0);
+      scene.scale.set(1, 1, 1);
+      scene.rotation.set(0, 0, 0);
+      scene.updateMatrixWorld(true);
+    }
+  }, [scene]);
+
+  // Smooth front-facing camera focus on a hotspot
+  const focusHotspot = React.useCallback((hs) => {
+    if (!hs) return;
+    const activeControls = controlsRef.current || controls;
+    if (!activeControls) return;
+
+    const posArr = Array.isArray(hs.position)
+      ? hs.position
+      : (hs.position && typeof hs.position === 'object')
+      ? [hs.position.x || 0, hs.position.y || 0, hs.position.z || 0]
+      : [0, 0, 0];
+
+    const hsPos = new THREE.Vector3(
+      Number(posArr[0]) || 0,
+      Number(posArr[1]) || 0,
+      Number(posArr[2]) || 0
+    );
+
+    const targetCenter = normTransform.modelCenter.clone();
+
+    // Compute front view direction
+    let frontDir = new THREE.Vector3();
+    if (hs.normal && Array.isArray(hs.normal) && (Math.abs(hs.normal[0]) > 0.001 || Math.abs(hs.normal[1]) > 0.001 || Math.abs(hs.normal[2]) > 0.001)) {
+      frontDir.set(Number(hs.normal[0]) || 0, Number(hs.normal[1]) || 0, Number(hs.normal[2]) || 0).normalize();
+    } else {
+      frontDir.subVectors(hsPos, targetCenter);
+      if (frontDir.lengthSq() > 0.0001) {
+        frontDir.normalize();
+      } else {
+        frontDir.set(0, 0.2, 1).normalize();
+      }
+    }
+
+    if (frontDir.y > 0.82) {
+      frontDir.set(frontDir.x * 0.4, 0.85, 0.45).normalize();
+    } else if (frontDir.y < -0.82) {
+      frontDir.set(frontDir.x * 0.4, -0.85, 0.45).normalize();
+    } else {
+      frontDir.y = Math.max(-0.4, Math.min(0.5, frontDir.y + 0.1));
+      frontDir.normalize();
+    }
+
+    const framingDistance = Math.max(1.2, normTransform.radius * 1.4);
+    const lookTarget = targetCenter.clone().lerp(hsPos, 0.45);
+    const endCamPos = lookTarget.clone().add(frontDir.clone().multiplyScalar(framingDistance));
+
+    const startCamPos = camera.position.clone();
+    const startTarget = activeControls.target.clone();
+    const startTime = performance.now();
+    const duration = 500;
+
+    if (cameraAnimRef.current) {
+      cancelAnimationFrame(cameraAnimRef.current);
+      cameraAnimRef.current = null;
+    }
+
+    const animateStep = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      camera.position.lerpVectors(startCamPos, endCamPos, ease);
+      activeControls.target.lerpVectors(startTarget, lookTarget, ease);
+      activeControls.update();
+
+      if (progress < 1) {
+        cameraAnimRef.current = requestAnimationFrame(animateStep);
+      } else {
+        cameraAnimRef.current = null;
+      }
+    };
+    cameraAnimRef.current = requestAnimationFrame(animateStep);
+  }, [camera, controls, normTransform]);
+
+  const handleHotspotClick = (hs, index) => {
+    if (typeof onHotspotClick === 'function') {
+      onHotspotClick(hs, index);
+    } else {
+      focusHotspot(hs);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeHotspotId || !hotspots || hotspots.length === 0) return;
+    const targetHs = hotspots.find(h => String(h.id) === String(activeHotspotId));
+    if (targetHs) {
+      focusHotspot(targetHs);
+    }
+  }, [activeHotspotId, hotspots, focusHotspot]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraAnimRef.current) {
+        cancelAnimationFrame(cameraAnimRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!scene) return;
@@ -98,30 +268,36 @@ const ModelScene = ({
     }
   });
 
-  // Set initial camera framing ONLY when model url/scene changes
+  // Set initial camera framing matching ThreedEditor hero view
   React.useEffect(() => {
     if (!scene) return;
-    const box = new THREE.Box3().setFromObject(scene);
-    const size = box.getSize(new THREE.Vector3());
-    const sphere = box.getBoundingSphere(new THREE.Sphere());
-    const radius = sphere.radius || 1.5;
-    const height = size.y || 1;
-    setModelBounds({ radius, height });
+    const { radius, modelCenter } = normTransform;
 
     const fov = camera.fov || 50;
-    const fovRad = (fov * Math.PI) / 360;
-    const dist = (radius / Math.sin(fovRad)) * 1.3;
+    const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
+    const dist = (radius / Math.sin(vFOVRad)) * 1.35;
+    const distance = Math.max(2.8, Math.min(dist, 60));
 
-    camera.position.set(0, 0, Math.max(dist, 1.5));
-    camera.near = Math.max(0.01, dist / 100);
-    camera.far = Math.max(1000, dist * 100);
+    // 3/4 elevated isometric/hero perspective (polar ~66° = ~24° elevation, azimuth ~38°)
+    const phi = THREE.MathUtils.degToRad(66);
+    const theta = THREE.MathUtils.degToRad(38);
+
+    const camX = modelCenter.x + distance * Math.sin(phi) * Math.sin(theta);
+    const camY = modelCenter.y + distance * Math.cos(phi);
+    const camZ = modelCenter.z + distance * Math.sin(phi) * Math.cos(theta);
+
+    camera.near = Math.min(0.05, distance / 50);
+    camera.far = Math.max(1000, distance * 25);
+    camera.position.set(camX, camY, camZ);
+    camera.lookAt(modelCenter);
     camera.updateProjectionMatrix();
 
-    if (controls) {
-      controls.target.set(0, 0, 0);
-      controls.update();
+    const activeControls = controlsRef.current || controls;
+    if (activeControls) {
+      activeControls.target.copy(modelCenter);
+      activeControls.update();
     }
-  }, [url, scene, camera, controls]);
+  }, [url, scene, camera, controls, normTransform]);
 
   const numShadowStrength = Number(shadowStrength) || 0;
   const numShadowSoftness = Number(shadowSoftness) || 0;
@@ -130,13 +306,11 @@ const ModelScene = ({
 
   const baseDist = React.useMemo(() => {
     const fovRad = ((camera.fov || 50) * Math.PI) / 360;
-    return (modelBounds.radius / Math.sin(fovRad)) * 1.3;
-  }, [modelBounds.radius, camera.fov]);
+    return (normTransform.radius / Math.sin(fovRad)) * 1.35;
+  }, [normTransform.radius, camera.fov]);
 
   const minZoomDist = lockMaxZoom ? Math.max(0.1, baseDist / Math.max(1, numMaxZoom)) : 0.1;
   const maxZoomDist = lockMaxZoom ? Math.max(baseDist, baseDist * Math.max(1, numMaxZoom)) : 500;
-
-  const shadowY = -modelBounds.height / 2 - 0.01;
 
   return (
     <>
@@ -145,27 +319,43 @@ const ModelScene = ({
       <directionalLight position={[10, 10, 10]} intensity={1} />
       <directionalLight position={[-10, -10, -10]} intensity={0.3} />
 
-      <Center>
+      {/* 3D Model with exact ThreedEditor normalization */}
+      <group
+        ref={sceneWrapperRef}
+        scale={normTransform.scale}
+        position={normTransform.position}
+      >
         <primitive object={scene} />
-      </Center>
+      </group>
+
+      {/* 3D Hotspots overlay at exact world coordinates */}
+      {hotspots && hotspots.length > 0 && (
+        <Hotspot3DOverlay
+          hotspots={hotspots}
+          activeHotspotId={activeHotspotId}
+          onHotspotClick={handleHotspotClick}
+          sceneWrapperRef={sceneWrapperRef}
+        />
+      )}
 
       {numShadowStrength > 0 && (
         <ContactShadows
-          position={[0, shadowY, 0]}
+          position={[0, -0.01, 0]}
           opacity={numShadowStrength / 100}
           blur={(numShadowSoftness / 100) * 3 + 0.2}
-          far={modelBounds.radius * 4}
+          far={normTransform.radius * 4}
           resolution={1024}
-          scale={modelBounds.radius * 6}
+          scale={normTransform.radius * 6}
           color="#000000"
         />
       )}
 
       <OrbitControls 
+        ref={controlsRef}
         makeDefault 
         enableZoom={true} 
         enablePan={true} 
-        autoRotate={autoRotate} 
+        autoRotate={autoRotate && !activeHotspotId} 
         autoRotateSpeed={numAutoRotateSpeed} 
         minDistance={minZoomDist}
         maxDistance={maxZoomDist}
@@ -181,7 +371,10 @@ const GlbModelViewer = React.memo(({
   shadowStrength = 35,
   shadowSoftness = 35,
   lockMaxZoom = true,
-  maxZoom = 4.5
+  maxZoom = 4.5,
+  hotspots = [],
+  activeHotspotId = null,
+  onHotspotClick
 }) => {
   const [timestamp, setTimestamp] = useState('');
 
@@ -210,6 +403,9 @@ const GlbModelViewer = React.memo(({
           shadowSoftness={shadowSoftness}
           lockMaxZoom={lockMaxZoom}
           maxZoom={maxZoom}
+          hotspots={hotspots}
+          activeHotspotId={activeHotspotId}
+          onHotspotClick={onHotspotClick}
         />
       </React.Suspense>
     </Canvas>
@@ -231,30 +427,80 @@ const Model3DPreviewModal = ({
   enableAR = true,
   setBgColor: externalSetBgColor,
   qrText = 'Scan Me', qrColor = '#000000', qrBgType = 'Solid', qrBgColor = '#ffffff', qrLevel = 'M', qrDotType = 'square', qrCornerSquareType = 'square', qrCornerDotType = 'square', qrLogo,
-  topText, bottomText: initialBottomText, vId
+  topText, bottomText: initialBottomText, vId,
+  hotspots: initialHotspots = [],
+  activeHotspotId: externalActiveHotspotId = null,
+  onHotspotClick: externalOnHotspotClick
 }) => {
   const [localBgColor, setLocalBgColor] = useState(initialBgColor);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
   const [bottomText, setBottomText] = useState(initialBottomText);
+  const [localHotspots, setLocalHotspots] = useState(initialHotspots || []);
+  const [internalActiveHotspotId, setInternalActiveHotspotId] = useState(null);
+
+  const activeHotspotId = externalActiveHotspotId !== null && externalActiveHotspotId !== undefined 
+    ? externalActiveHotspotId 
+    : internalActiveHotspotId;
+
+  const handleHotspotClick = (hs, idx) => {
+    const clickedId = hs?.id || idx;
+    setInternalActiveHotspotId(prev => prev === clickedId ? null : clickedId);
+    if (typeof externalOnHotspotClick === 'function') {
+      externalOnHotspotClick(hs, idx);
+    }
+  };
+
+  React.useEffect(() => {
+    if (Array.isArray(initialHotspots) && initialHotspots.length > 0) {
+      setLocalHotspots(initialHotspots);
+    }
+  }, [initialHotspots]);
 
   React.useEffect(() => {
     setBottomText(initialBottomText);
   }, [initialBottomText]);
 
   React.useEffect(() => {
-    if (isOpen && vId) {
+    if (typeof dataUrl === 'string' && dataUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataUrl);
+        if (Array.isArray(parsed.hotspots) && parsed.hotspots.length > 0) {
+          setLocalHotspots(parsed.hotspots);
+        }
+        if (parsed.displayName || parsed.name) {
+          setBottomText(parsed.displayName || parsed.name);
+        }
+      } catch (e) {}
+    }
+  }, [dataUrl]);
+
+  const targetVId = vId || (() => {
+    if (typeof dataUrl === 'string' && dataUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(dataUrl);
+        return parsed.v_id || parsed.modelId || parsed.sourceModelId || null;
+      } catch (_) {}
+    }
+    return null;
+  })();
+
+  React.useEffect(() => {
+    if (isOpen && targetVId) {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      axios.get(`${backendUrl}/api/3d-models/get-model/${vId}`)
+      axios.get(`${backendUrl}/api/3d-models/get-model/${targetVId}`)
         .then(res => {
            if (res.data && res.data.displayName) {
                setBottomText(res.data.displayName);
            } else if (res.data && res.data.name) {
                setBottomText(res.data.name);
            }
+           if (res.data && Array.isArray(res.data.hotspots) && res.data.hotspots.length > 0) {
+               setLocalHotspots(res.data.hotspots);
+           }
         })
-        .catch(err => console.error("Failed to fetch latest 3D model name:", err));
+        .catch(err => console.error("Failed to fetch latest 3D model metadata:", err));
     }
-  }, [isOpen, vId]);
+  }, [isOpen, targetVId]);
 
   React.useEffect(() => {
     if (initialBgColor) {
@@ -305,6 +551,21 @@ const Model3DPreviewModal = ({
     return `${window.location.origin}/ar-view?url=${encodeURIComponent(resolvedUrl)}`;
   }, [dataUrl, qrText, vId]);
 
+  const resolvedModelUrl = React.useMemo(() => {
+    if (!dataUrl) return '';
+    let u = dataUrl;
+    if (typeof u === 'string' && u.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(u);
+        u = parsed.data || parsed.url || u;
+      } catch (e) {}
+    }
+    if (typeof u === 'string' && u.startsWith('/uploads/')) {
+      u = resolveUploadsPath(u);
+    }
+    return u;
+  }, [dataUrl]);
+
   if (!isOpen) return null;
 
   return (
@@ -318,15 +579,18 @@ const Model3DPreviewModal = ({
 
         {/* Canvas Area */}
         <div className="flex-1 w-full h-full relative" style={{ backgroundColor: bgType === 'Solid' ? bgColor : 'transparent' }}>
-          {dataUrl ? (
+          {resolvedModelUrl ? (
             <GlbModelViewer 
-              url={dataUrl} 
+              url={resolvedModelUrl} 
               autoRotate={autoRotate} 
               autoRotateSpeed={autoRotateSpeed} 
-              shadowStrength={shadowStrength}
-              shadowSoftness={shadowSoftness}
-              lockMaxZoom={lockMaxZoom}
-              maxZoom={maxZoom}
+              shadowStrength={shadowStrength} 
+              shadowSoftness={shadowSoftness} 
+              lockMaxZoom={lockMaxZoom} 
+              maxZoom={maxZoom} 
+              hotspots={localHotspots}
+              activeHotspotId={activeHotspotId}
+              onHotspotClick={handleHotspotClick}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

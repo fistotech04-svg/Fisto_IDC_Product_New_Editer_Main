@@ -9,12 +9,7 @@ import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
 // Global cache and shared loader to prevent redundant network requests and decoding
@@ -24,65 +19,147 @@ const privateTextureManager = new THREE.LoadingManager();
 const sharedTextureLoader = new THREE.TextureLoader(privateTextureManager);
 sharedTextureLoader.setCrossOrigin('anonymous');
 
-// Helper to extract a usable image URL/DataURL from a Three.js texture
+// Helper to extract a usable image URL/DataURL from a Three.js texture.
+// NOTE: Three.js revokes blob: URLs after GPU texture upload — NEVER return blob: URLs directly!
 const getTextureSource = (tex) => {
     if (!tex) return null;
-    if (tex.userData?.url) return tex.userData.url;
-    if (tex.userData?.__thumbnailUrl) return tex.userData.__thumbnailUrl;
-    if (!tex.image) return null;
-    const img = tex.image;
-    
-    // 1. If it's a standard Image/HTMLImageElement with a valid URL or compact data URI
-    if (img.src && typeof img.src === 'string') {
-        if (img.src.startsWith('http') || img.src.startsWith('blob:')) {
-            return img.src;
-        }
-        if (img.src.startsWith('data:') && img.src.length < 80000) {
-            return img.src;
-        }
+
+    // Fast-path: already cached a valid data URL thumbnail
+    if (tex.userData?.__thumbnailUrl) {
+        const cached = tex.userData.__thumbnailUrl;
+        if (cached && cached.startsWith('data:')) return cached;
     }
 
-    // 2. Generate a lightweight thumbnail (max 128x128, JPEG) to prevent memory exhaustion and string length overflow
+    // userData.url: only use for non-blob URLs (blob may already be revoked by Three.js)
+    if (tex.userData?.url) {
+        const u = tex.userData.url;
+        if (u && typeof u === 'string' && !u.startsWith('blob:')) return u;
+    }
+
+    if (!tex.image) return 'existing';
+    const img = tex.image;
+
+    // ── Inner helper ────────────────────────────────────────────────────────────
+    // Draws `source` into a 128×128 canvas and returns a JPEG data URL.
+    // Returns null on any failure (SecurityError, zero dimensions, etc.).
+    const tryThumbnail = (source, origW, origH) => {
+        if (!origW || !origH) return null;
+        try {
+            const maxDim = 128;
+            const scale = Math.min(1, maxDim / Math.max(origW, origH));
+            const tw = Math.max(1, Math.round(origW * scale));
+            const th = Math.max(1, Math.round(origH * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = tw;
+            canvas.height = th;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.drawImage(source, 0, 0, tw, th);
+            const thumb = canvas.toDataURL('image/jpeg', 0.7);
+            // Verify it's a real data URL (not 'data:,' which is an empty canvas)
+            if (!thumb || !thumb.startsWith('data:image')) return null;
+            tex.userData = tex.userData || {};
+            tex.userData.__thumbnailUrl = thumb;
+            return thumb;
+        } catch (_) {
+            return null;
+        }
+    };
+
+    // 1. DataTexture / raw Uint8 pixel data
+    if (img.data && (img.data instanceof Uint8Array || img.data instanceof Uint8ClampedArray)) {
+        const origW = img.width || 0;
+        const origH = img.height || 0;
+        if (origW && origH) {
+            try {
+                const maxDim = 128;
+                const scale = Math.min(1, maxDim / Math.max(origW, origH));
+                const tw = Math.max(1, Math.round(origW * scale));
+                const th = Math.max(1, Math.round(origH * scale));
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = origW;
+                tempCanvas.height = origH;
+                const tempCtx = tempCanvas.getContext('2d');
+                if (tempCtx) {
+                    const imgData = tempCtx.createImageData(origW, origH);
+                    imgData.data.set(img.data);
+                    tempCtx.putImageData(imgData, 0, 0);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = tw;
+                    canvas.height = th;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(tempCanvas, 0, 0, tw, th);
+                        const thumb = canvas.toDataURL('image/jpeg', 0.7);
+                        tex.userData = tex.userData || {};
+                        tex.userData.__thumbnailUrl = thumb;
+                        return thumb;
+                    }
+                }
+            } catch (_) {}
+        }
+        return 'existing';
+    }
+
+    // 2. ImageBitmap — has width/height but NO .src
+    if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) {
+        const origW = img.width || 0;
+        const origH = img.height || 0;
+        if (origW && origH) {
+            const thumb = tryThumbnail(img, origW, origH);
+            if (thumb) return thumb;
+        }
+        return 'existing';
+    }
+
+    // 3. HTMLCanvasElement (some loaders set the image to a canvas directly)
+    if (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) {
+        const origW = img.width || 0;
+        const origH = img.height || 0;
+        if (origW && origH) {
+            const thumb = tryThumbnail(img, origW, origH);
+            if (thumb) return thumb;
+        }
+        return 'existing';
+    }
+
+    // ── 4. HTMLImageElement / HTMLVideoElement — has .src or .currentSrc ─────────
+    // IMPORTANT: blob: URLs from Three.js may already be revoked after GPU upload.
+    // NEVER return a blob: URL directly — always generate a thumbnail instead.
+    {
+        const srcUrl = img.src || img.currentSrc || '';
+        // Use naturalWidth/naturalHeight: these remain valid after blob revocation
+        // because the image data is decoded in-memory in the element.
+        const origW = img.naturalWidth || img.width || img.videoWidth || 0;
+        const origH = img.naturalHeight || img.height || img.videoHeight || 0;
+
+        if (origW && origH) {
+            const thumb = tryThumbnail(img, origW, origH);
+            if (thumb) return thumb;
+        }
+
+        // Only return the URL directly if it's a safe non-revokable URL:
+        // - data: URIs are embedded data, never revoked
+        // - http: URLs are permanent network URLs
+        // - blob: URLs are REVOKED by Three.js → never return them
+        if (srcUrl.startsWith('data:') && srcUrl.length < 500000) return srcUrl;
+        if (srcUrl.startsWith('http') || srcUrl.startsWith('//')) return srcUrl;
+
+        // blob: URLs or unknown — signal existence without returning a broken URL
+        return 'existing';
+    }
+
+    // 5. Generic fallback: try to draw whatever img is into a canvas
     try {
         const origW = img.width || img.naturalWidth || img.videoWidth || 0;
         const origH = img.height || img.naturalHeight || img.videoHeight || 0;
-        if (!origW || !origH) return "existing";
-
-        const maxDim = 128;
-        const scale = Math.min(1, maxDim / Math.max(origW, origH));
-        const tw = Math.max(1, Math.round(origW * scale));
-        const th = Math.max(1, Math.round(origH * scale));
-
-        const canvas = document.createElement('canvas');
-        canvas.width = tw;
-        canvas.height = th;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return "existing";
-
-        if (img.data && (img.data instanceof Uint8Array || img.data instanceof Uint8ClampedArray)) {
-            // DataTexture / raw pixels: write to offscreen buffer first then scale down
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = origW;
-            tempCanvas.height = origH;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (tempCtx) {
-                const imgData = tempCtx.createImageData(origW, origH);
-                imgData.data.set(img.data);
-                tempCtx.putImageData(imgData, 0, 0);
-                ctx.drawImage(tempCanvas, 0, 0, tw, th);
-            }
-        } else {
-            // ImageBitmap, HTMLCanvasElement, HTMLImageElement
-            ctx.drawImage(img, 0, 0, tw, th);
+        if (origW && origH) {
+            const thumb = tryThumbnail(img, origW, origH);
+            if (thumb) return thumb;
         }
+    } catch (_) {}
 
-        const thumb = canvas.toDataURL('image/jpeg', 0.7);
-        tex.userData = tex.userData || {};
-        tex.userData.__thumbnailUrl = thumb;
-        return thumb;
-    } catch (e) {
-        return "existing";
-    }
+    return 'existing';
 };
 
 // Safe helper to compute tangents without throwing or logging errors on non-indexed or attribute-deficient geometries
@@ -122,6 +199,29 @@ const safeComputeTangents = (geometry) => {
   }
 };
 
+// Safe Matrix3 and Matrix4 copy patches to prevent "Cannot read properties of undefined (reading 'elements')" in Three.js WebGLMaterials refreshTransformUniform
+if (THREE.Matrix3 && THREE.Matrix3.prototype && !THREE.Matrix3.prototype._isSafeCopyPatched) {
+  THREE.Matrix3.prototype._isSafeCopyPatched = true;
+  const originalMatrix3Copy = THREE.Matrix3.prototype.copy;
+  THREE.Matrix3.prototype.copy = function (m) {
+    if (!m || !m.elements) {
+      return this.identity();
+    }
+    return originalMatrix3Copy.call(this, m);
+  };
+}
+
+if (THREE.Matrix4 && THREE.Matrix4.prototype && !THREE.Matrix4.prototype._isSafeCopyPatched) {
+  THREE.Matrix4.prototype._isSafeCopyPatched = true;
+  const originalMatrix4Copy = THREE.Matrix4.prototype.copy;
+  THREE.Matrix4.prototype.copy = function (m) {
+    if (!m || !m.elements) {
+      return this.identity();
+    }
+    return originalMatrix4Copy.call(this, m);
+  };
+}
+
 // Upgrades MeshStandardMaterial to MeshPhysicalMaterial so specularIntensity and dynamic specular highlights work
 const ensurePhysicalMaterial = (mat) => {
   if (!mat) return mat;
@@ -155,12 +255,17 @@ const ensurePhysicalMaterial = (mat) => {
   return mat;
 };
 
-// --- Blender-style Selection Highlight using OutlinePass with Dedicated Lightweight Proxy Scene ---
-// Renders an authentic post-process silhouette outline matching Blender's selection highlight.
-// Uses a dedicated proxy scene containing ONLY the selected mesh(es) to completely eliminate
-// full-scene hierarchy traversals and depth draw calls, ensuring silky smooth 60 FPS on any model.
+// --- Authentic Blender-style Silhouette Outline with 100% Native Lighting Preservation ---
+// Native WebGL forward render ensures lighting, shadows, and HDRI reflections are 100% constant,
+// while OutlinePass draws the authentic 2D silhouette outline directly on top of the canvas.
 function MeshSelectionHighlight({ target }) {
   const { gl, scene, camera, size } = useThree();
+
+  const targetSignature = useMemo(() => {
+    if (!target) return '';
+    const rawList = Array.isArray(target) ? target : [target];
+    return rawList.map(m => m?.uuid || '').sort().join(',');
+  }, [target]);
 
   // Collect all unique meshes belonging to the target
   const meshes = useMemo(() => {
@@ -188,11 +293,9 @@ function MeshSelectionHighlight({ target }) {
       }
     });
     return result;
-  }, [target]);
+  }, [targetSignature]);
 
-  // Create dedicated proxy scene containing ONLY the selected mesh(es).
-  // This isolates OutlinePass from the rest of the 3D model, dropping CPU time
-  // from ~30ms to <0.05ms per frame on complex models.
+  // Dedicated lightweight proxy scene containing ONLY the selected mesh(es)
   const selectionData = useMemo(() => {
     if (meshes.length === 0) return null;
     const selScene = new THREE.Scene();
@@ -226,32 +329,15 @@ function MeshSelectionHighlight({ target }) {
     };
   }, [meshes]);
 
-  const composerRef = useRef(null);
   const outlinePassRef = useRef(null);
-  const fxaaPassRef = useRef(null);
 
   useEffect(() => {
-    if (!gl || !scene || !camera || !selectionData) return;
+    if (!gl || !selectionData) return;
 
-    // Smooth DPR clamped to 1.5 to maintain retina sharpness with 44% less GPU overhead
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = Math.floor(size.width * dpr);
     const height = Math.floor(size.height * dpr);
 
-    // High-performance render target
-    const renderTarget = new THREE.WebGLRenderTarget(width, height, {
-      type: THREE.HalfFloatType,
-    });
-
-    const composer = new EffectComposer(gl, renderTarget);
-    composer.setPixelRatio(dpr);
-    composer.setSize(size.width, size.height);
-
-    // 1. Beauty pass renders the full scene
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    // 2. OutlinePass operates on the isolated lightweight selectionScene
     const outlinePass = new OutlinePass(
       new THREE.Vector2(width, height),
       selectionData.selScene,
@@ -261,68 +347,81 @@ function MeshSelectionHighlight({ target }) {
     outlinePass.downSampleRatio = 1;
     const outlineColor = new THREE.Color("#ec5137");
     outlinePass.visibleEdgeColor.copy(outlineColor);
-    outlinePass.hiddenEdgeColor.copy(outlineColor);
-    outlinePass.edgeThickness = 1.8; // Smooth 1.8px thickness
-    outlinePass.edgeStrength = 4.0;
+    outlinePass.hiddenEdgeColor.set(0, 0, 0); // No hidden edge ghosting through solid geometry
+    outlinePass.edgeThickness = 1.8;
+    outlinePass.edgeStrength = 5.0;
     outlinePass.edgeGlow = 0.0;
     outlinePass.selectedObjects = selectionData.proxyObjects;
-    composer.addPass(outlinePass);
+    outlinePass.renderToScreen = false;
 
-    // 3. Output pass for color management
-    const outputPass = new OutputPass();
-    composer.addPass(outputPass);
+    // Use alpha blending to overlay outline directly onto native canvas
+    if (outlinePass.overlayMaterial) {
+      outlinePass.overlayMaterial.blending = THREE.CustomBlending;
+      outlinePass.overlayMaterial.blendSrc = THREE.SrcAlphaFactor;
+      outlinePass.overlayMaterial.blendDst = THREE.OneMinusSrcAlphaFactor;
+      outlinePass.overlayMaterial.toneMapped = false;
+      outlinePass.overlayMaterial.fragmentShader = `
+        varying vec2 vUv;
+        uniform sampler2D maskTexture;
+        uniform sampler2D edgeTexture1;
+        uniform sampler2D edgeTexture2;
+        uniform float edgeStrength;
+        uniform float edgeGlow;
 
-    // 4. FXAA pass for anti-aliasing
-    const fxaaPass = new ShaderPass(FXAAShader);
-    fxaaPass.uniforms['resolution'].value.set(1 / width, 1 / height);
-    composer.addPass(fxaaPass);
+        void main() {
+          vec4 edgeValue1 = texture2D(edgeTexture1, vUv);
+          vec4 edgeValue2 = texture2D(edgeTexture2, vUv);
+          vec4 maskColor = texture2D(maskTexture, vUv);
+          vec4 edgeValue = edgeValue1 + edgeValue2 * edgeGlow;
+          vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
+          
+          float maxChannel = max(finalColor.r, max(finalColor.g, finalColor.b));
+          float alpha = clamp(maxChannel, 0.0, 1.0);
+          vec3 rgb = maxChannel > 0.001 ? (finalColor.rgb / maxChannel) : vec3(0.925, 0.318, 0.216);
+          
+          gl_FragColor = vec4(rgb, alpha);
+        }
+      `;
+      outlinePass.overlayMaterial.needsUpdate = true;
+    }
 
-    composerRef.current = composer;
     outlinePassRef.current = outlinePass;
-    fxaaPassRef.current = fxaaPass;
 
     return () => {
       try {
-        composer.dispose();
+        outlinePass.dispose();
       } catch (_) {}
-      composerRef.current = null;
       outlinePassRef.current = null;
-      fxaaPassRef.current = null;
     };
-  }, [gl, scene, camera, selectionData]);
+  }, [gl, camera, selectionData]);
 
-  // Keep composer and passes in sync with canvas resize and DPI
+  // Keep resolution updated on resize
   useEffect(() => {
-    if (composerRef.current && outlinePassRef.current) {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    if (outlinePassRef.current) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.floor(size.width * dpr);
       const height = Math.floor(size.height * dpr);
-
-      composerRef.current.setPixelRatio(dpr);
-      composerRef.current.setSize(size.width, size.height);
       outlinePassRef.current.setSize(width, height);
       outlinePassRef.current.resolution.set(width, height);
-      outlinePassRef.current.downSampleRatio = 1;
-
-      if (fxaaPassRef.current) {
-        fxaaPassRef.current.uniforms['resolution'].value.set(1 / width, 1 / height);
-      }
     }
-  }, [size.width, size.height, gl]);
+  }, [size.width, size.height]);
 
-  // Delegate render loop to post-processing composer while object is selected
-  useFrame((_, delta) => {
-    if (composerRef.current && selectionData && selectionData.proxies.length > 0) {
-      // Sync proxy transforms to source meshes in real time (follows gizmos & animations)
-      const proxies = selectionData.proxies;
-      for (let i = 0; i < proxies.length; i++) {
-        const { proxy, source } = proxies[i];
+  // Render Loop: Native forward render + direct silhouette overlay
+  useFrame((state, delta) => {
+    // 1. Native Three.js scene render: 100% identical lighting, exposure, tone mapping & HDRI reflection!
+    state.gl.render(state.scene, state.camera);
+
+    // 2. Direct silhouette outline overlay on top of canvas (zero effect on scene lights)
+    if (outlinePassRef.current && selectionData && selectionData.proxies.length > 0) {
+      for (let i = 0; i < selectionData.proxies.length; i++) {
+        const { proxy, source } = selectionData.proxies[i];
         if (source && proxy) {
           proxy.matrixWorld.copy(source.matrixWorld);
           proxy.visible = source.visible !== false;
         }
       }
-      composerRef.current.render(delta);
+
+      outlinePassRef.current.render(state.gl, null, null, delta, false);
     }
   }, 1);
 
@@ -331,7 +430,7 @@ function MeshSelectionHighlight({ target }) {
 
 const SelectionBoundingBox = MeshSelectionHighlight;
 
-const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange }, ref) => {
+const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe, xrayMode, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, deletedMaterials, onTransformChange, onTransformStart, onTransformEnd, transformValues, meshTransforms, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled, includeTextures, onModelReady, isAnimationPlaying = true, onHasAnimationsChange, activeHotspotMeshUuid, activeHotspotMeshName }, ref) => {
   const [position, setPosition] = useState(() => [0, 0, 0]);
   const [scale, setScale] = useState(() => 1);
   const groupRef = React.useRef(null);
@@ -527,14 +626,53 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                       mat.userData.originalAlphaMap = mat.alphaMap;
                       mat.userData.originalBumpMap = mat.bumpMap;
                       mat.userData.originalDisplacementMap = mat.displacementMap;
-                      if (mat.color) mat.userData.originalColor = mat.color.clone();
+                      const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
+                      const hasAlphaMap = Boolean(mat.alphaMap);
+                      const hasCutout = (mat.alphaTest !== undefined && mat.alphaTest > 0) || isLikelyCutout;
+                      const isExplicitlyPartialOpacity = (mat.opacity !== undefined && mat.opacity < 0.999);
+                      
+                      // Sanitize transparency: GLTFLoader/FBXLoader often falsely mark materials as transparent=true
+                      // based on alphaMode BLEND or 32-bit PNG alpha channels even when 100% opaque.
+                      // Solid models must have transparent=false and depthWrite=true to prevent merging & transparent glitching!
+                      const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap;
+                      mat.transparent = isTrulyTransparent;
+                      mat.depthWrite = true;
+
+                      if (hasCutout) {
+                          mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.5;
+                          mat.transparent = false; // Discard alpha test with transparent=false eliminates alpha sorting artifacts
+                          mat.depthWrite = true;
+                      }
+
+                      if (mat.color) {
+                          if ((mat.map || mat.alphaMap || (mat.alphaTest > 0) || isLikelyCutout) && mat.color.r < 0.05 && mat.color.g < 0.05 && mat.color.b < 0.05) {
+                              mat.color.setRGB(1, 1, 1);
+                          }
+                          mat.userData.originalColor = mat.color.clone();
+                      }
                       mat.userData.originalRoughness = mat.roughness;
                       mat.userData.originalMetalness = mat.metalness;
                       mat.userData.originalOpacity = mat.opacity;
                       mat.userData.originalClearcoat = mat.clearcoat !== undefined ? mat.clearcoat : 0;
                       mat.userData.originalSpecularIntensity = mat.specularIntensity !== undefined ? mat.specularIntensity : 1.0;
                       mat.userData.originalEnvMapIntensity = mat.envMapIntensity !== undefined ? mat.envMapIntensity : 1.0;
+                      mat.userData.originalAlphaTest = mat.alphaTest !== undefined ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
+                      mat.userData.originalTransparent = isTrulyTransparent;
+                      mat.userData.originalDepthWrite = true;
+                      mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
                   }
+
+                  // Ensure alpha and depth properties are preserved on existing snapshots as well
+                  if (mat.userData.originalAlphaTest === undefined) {
+                      const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
+                      mat.userData.originalAlphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
+                      if (isLikelyCutout && (!mat.alphaTest || mat.alphaTest === 0)) mat.alphaTest = 0.5;
+                  }
+                  if (mat.userData.originalTransparent === undefined) {
+                      mat.userData.originalTransparent = (mat.opacity !== undefined && mat.opacity < 0.999) || Boolean(mat.alphaMap);
+                  }
+                  if (mat.userData.originalDepthWrite === undefined) mat.userData.originalDepthWrite = true;
+                  if (mat.userData.originalSide === undefined) mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
 
                   if (includeTextures === false) {
                       TEX_KEYS.forEach(k => { mat[k] = null; });
@@ -552,55 +690,235 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   const followerOffsetsRef = React.useRef(new Map()); // Map<UUID, Matrix4 (relative to leader)>
   const isSyncingRef = React.useRef(false);
 
+  // Pivot Object to center TransformControls on the selected mesh's visual bounding box
+  const pivotRef = React.useRef(new THREE.Group());
+  const pivotOffsetsRef = React.useRef(new Map()); // Map<UUID, Matrix4 (relative to pivot)>
+  const isGizmoDraggingRef = React.useRef(false);
+
+  const updatePivotToTarget = useCallback((target, related = []) => {
+    if (!target) return;
+    const pivot = pivotRef.current;
+    if (!pivot) return;
+
+    const list = (related && related.length > 0) ? related : [target];
+    const box = new THREE.Box3();
+    let hasValidMesh = false;
+    list.forEach(m => {
+      if (m && (m.isMesh || m.isSkinnedMesh) && m.visible !== false) {
+        m.updateMatrixWorld(true);
+        box.expandByObject(m);
+        hasValidMesh = true;
+      }
+    });
+
+    const worldCenter = new THREE.Vector3();
+    if (hasValidMesh && !box.isEmpty() && isFinite(box.min.x)) {
+      box.getCenter(worldCenter);
+    } else if (typeof target.getWorldPosition === 'function') {
+      target.getWorldPosition(worldCenter);
+    } else if (target.position) {
+      worldCenter.copy(target.position);
+    }
+
+    pivot.position.copy(worldCenter);
+    if (list.length === 1 && target && target.quaternion) {
+      pivot.quaternion.copy(target.quaternion);
+    } else {
+      pivot.rotation.set(0, 0, 0);
+    }
+    pivot.scale.set(1, 1, 1);
+    pivot.updateMatrix();
+    pivot.updateMatrixWorld(true);
+
+    const pivotWorldInverse = new THREE.Matrix4().copy(pivot.matrixWorld).invert();
+    const offsets = new Map();
+    list.forEach(mesh => {
+      if (mesh && mesh.uuid) {
+        mesh.updateMatrixWorld(true);
+        const rel = new THREE.Matrix4().multiplyMatrices(pivotWorldInverse, mesh.matrixWorld);
+        offsets.set(mesh.uuid, rel);
+      }
+    });
+    pivotOffsetsRef.current = offsets;
+  }, []);
+
   // Mesh Index for fast material lookups - avoids expensive scene.traverse calls
   const meshIndexRef = React.useRef(new Map()); // Map<MaterialName, Mesh[]>
+
+  // Helper to ensure a mesh has its own unique, cloned material instance if its material is shared with other meshes.
+  // This guarantees that changing color, textures, or material properties on a selected mesh will NEVER bleed into other meshes!
+  const ensureMeshUniqueMaterial = useCallback((mesh, allowedSharedSet = null) => {
+      if (!mesh || !scene) return;
+      const currentMat = mesh.userData?.__preXrayMaterial || mesh.material;
+      if (!currentMat) return;
+      const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
+      let didClone = false;
+      const newMats = mats.map(m => {
+          if (!m) return m;
+          let isShared = false;
+          scene.traverse(c => {
+              if (isShared) return;
+              if (c.isMesh && c !== mesh && (c.material || c.userData?.__preXrayMaterial)) {
+                  // If allowedSharedSet is provided (e.g. all selected meshes), meshes within the set can share,
+                  // but if shared with an unselected mesh outside, it must clone!
+                  if (allowedSharedSet && allowedSharedSet.has(c)) return;
+                  const cMat = c.userData?.__preXrayMaterial || c.material;
+                  const cm = Array.isArray(cMat) ? cMat : [cMat];
+                  if (cm.some(mat => mat === m || (mat.uuid && mat.uuid === m.uuid))) {
+                      isShared = true;
+                  }
+              }
+          });
+          if (isShared) {
+              const cloned = m.clone();
+              cloned.name = `${m.name || 'Material'}_${mesh.name || mesh.uuid.slice(0, 4)}`;
+              cloned.userData = { ...m.userData };
+              if (m.userData.originalColor && typeof m.userData.originalColor.clone === 'function') {
+                  cloned.userData.originalColor = m.userData.originalColor.clone();
+              }
+              didClone = true;
+              if (meshIndexRef.current) {
+                  meshIndexRef.current.set(cloned.name, [mesh]);
+              }
+              return cloned;
+          }
+          return m;
+      });
+      if (didClone) {
+          const finalMat = Array.isArray(currentMat) ? newMats : newMats[0];
+          if (mesh.userData?.__preXrayMaterial) {
+              mesh.userData.__preXrayMaterial = finalMat;
+          } else {
+              mesh.material = finalMat;
+              mesh.material.needsUpdate = true;
+          }
+      }
+  }, [scene]);
 
   // Helper to resolve all 3D meshes targeted by the current selection
   const resolveTargetMeshes = useCallback((selMat) => {
       if (!selMat || !scene) return [];
 
-      const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene";
+      const isMeshDeleted = (child) => {
+          if (!deletedMaterials || deletedMaterials.size === 0) return false;
+          if (child.uuid && deletedMaterials.has(child.uuid)) return true;
+          const m = child.userData?.__preXrayMaterial || child.material;
+          const mats = Array.isArray(m) ? m : [m];
+          return mats.some(mat => mat?.name && deletedMaterials.has(mat.name));
+      };
+
+      const isFullModel = !selMat || selMat.isAll || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene" || selMat.name === "All Meshes";
       if (isFullModel) {
           const all = [];
           scene.traverse(child => {
-              if (child.isMesh && child.material) all.push(child);
+              if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && child.visible !== false && !isMeshDeleted(child)) {
+                  all.push(child);
+              }
           });
           return all;
       }
 
-      if (selMat.isGroup && Array.isArray(selMat.materials)) {
-          const result = new Set();
-          selMat.materials.forEach(mName => {
-              if (meshIndexRef.current.has(mName)) {
-                  meshIndexRef.current.get(mName).forEach(c => result.add(c));
+      // 1. Group / Multi-Selection
+      if (selMat.isGroup || selMat.isMultiSelect || Array.isArray(selMat.items) || Array.isArray(selMat.uuids)) {
+          const rawUuids = Array.isArray(selMat.uuids) ? selMat.uuids : 
+                           (Array.isArray(selMat.items) ? selMat.items.map(it => it?.uuid || it?.meshUuid).filter(Boolean) : []);
+          
+          if (rawUuids.length > 0) {
+              const uuidSet = new Set(rawUuids);
+              const result = new Set();
+              rawUuids.forEach(u => {
+                  if (meshIndexRef.current.has(u)) {
+                      meshIndexRef.current.get(u).forEach(c => {
+                          if (!isMeshDeleted(c)) result.add(c);
+                      });
+                  }
+              });
+              if (result.size < uuidSet.size) {
+                  scene.traverse(child => {
+                      if (child.isMesh && uuidSet.has(child.uuid) && !isMeshDeleted(child)) {
+                          result.add(child);
+                      }
+                  });
               }
-          });
-          return Array.from(result);
+              if (result.size > 0) return Array.from(result);
+          }
+
+          // Fallback for group defined by material names (e.g. material folder)
+          if (Array.isArray(selMat.materials) && selMat.materials.length > 0) {
+              const result = new Set();
+              selMat.materials.forEach(mName => {
+                  if (meshIndexRef.current.has(mName)) {
+                      meshIndexRef.current.get(mName).forEach(c => {
+                          if (!isMeshDeleted(c)) result.add(c);
+                      });
+                  }
+              });
+              if (result.size > 0) return Array.from(result);
+
+              const matSet = new Set(selMat.materials);
+              scene.traverse(child => {
+                  if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && child.visible !== false && !isMeshDeleted(child)) {
+                      const m = child.userData?.__preXrayMaterial || child.material;
+                      const mats = Array.isArray(m) ? m : [m];
+                      if (
+                          matSet.has(child.uuid) ||
+                          matSet.has(child.name) ||
+                          mats.some(mat => mat && matSet.has(mat.name))
+                      ) {
+                          result.add(child);
+                      }
+                  }
+              });
+              if (result.size > 0) return Array.from(result);
+          }
       }
 
       const targetUuid = selMat.uuid || selMat.meshUuid;
-      const targetMat = selMat.material;
+      const targetMat = typeof selMat.material === 'string' ? selMat.material : selMat.material?.name;
       const targetName = selMat.meshName || selMat.name;
 
-      if (targetUuid && meshIndexRef.current.has(targetUuid)) {
-          return meshIndexRef.current.get(targetUuid);
+      // 1. Single mesh selection: Strictly resolve by targetUuid if available
+      if (targetUuid && !selMat.isGroup && !selMat.isAll) {
+          if (meshIndexRef.current.has(targetUuid)) {
+              const list = meshIndexRef.current.get(targetUuid).filter(c => !isMeshDeleted(c));
+              if (list.length > 0) return list;
+          }
+          const exactMatch = [];
+          scene.traverse(child => {
+              if (child.isMesh && child.uuid === targetUuid && !isMeshDeleted(child)) {
+                  exactMatch.push(child);
+              }
+          });
+          if (exactMatch.length > 0) return exactMatch;
       }
-      if (targetName && meshIndexRef.current.has(targetName)) {
-          return meshIndexRef.current.get(targetName);
+
+      // 2. Fallback when targetUuid is not available (e.g. legacy selection)
+      if (selMat.isMesh) {
+          // It's a single mesh: return AT MOST ONE matching mesh by name, never a list of sibling meshes!
+          if (targetName && meshIndexRef.current.has(targetName)) {
+              const list = meshIndexRef.current.get(targetName).filter(c => !isMeshDeleted(c));
+              if (list.length > 0) return [list[0]];
+          }
+          let singleFound = null;
+          scene.traverse(child => {
+              if (singleFound) return;
+              if (child.isMesh && child.name === targetName && !isMeshDeleted(child)) {
+                  singleFound = child;
+              }
+          });
+          if (singleFound) return [singleFound];
       }
+
+      // 3. Material-level selection (e.g. selecting an entire shared material)
       if (targetMat && meshIndexRef.current.has(targetMat)) {
-          return meshIndexRef.current.get(targetMat);
+          return meshIndexRef.current.get(targetMat).filter(c => !isMeshDeleted(c));
       }
 
       const matches = [];
       scene.traverse(child => {
-          if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
+          if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && !isMeshDeleted(child)) {
               const activeMat = child.userData?.__preXrayMaterial || child.material;
-              if (targetUuid && child.uuid === targetUuid) {
-                  matches.push(child);
-              } else if (targetName && child.name === targetName) {
-                  matches.push(child);
-              } else if (targetMat) {
+              if (targetMat) {
                   const mats = Array.isArray(activeMat) ? activeMat : [activeMat];
                   if (mats.some(m => m && m.name === targetMat)) {
                       matches.push(child);
@@ -609,7 +927,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           }
       });
       return matches;
-  }, [scene, modelName]);
+  }, [scene, modelName, deletedMaterials]);
 
   // Helper to resolve the primary THREE.Material targeted by the current selection
   const resolveTargetMaterial = useCallback((selMat) => {
@@ -620,9 +938,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           return null;
       }
 
-      const targetUuid = selMat.uuid || selMat.meshUuid;
-      const targetMat = selMat.material;
-      const targetName = selMat.meshName || selMat.name;
+      const targetUuid = selMat.uuid || selMat.meshUuid || 
+                         (Array.isArray(selMat.uuids) && selMat.uuids[0]) || 
+                         (Array.isArray(selMat.items) && (selMat.items[0]?.uuid || selMat.items[0]?.meshUuid));
+      const targetMat = typeof selMat.material === 'string' ? selMat.material : (selMat.material?.name || (Array.isArray(selMat.materials) ? selMat.materials[0] : null));
+      const targetName = selMat.meshName || selMat.name || (Array.isArray(selMat.meshNames) ? selMat.meshNames[0] : null);
 
       if (targetUuid) {
           let found = null;
@@ -674,45 +994,50 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   }, [scene, modelName]);
 
   // Memoized user-specified X-Ray Material (Optimized for instant 60 FPS performance)
+  // envMapIntensity: 0 and roughness: 1.0 prevent HDRI reflections from glaring on X-ray surfaces
   const xrayMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
     color: 0x00aaff,       // X-ray color
     transparent: true,
     opacity: 0.25,
-    roughness: 0.1,
+    roughness: 1.0,
     metalness: 0.0,
+    envMapIntensity: 0.0,
     depthWrite: false,
     side: THREE.DoubleSide
   }), []);
 
-  // X-Ray View: efficiently sets xrayMaterial on targeted meshes without redundant recompilations or scene churn
+  // X-Ray View: When xrayMode is active, ONLY the currently selected mesh(es) are displayed with xrayMaterial.
+  // When selection changes or xrayMode is toggled off, meshes are cleanly restored to their original materials.
   useEffect(() => {
     if (!scene) return;
 
     if (xrayMode) {
-      // Determine if a specific mesh or group is selected
-      const isFullModel = !selectedMaterial || 
-                          (modelName && (selectedMaterial.name === modelName || selectedMaterial === modelName)) || 
-                          selectedMaterial.name === "Scene" || 
-                          selectedMaterial === "Scene";
-      
-      const targetMeshes = isFullModel ? null : resolveTargetMeshes(selectedMaterial);
-      const targetSet = (targetMeshes && targetMeshes.length > 0) ? new Set(targetMeshes) : null;
+      const isSceneBackground = selectedMaterial?.name === 'Scene';
+
+      // Resolve meshes targeted by the current selection (single mesh, multiple meshes, folder, or full model)
+      const targetMeshes = !isSceneBackground && selectedMaterial ? resolveTargetMeshes(selectedMaterial) : [];
+      const targetSet = new Set(targetMeshes);
 
       scene.traverse((child) => {
-        if ((child.isMesh || child.isSkinnedMesh) && (child.material || child.userData?.__preXrayMaterial)) {
-          const shouldBeXray = !targetSet || targetSet.has(child);
-
-          if (shouldBeXray) {
+        if (child.isMesh || child.isSkinnedMesh) {
+          if (targetSet.has(child)) {
+            // Selected mesh: switch to xrayMaterial, preserving original material and shadow state
             if (child.material !== xrayMaterial) {
               if (!child.userData.__preXrayMaterial) {
                 child.userData.__preXrayMaterial = child.material;
+                child.userData.__preXrayCastShadow = child.castShadow;
               }
               child.material = xrayMaterial;
+              child.castShadow = false;
             }
           } else {
-            // Restore original material if it was previously in X-Ray
+            // Unselected mesh: if it was previously in xray, restore its original material and shadow
             if (child.userData?.__preXrayMaterial) {
               child.material = child.userData.__preXrayMaterial;
+              if (child.userData.__preXrayCastShadow !== undefined) {
+                child.castShadow = child.userData.__preXrayCastShadow;
+                delete child.userData.__preXrayCastShadow;
+              }
               delete child.userData.__preXrayMaterial;
             }
           }
@@ -723,11 +1048,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       scene.traverse((child) => {
         if ((child.isMesh || child.isSkinnedMesh) && child.userData?.__preXrayMaterial) {
           child.material = child.userData.__preXrayMaterial;
+          if (child.userData.__preXrayCastShadow !== undefined) {
+            child.castShadow = child.userData.__preXrayCastShadow;
+            delete child.userData.__preXrayCastShadow;
+          }
           delete child.userData.__preXrayMaterial;
         }
       });
     }
-  }, [scene, xrayMode, xrayMaterial, selectedMaterial, modelName, resolveTargetMeshes]);
+  }, [scene, xrayMode, selectedMaterial, modelName, resolveTargetMeshes, xrayMaterial]);
 
   // Clean restoration on unmount
   useEffect(() => {
@@ -736,12 +1065,18 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         scene.traverse((child) => {
           if ((child.isMesh || child.isSkinnedMesh) && child.userData?.__preXrayMaterial) {
             child.material = child.userData.__preXrayMaterial;
+            if (child.userData.__preXrayCastShadow !== undefined) {
+              child.castShadow = child.userData.__preXrayCastShadow;
+              delete child.userData.__preXrayCastShadow;
+            }
             delete child.userData.__preXrayMaterial;
           }
         });
       }
     };
   }, [scene]);
+
+
 
 
   // Expose Three.js Scene Root augmented with helper methods
@@ -847,46 +1182,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
      const targetMatName = selMat ? selMat.name : null;
 
      const isFullModelSelect = !targetMatName || (modelName && targetMatName === modelName) || targetMatName === "Scene";
+     const targetedMeshes = isFullModelSelect ? [] : resolveTargetMeshes(selMat);
+     const targetMeshSet = new Set(targetedMeshes);
 
      // Optimized application using mesh index
      const processedMaterials = new Set();
-     const ensureMeshUniqueMaterial = (mesh) => {
-          if (!mesh || !mesh.material || isFullModelSelect || (selMat && selMat.isGroup)) return;
-          const currentMat = mesh.material;
-          const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
-          let didClone = false;
-          const newMats = mats.map(m => {
-              if (!m) return m;
-              let isShared = false;
-              scene.traverse(c => {
-                  if (isShared) return;
-                  if (c.isMesh && c !== mesh && c.material) {
-                      const cm = Array.isArray(c.material) ? c.material : [c.material];
-                      if (cm.some(mat => mat === m || mat.uuid === m.uuid)) {
-                          isShared = true;
-                      }
-                  }
-              });
-              if (isShared) {
-                  const cloned = m.clone();
-                  cloned.name = `${m.name}_${mesh.name || mesh.uuid.slice(0, 4)}`;
-                  cloned.userData = { ...m.userData };
-                  didClone = true;
-                  if (meshIndexRef.current) {
-                      meshIndexRef.current.set(cloned.name, [mesh]);
-                  }
-                  return cloned;
-              }
-              return m;
-          });
-          if (didClone) {
-              mesh.material = Array.isArray(currentMat) ? newMats : newMats[0];
-          }
-     };
 
      const applyToMesh = (child) => {
-          if (child.isMesh && child.material) {
-              ensureMeshUniqueMaterial(child);
+          if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
+              if (!isFullModelSelect) {
+                  ensureMeshUniqueMaterial(child, targetMeshSet);
+              }
               const apply = (mat) => {
                    if (!mat.isMeshStandardMaterial && !mat.isMeshPhysicalMaterial && !mat.isMeshPhongMaterial) return;
                    if (processedMaterials.has(mat.uuid)) return;
@@ -978,20 +1284,18 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
   useEffect(() => {
     if (!materialSettings?.maps || !scene || xrayMode) return;
     
-    // CRITICAL: Manual map uploads must ONLY run when maps or appliedTexture were explicitly changed or on reset/undo!
-    // Slider adjustments (scale, rotation, offset, color, roughness, etc.) must NEVER trigger map reloads!
-    const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
-    const changedProp = materialSettings.lastChangedProp;
-    if (!isResetOrUndo && changedProp !== 'maps' && changedProp !== 'appliedTexture') return;
-    
     // We only apply to the selected material (scoping is handled by the component that updates maps)
     const selMat = selectedMaterial;
     const targetMatName = selMat ? selMat.name : null;
     
-    // If "Scene" or model group is selected, we could potentially apply to all, 
-    // but typically manual map uploads are for specific materials.
+    // CRITICAL: Manual map uploads are strictly for when the user explicitly uploads a map file
+    // for a specific selected material (changedProp === 'maps' || changedProp === 'appliedTexture').
+    // NEVER run this on full model or on reset/undo to avoid stripping native GLTF textures!
     const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
-    if (!targetMatName && !isFullModel) return;
+    if (isFullModel || !targetMatName) return;
+
+    const changedProp = materialSettings.lastChangedProp;
+    if (changedProp !== 'maps' && changedProp !== 'appliedTexture') return;
 
     const textureManager = new THREE.LoadingManager();
     const loader = new THREE.TextureLoader(textureManager);
@@ -1058,39 +1362,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     if (alphaImg) { loadedMaps.alphaMap = loadMapManual(alphaImg, false); applyScaleToTex(loadedMaps.alphaMap); }
     if (emissiveImg) { loadedMaps.emissiveMap = loadMapManual(emissiveImg, true); applyScaleToTex(loadedMaps.emissiveMap); }
 
+    const targetedMeshes = isFullModel ? [] : resolveTargetMeshes(selMat);
+    const targetMeshSet = new Set(targetedMeshes);
+
     const applyToMeshLocal = (child) => {
-         if (child.isMesh && child.material) {
-             if (!isFullModel && !(selMat && selMat.isGroup)) {
-                 const currentMat = child.material;
-                 const mats = Array.isArray(currentMat) ? currentMat : [currentMat];
-                 let didClone = false;
-                 const newMats = mats.map(m => {
-                     if (!m) return m;
-                     let isShared = false;
-                     scene.traverse(c => {
-                         if (isShared) return;
-                         if (c.isMesh && c !== child && c.material) {
-                             const cm = Array.isArray(c.material) ? c.material : [c.material];
-                             if (cm.some(mat => mat === m || mat.uuid === m.uuid)) {
-                                 isShared = true;
-                             }
-                         }
-                     });
-                     if (isShared) {
-                         const cloned = m.clone();
-                         cloned.name = `${m.name}_${child.name || child.uuid.slice(0, 4)}`;
-                         cloned.userData = { ...m.userData };
-                         didClone = true;
-                         if (meshIndexRef.current) {
-                             meshIndexRef.current.set(cloned.name, [child]);
-                         }
-                         return cloned;
-                     }
-                     return m;
-                 });
-                 if (didClone) {
-                     child.material = Array.isArray(currentMat) ? newMats : newMats[0];
-                 }
+         if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
+             if (!isFullModel) {
+                 ensureMeshUniqueMaterial(child, targetMeshSet);
              }
              const apply = (mat) => {
                   const hasMapUpdate = newMapsList.hasOwnProperty('map') && newMapsList.map !== "existing";
@@ -1296,12 +1574,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
               if (foundMat.emissiveMap) nativeMaps.emissiveMap = getTexUrl(foundMat.emissiveMap);
 
               onUpdateMaterialSettingRef.current?.('maps', nativeMaps);
-              
-              // Sync existing scale back to UI
-              if (foundMat.map && foundMat.map.repeat) {
-                  const detectedScale = Math.round(100 / (foundMat.map.repeat.x || 1));
-                  onUpdateMaterialSettingRef.current?.('scale', detectedScale);
-              }
           }
       } else {
           onUpdateMaterialSettingRef.current?.('maps', {});
@@ -1411,6 +1683,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
     scene.traverse((child) => {
       if (child.isMesh || child.isSkinnedMesh) {
+        if (!child.userData.originalTransform) {
+          child.userData.originalTransform = {
+            position: child.position.clone(),
+            rotation: child.rotation.clone(),
+            scale: child.scale.clone()
+          };
+        }
         if (child.geometry) {
           if (!child.geometry.boundingSphere) {
             child.geometry.computeBoundingSphere();
@@ -1502,21 +1781,52 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     processedMaterials.set(m.uuid, uniqueName);
                     usedNames.add(uniqueName);
 
-                    // Ensure both sides are visible and depth is handled correctly
+                    // Ensure original transparency/depth write data is captured before modifying
+                    const isLikelyCutoutM = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
+                    const hasAlphaMapM = Boolean(m.alphaMap);
+                    const hasCutoutM = (m.alphaTest !== undefined && m.alphaTest > 0) || isLikelyCutoutM;
+                    const isExplicitlyPartialOpacityM = (m.opacity !== undefined && m.opacity < 0.999);
+                    const isTrulyTransparentM = isExplicitlyPartialOpacityM || hasAlphaMapM;
+
+                    m.transparent = isTrulyTransparentM;
+                    m.depthWrite = true;
+
+                    if (hasCutoutM) {
+                        m.alphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : 0.5;
+                        m.transparent = false;
+                        m.depthWrite = true;
+                    }
+
+                    if (m.userData.originalAlphaTest === undefined) {
+                        m.userData.originalAlphaTest = m.alphaTest || 0;
+                    }
+                    if (m.userData.originalTransparent === undefined) m.userData.originalTransparent = isTrulyTransparentM;
+                    if (m.userData.originalDepthWrite === undefined) m.userData.originalDepthWrite = true;
+                    if (m.userData.originalSide === undefined) m.userData.originalSide = m.side !== undefined ? m.side : THREE.DoubleSide;
+
+                    // Ensure both sides are visible and depth write is always enabled to prevent hollow/merging artifacts
                     m.side = THREE.DoubleSide;
                     m.depthWrite = true;
 
                     // Ensure original data is stored for visibility/UI logic
-                    if (!m.userData.originalColor) m.userData.originalColor = m.color?.clone();
+                    if (!m.userData.originalColor && m.color) {
+                        if ((m.map || m.alphaMap || (m.alphaTest > 0) || isLikelyCutoutM) && m.color.r < 0.05 && m.color.g < 0.05 && m.color.b < 0.05) {
+                            m.color.setRGB(1, 1, 1);
+                        }
+                        m.userData.originalColor = m.color.clone();
+                    }
                     if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
                     if (m.userData.originalRoughness === undefined) m.userData.originalRoughness = m.roughness;
                     if (m.userData.originalMetalness === undefined) m.userData.originalMetalness = m.metalness;
                     if (m.userData.originalClearcoat === undefined) m.userData.originalClearcoat = m.clearcoat !== undefined ? m.clearcoat : 0;
                     if (m.userData.originalSpecularIntensity === undefined) m.userData.originalSpecularIntensity = m.specularIntensity !== undefined ? m.specularIntensity : 1.0;
                     if (m.userData.originalEnvMapIntensity === undefined) m.userData.originalEnvMapIntensity = m.envMapIntensity !== undefined ? m.envMapIntensity : 1.0;
-                    if (m.map) m.userData.originalMap = m.map;
-                    if (m.normalMap) m.userData.originalNormalMap = m.normalMap;
-                    if (m.alphaMap) m.userData.originalAlphaMap = m.alphaMap;
+                    if (m.map && !m.userData.originalMap) m.userData.originalMap = m.map;
+                    if (m.normalMap && !m.userData.originalNormalMap) m.userData.originalNormalMap = m.normalMap;
+                    if (m.roughnessMap && !m.userData.originalRoughnessMap) m.userData.originalRoughnessMap = m.roughnessMap;
+                    if (m.metalnessMap && !m.userData.originalMetalnessMap) m.userData.originalMetalnessMap = m.metalnessMap;
+                    if (m.aoMap && !m.userData.originalAoMap) m.userData.originalAoMap = m.aoMap;
+                    if (m.alphaMap && !m.userData.originalAlphaMap) m.userData.originalAlphaMap = m.alphaMap;
                 }
 
                 // Add to Group or Ungrouped
@@ -1771,10 +2081,20 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     }
 
     if (typeof onModelReady === 'function') {
+        const boundsPayload = {
+            box: box.clone(),
+            size: size.clone(),
+            center: center.clone(),
+            targetScale,
+            maxDim: maxDim * targetScale,
+            height: size.y * targetScale,
+            width: size.x * targetScale,
+            depth: size.z * targetScale
+        };
         // Double RAF ensures Three.js has committed geometry transforms and rendered the frame
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                onModelReady();
+                onModelReady(boundsPayload);
             });
         });
     }
@@ -1890,17 +2210,22 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             safeUpdate('bump', Math.round(m.bumpScale / 10 * 100));
         }
 
-        // Texture transformations
-        const tex = m.map || m.normalMap || m.roughnessMap;
-        if (tex) {
-            safeUpdate('scale', Math.round(100 / (tex.repeat.x || 1)));
-            safeUpdate('rotation', Math.round(tex.rotation * (180 / Math.PI)));
-            safeUpdate('offset', { x: tex.offset.x * 100, y: tex.offset.y * 100 });
-        } else {
-            // Reset to defaults in UI if no texture is present on the selected material
-            safeUpdate('scale', 100);
-            safeUpdate('rotation', 0);
-            safeUpdate('offset', { x: 0, y: 0 });
+        // Texture transformations: Only sync if not in 3D transform mode and texture is present
+        if (!transformMode) {
+            const tex = m.map || m.normalMap || m.roughnessMap;
+            if (tex) {
+                if (m.userData.__textureScale !== undefined) {
+                    safeUpdate('scale', m.userData.__textureScale);
+                } else if (tex.repeat && (tex.repeat.x !== 1 || tex.repeat.y !== 1)) {
+                    safeUpdate('scale', Math.round(100 / (tex.repeat.x || 1)));
+                }
+                if (tex.rotation !== undefined && tex.rotation !== 0) {
+                    safeUpdate('rotation', Math.round(tex.rotation * (180 / Math.PI)));
+                }
+                if (tex.offset && (tex.offset.x !== 0 || tex.offset.y !== 0)) {
+                    safeUpdate('offset', { x: tex.offset.x * 100, y: tex.offset.y * 100 });
+                }
+            }
         }
 
         // Sync applied texture info if available
@@ -1915,7 +2240,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const sig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
     setSyncedSelectionSignature(sig);
 
-  }, [selectedMaterial, scene, modelName, resetKey, resolveTargetMaterial]); 
+  }, [selectedMaterial, scene, modelName, resolveTargetMaterial, transformMode]); 
 
   // B. Apply Settings when UI changes
   useEffect(() => {
@@ -1923,6 +2248,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
     const selMat = selectedMaterial; 
     const targetMatName = selMat ? selMat.name : (modelName || "Scene");
+    const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
     
     const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
     lastApplyResetKeyRef.current = resetKey;
@@ -1934,15 +2260,142 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         return;
     }
 
-    // CRITICAL: Prevent overwriting 3D materials on passive selection change!
-    // Material factors are only pushed to the 3D model if the user moved a slider/color (useFactorColor === true)
-    // or triggered an Undo/Redo/Reset (isResetOrUndo === true).
-    if (!isResetOrUndo && !materialSettings.useFactorColor) {
+    // CRITICAL: Prevent overwriting 3D materials when useFactorColor is false!
+    // Material factors must ONLY be pushed to the 3D model if the user actively modified material factors
+    // (useFactorColor === true). When undoing or resetting back to uncolored state, restore original properties!
+    if (!materialSettings.useFactorColor) {
+        if (isResetOrUndo) {
+            const targetedMeshes = resolveTargetMeshes(selMat);
+            const targetMeshSet = new Set(targetedMeshes);
+
+            scene.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const isTargetChild = isFullModel ? true : targetMeshSet.has(child);
+                    if (!isTargetChild) return;
+
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
+                    materials.forEach(m => {
+                        let isMatch = true;
+
+                        if (isMatch) {
+                            // 1. RESTORE ALL ORIGINAL GLTF MAPS (only if valid Three.js Texture)
+                            if (m.userData.originalMap?.isTexture) m.map = m.userData.originalMap;
+                            if (m.userData.originalNormalMap?.isTexture) m.normalMap = m.userData.originalNormalMap;
+                            if (m.userData.originalRoughnessMap?.isTexture) m.roughnessMap = m.userData.originalRoughnessMap;
+                            if (m.userData.originalMetalnessMap?.isTexture) m.metalnessMap = m.userData.originalMetalnessMap;
+                            if (m.userData.originalAoMap?.isTexture) m.aoMap = m.userData.originalAoMap;
+                            if (m.userData.originalAlphaMap?.isTexture) m.alphaMap = m.userData.originalAlphaMap;
+                            if (m.userData.originalEmissiveMap?.isTexture) m.emissiveMap = m.userData.originalEmissiveMap;
+                            if (m.userData.originalBumpMap?.isTexture) m.bumpMap = m.userData.originalBumpMap;
+                            if (m.userData.originalDisplacementMap?.isTexture) m.displacementMap = m.userData.originalDisplacementMap;
+
+                            m.userData.appliedTexture = null;
+                            m.userData.appliedTextureId = null;
+                            m.userData.appliedMap = null;
+
+                            // 2. RESTORE DIFFUSE COLOR:
+                            // If mesh has a texture map, diffuse multiplier must be white (1,1,1) or non-black originalColor
+                            // so textures render vividly and never become a pitch black silhouette!
+                            const isCutoutMat = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
+                            const hasTexture = m.map || m.userData.originalMap || m.alphaMap || m.userData.originalAlphaMap || isCutoutMat;
+                            
+                            let origCol = null;
+                            if (m.userData.originalColor) {
+                                try {
+                                    if (m.userData.originalColor.isColor) {
+                                        origCol = m.userData.originalColor;
+                                    } else if (typeof m.userData.originalColor === 'string') {
+                                        origCol = new THREE.Color(m.userData.originalColor);
+                                    } else if (typeof m.userData.originalColor === 'object' && typeof m.userData.originalColor.r === 'number') {
+                                        origCol = new THREE.Color(m.userData.originalColor.r, m.userData.originalColor.g, m.userData.originalColor.b);
+                                    }
+                                } catch (_) {}
+                            }
+                            const isNonBlack = origCol && (origCol.r > 0.05 || origCol.g > 0.05 || origCol.b > 0.05);
+
+                            if (hasTexture) {
+                                if (isNonBlack) {
+                                    m.color.copy(origCol);
+                                } else {
+                                    m.color.setRGB(1, 1, 1);
+                                    m.userData.originalColor = new THREE.Color(1, 1, 1);
+                                }
+                            } else if (isNonBlack) {
+                                m.color.copy(origCol);
+                            } else {
+                                m.color.setRGB(1, 1, 1);
+                                m.userData.originalColor = new THREE.Color(1, 1, 1);
+                            }
+
+                            if (m.userData.originalRoughness !== undefined) {
+                                m.roughness = m.userData.originalRoughness;
+                            }
+                            if (m.userData.originalMetalness !== undefined) {
+                                m.metalness = m.userData.originalMetalness;
+                            }
+                            if (m.userData.originalOpacity !== undefined) {
+                                m.opacity = m.userData.originalOpacity;
+                            }
+
+                            // 3. RESTORE ALPHA CUTOUT & TRANSPARENCY:
+                            if (m.userData.originalAlphaTest !== undefined && m.userData.originalAlphaTest > 0) {
+                                m.alphaTest = m.userData.originalAlphaTest;
+                            } else if (m.alphaMap || isCutoutMat) {
+                                m.alphaTest = 0.5;
+                            } else if (m.userData.originalAlphaTest !== undefined) {
+                                m.alphaTest = m.userData.originalAlphaTest;
+                            }
+                            if (m.userData.originalTransparent !== undefined) {
+                                m.transparent = m.userData.originalTransparent;
+                            }
+                            if (m.userData.originalDepthWrite !== undefined) {
+                                m.depthWrite = m.userData.originalDepthWrite;
+                            }
+                            if (m.userData.originalSide !== undefined) {
+                                m.side = m.userData.originalSide;
+                            }
+
+                            if (m.userData.originalSpecularIntensity !== undefined) {
+                                m.specularIntensity = m.userData.originalSpecularIntensity;
+                            } else {
+                                m.specularIntensity = 1.0;
+                            }
+                            if (m.userData.originalEnvMapIntensity !== undefined) {
+                                m.envMapIntensity = m.userData.originalEnvMapIntensity;
+                            } else {
+                                m.envMapIntensity = 1.0;
+                            }
+                            if (m.userData.originalClearcoat !== undefined) {
+                                m.clearcoat = m.userData.originalClearcoat;
+                            }
+                            if (m.specularColor) {
+                                m.specularColor.setRGB(1, 1, 1);
+                            }
+
+                            // 3. RESTORE TEXTURE UV MATRIX (REPEAT / OFFSET)
+                            const surfaceTextures = [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap];
+                            surfaceTextures.forEach(tex => {
+                                if (tex && tex.isTexture) {
+                                    if (!tex.matrix || !tex.matrix.elements) tex.matrix = new THREE.Matrix3();
+                                    if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(1, 1);
+                                    if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(0, 0);
+                                    if (tex.rotation !== undefined) tex.rotation = 0;
+                                    if (tex.center && typeof tex.center.set === 'function') tex.center.set(0, 0);
+                                    tex.matrixAutoUpdate = true;
+                                    if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
+                                }
+                            });
+
+                            m.needsUpdate = true;
+                        }
+                    });
+                }
+            });
+        }
         return;
     }
 
     const changedProp = materialSettings.lastChangedProp;
-    const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
     
     const alpha = (materialSettings.alpha ?? 100) / 100;
     const metallic = (materialSettings.metallic ?? 0) / 100;
@@ -1953,7 +2406,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const emissiveColor = materialSettings.emissiveColor || '#000000';
     const emissiveIntensity = (materialSettings.emissiveIntensity ?? 0) / 100;
     
-    const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 100;
+    const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 50;
     const safeScale = Math.max(1, Math.min(1000, isNaN(rawScale) ? 100 : rawScale));
     const texScaleX = 100 / safeScale;
     const texScaleY = 100 / safeScale;
@@ -1964,8 +2417,28 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     const galleryTexture = materialSettings.appliedTexture;
     const isGalleryTexture = !!galleryTexture;
 
+    const targetedMeshes = resolveTargetMeshes(selMat);
+    const targetMeshSet = new Set(targetedMeshes);
+
     scene.traverse((child) => {
         if (child.isMesh && child.material) {
+            const isLightingProp = changedProp === 'specular' || changedProp === 'reflection';
+            let isTargetChild = false;
+            if (isLightingProp) {
+                isTargetChild = true;
+            } else if (selMat && !isFullModel) {
+                isTargetChild = targetMeshSet.has(child);
+            } else if (isFullModel) {
+                isTargetChild = !!materialSettings.useFactorColor;
+            }
+
+            if (!isTargetChild) return;
+
+            // Isolate materials from unselected meshes so only selected meshes are modified!
+            if (!isFullModel && !isLightingProp) {
+                ensureMeshUniqueMaterial(child, targetMeshSet);
+            }
+
             if (Array.isArray(child.material)) {
                 child.material = child.material.map(ensurePhysicalMaterial);
             } else {
@@ -1973,33 +2446,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             }
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach(m => {
-                const isLightingProp = changedProp === 'specular' || changedProp === 'reflection';
-                let isMatch = false;
-                if (isLightingProp) {
-                     // Specular and Reflection in "Lighting Controls" are scene/model-wide lighting controls
-                     isMatch = true;
-                } else if (selMat && !isFullModel) {
-                     if (selMat.isGroup && Array.isArray(selMat.materials)) {
-                          isMatch = selMat.materials.includes(m.name);
-                     } else {
-                          const targetUuid = selMat.uuid || selMat.meshUuid;
-                          if (targetUuid) {
-                              isMatch = child.uuid === targetUuid;
-                          } else {
-                              isMatch = m.name === targetMatName || child.name === targetMatName || (selMat.material && selMat.material === m.name);
-                          }
-                     }
-                } else if (isFullModel) {
-                     // In Full Model mode, apply overrides only if user moved a slider or on reset/undo
-                     isMatch = materialSettings.useFactorColor || isResetOrUndo;
-                }
+                let isMatch = true;
 
                 if (isMatch) {
                     // Apply ONLY the specific property that the user changed, or all on preset/reset/undo
                     const applyAll = isResetOrUndo || !changedProp;
                     
-                    // 1. Color / Color Intensity
-                    const applyColor = applyAll || changedProp === 'color' || changedProp === 'colorIntensity';
+                    // 1. Color / Color Intensity: Apply when user changes color, or all on preset/reset/undo
+                    const isColorProp = changedProp === 'color' || changedProp === 'colorIntensity';
+                    const applyColor = applyAll || isColorProp;
                     if (applyColor && color && m.color && typeof m.color.set === 'function') {
                         const intensity = (materialSettings.colorIntensity ?? 100) / 100;
                         const finalColor = new THREE.Color(color);
@@ -2076,12 +2531,36 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     }
 
                     // 3. Opacity & Transparency
-                    if (applyAll || changedProp === 'alpha') {
+                    const isCutoutMatActive = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
+                    if (changedProp === 'alpha') {
                         const isTransparent = alpha < 0.999 || !!m.alphaMap;
                         m.transparent = isTransparent;
                         m.opacity = alpha;
-                        m.depthWrite = !isTransparent;
-                        m.alphaTest = 0; 
+                        m.depthWrite = true; // Always write depth so objects do not glitch through each other
+                        m.alphaTest = (m.userData.originalAlphaTest !== undefined && m.userData.originalAlphaTest > 0)
+                            ? m.userData.originalAlphaTest 
+                            : (m.alphaMap || isCutoutMatActive ? 0.5 : 0);
+                        if (m.alphaTest > 0 && alpha >= 0.999 && !m.alphaMap) {
+                            m.transparent = false;
+                        }
+                    } else if (applyAll) {
+                        // On preset/undo/reset, restore original alpha parameters rather than forcing alphaTest = 0!
+                        if (m.userData.originalAlphaTest !== undefined && m.userData.originalAlphaTest > 0) {
+                            m.alphaTest = m.userData.originalAlphaTest;
+                        } else if (m.alphaMap || isCutoutMatActive) {
+                            m.alphaTest = 0.5;
+                        } else if (m.userData.originalAlphaTest !== undefined) {
+                            m.alphaTest = m.userData.originalAlphaTest;
+                        }
+                        if (m.userData.originalTransparent !== undefined) {
+                            m.transparent = m.userData.originalTransparent;
+                        } else {
+                            m.transparent = (m.opacity < 0.999) || Boolean(m.alphaMap);
+                        }
+                        m.depthWrite = true;
+                        if (m.userData.originalOpacity !== undefined) {
+                            m.opacity = m.userData.originalOpacity;
+                        }
                     }
 
                     // 4. Emissive
@@ -2134,7 +2613,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     }
 
                     // 8. Texture Transformations
-                    if (applyAll || changedProp === 'scale' || changedProp === 'rotation' || changedProp === 'offset') {
+                    const shouldTransformTextures = changedProp === 'scale' || changedProp === 'rotation' || changedProp === 'offset' || changedProp === 'appliedTexture' || (isResetOrUndo && (m.userData.__textureScale !== undefined || m.userData.appliedTextureId || materialSettings.lastChangedProp === 'scale'));
+                    if (shouldTransformTextures) {
                         // Transform only surface patterns, NEVER aoMap or lightMap (baked geometry ambient occlusion)
                         const surfaceTextures = [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap];
                         surfaceTextures.forEach(tex => {
@@ -2170,23 +2650,23 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                 if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
                             }
                         });
+                        m.userData.__textureScale = safeScale;
                     }
 
                     // Restore original or applied map if it exists, and user hasn't explicitly deleted it
-                    const currentMaps = materialSettings?.maps || {};
-                    if (m.userData.appliedMap && !m.map && !m.userData.is_map_removed && currentMaps.map !== null) {
+                    if (m.userData.appliedMap?.isTexture && !m.map && !m.userData.is_map_removed) {
                         m.map = m.userData.appliedMap;
                         m.needsUpdate = true;
-                    } else if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap && !m.userData.is_map_removed && currentMaps.map !== null) {
+                    } else if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap?.isTexture && !m.userData.is_map_removed) {
                         m.map = m.userData.originalMap;
                         m.needsUpdate = true;
                     }
-                    if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap && !m.userData.is_alphaMap_removed && currentMaps.alphaMap !== null) {
+                    if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap?.isTexture && !m.userData.is_alphaMap_removed) {
                         m.alphaMap = m.userData.originalAlphaMap;
                         m.needsUpdate = true;
                     }
                     
-                    if (!m.userData.originalColor) {
+                    if (!m.userData.originalColor && !materialSettings.useFactorColor) {
                         m.userData.originalColor = m.color.clone();
                     }
 
@@ -2210,7 +2690,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     // CRITICAL: Passive selection changes or slider adjustments (scale, rotation, offset, color, roughness, etc.)
     // must NEVER run this effect! Only run when maps/textures are explicitly uploaded or changed or on reset/undo.
     const changedProp = materialSettings.lastChangedProp;
-    if (!isResetOrUndo && changedProp !== 'maps' && changedProp !== 'appliedTexture') {
+    const isTextureChange = changedProp === 'maps' || changedProp === 'appliedTexture';
+    if (!isTextureChange && (!isResetOrUndo || !materialSettings.useFactorColor)) {
         return;
     }
 
@@ -2228,35 +2709,27 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
     if (isNone) return;
 
-    const rawScaleC = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 100;
+    const rawScaleC = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 50;
     const safeScaleC = Math.max(1, Math.min(1000, isNaN(rawScaleC) ? 100 : rawScaleC));
     const texScaleX = 100 / safeScaleC;
     const texScaleY = 100 / safeScaleC;
 
+    const targetedMeshes = resolveTargetMeshes(selectedMaterial);
+    const targetMeshSet = new Set(targetedMeshes);
+
     const applyToMeshes = (meshes) => {
         meshes.forEach(child => {
             if (child.isMesh && child.material) {
+                if (!isFullModel) {
+                    ensureMeshUniqueMaterial(child, targetMeshSet);
+                }
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
                 materials.forEach(m => {
-                    let isMatch = false;
-                    if (selectedMaterial && !isFullModel) {
-                         if (selectedMaterial.isGroup && Array.isArray(selectedMaterial.materials)) {
-                             isMatch = selectedMaterial.materials.includes(m.name);
-                         } else {
-                             const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid;
-                             if (targetUuid) {
-                                 isMatch = child.uuid === targetUuid;
-                             } else {
-                                 isMatch = m.name === targetMatName || child.name === targetMatName || (selectedMaterial.material && selectedMaterial.material === m.name);
-                             }
-                         }
-                    } else if (isFullModel) {
-                         isMatch = materialSettings.useFactorColor || isResetOrUndo;
-                    }
+                    let isMatch = isFullModel ? (materialSettings.useFactorColor || isResetOrUndo) : targetMeshSet.has(child);
 
                     if (isMatch) {
                         const syncMap = (mapProp, stateUrl, isColor = false) => {
-                            if (stateUrl && (!m[mapProp] || m[mapProp].userData?.url !== stateUrl)) {
+                            if (stateUrl && stateUrl !== "existing" && typeof stateUrl === 'string' && (!m[mapProp] || m[mapProp].userData?.url !== stateUrl)) {
                                 // Performance: Use global cache for instant texture application
                                 const cacheKey = `${stateUrl}_${isColor}`;
                                 if (globalTextureCache.has(cacheKey)) {
@@ -2279,7 +2752,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                     m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                 });
-                            } else if (stateUrl === null || stateUrl === 'none' || (isResetOrUndo && !stateUrl)) {
+                            } else if (stateUrl === null || stateUrl === 'none' || (isResetOrUndo && !stateUrl && m.userData.appliedTextureId)) {
                                 if (m[mapProp]) {
                                     m[mapProp] = null;
                                     // Restore original native maps if this mesh had them
@@ -2288,7 +2761,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                     if (mapProp === 'roughnessMap' && m.userData.originalRoughnessMap) m.roughnessMap = m.userData.originalRoughnessMap;
                                     if (mapProp === 'metalnessMap' && m.userData.originalMetalnessMap) m.metalnessMap = m.userData.originalMetalnessMap;
                                     if (mapProp === 'aoMap' && m.userData.originalAoMap) m.aoMap = m.userData.originalAoMap;
-                                    m.userData[`is_${mapProp}_removed`] = true;
+                                    if (m.userData.appliedTextureId) {
+                                        m.userData[`is_${mapProp}_removed`] = true;
+                                    }
                                     m.needsUpdate = true;
                                 }
                             }
@@ -2318,26 +2793,40 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     }
   }, [scene, materialSettings?.maps, materialSettings?.appliedTexture, selectedMaterial, modelName, resetKey, resolveTargetMeshes]);
 
-  // C. Handle overall visibility
+  // C. Handle overall visibility & deletion
   useEffect(() => {
     if (!scene) return;
     
     scene.traverse((child) => {
         if (child.isMesh && child.material) {
+            const childMatNames = Array.isArray(child.material) 
+                ? child.material.map(m => m?.name).filter(Boolean)
+                : [child.material?.name].filter(Boolean);
+
+            const isDeleted = deletedMaterials && (
+                (child.uuid && deletedMaterials.has(child.uuid)) || 
+                childMatNames.some(mName => deletedMaterials.has(mName))
+            );
+
+            if (isDeleted) {
+                child.visible = false;
+                child.raycast = () => {};
+                return;
+            }
+
+            // Restore raycast when visible / not deleted
+            delete child.raycast;
+
             let isHidden = false;
             if (hiddenMaterials) {
-                const childMatNames = Array.isArray(child.material) 
-                    ? child.material.map(m => m?.name).filter(Boolean)
-                    : [child.material?.name].filter(Boolean);
-
                 isHidden = (child.uuid && hiddenMaterials.has(child.uuid)) || 
                            (child.name && hiddenMaterials.has(child.name)) || 
-                           (!child.name && childMatNames.some(mName => hiddenMaterials.has(mName)));
+                           childMatNames.some(mName => hiddenMaterials.has(mName));
             }
             child.visible = !isHidden;
         }
     });
-  }, [scene, hiddenMaterials]);
+  }, [scene, hiddenMaterials, deletedMaterials]);
 
   const prevTransformTargetRef = React.useRef(null);
   const lastTransformResetKeyRef = React.useRef(resetKey);
@@ -2360,23 +2849,69 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
     scene.traverse(capture);
   }, [scene]);
 
-  // 4. Determine Transform Target (Runs BEFORE transform sync)
+  // 3.6. Sync individual meshTransforms (from Undo / Redo or History Restore)
+  useEffect(() => {
+    if (!scene) return;
+    if (isGizmoDraggingRef.current) return;
+
+    scene.traverse(obj => {
+      if (!obj.isMesh && !obj.isSkinnedMesh) return;
+      const saved = meshTransforms ? (meshTransforms[obj.uuid] || (obj.name ? meshTransforms[obj.name] : null)) : null;
+      if (saved) {
+        if (saved.position) obj.position.set(saved.position.x, saved.position.y, saved.position.z);
+        if (saved.rotation) obj.rotation.set(saved.rotation.x, saved.rotation.y, saved.rotation.z);
+        if (saved.scale) obj.scale.set(saved.scale.x, saved.scale.y, saved.scale.z);
+        obj.updateMatrix();
+        obj.updateMatrixWorld(true);
+      } else if (obj.userData?.originalTransform) {
+        const orig = obj.userData.originalTransform;
+        obj.position.copy(orig.position);
+        obj.rotation.copy(orig.rotation);
+        obj.scale.copy(orig.scale);
+        obj.updateMatrix();
+        obj.updateMatrixWorld(true);
+      } else if (obj.userData?.__bindPos) {
+        obj.position.set(obj.userData.__bindPos[0], obj.userData.__bindPos[1], obj.userData.__bindPos[2]);
+        if (obj.userData.__bindQuat) obj.quaternion.set(obj.userData.__bindQuat[0], obj.userData.__bindQuat[1], obj.userData.__bindQuat[2], obj.userData.__bindQuat[3]);
+        if (obj.userData.__bindScale) obj.scale.set(obj.userData.__bindScale[0], obj.userData.__bindScale[1], obj.userData.__bindScale[2]);
+        obj.updateMatrix();
+        obj.updateMatrixWorld(true);
+      }
+    });
+
+    scene.updateMatrixWorld(true);
+
+    if (transformTarget && transformTarget !== modelGroup) {
+      updatePivotToTarget(transformTarget, relatedMeshesRef.current);
+      if (typeof onTransformChange === 'function') {
+        onTransformChange({
+          position: transformTarget.position,
+          rotation: transformTarget.rotation,
+          scale: transformTarget.scale,
+          meshUuid: transformTarget.uuid,
+          meshName: transformTarget.name || selectedMaterial?.name
+        });
+      }
+    }
+  }, [meshTransforms, resetKey, scene, transformTarget, modelGroup, updatePivotToTarget, onTransformChange, selectedMaterial]);
+
+  // 4. Determine Transform Target & Pivot (Runs whenever selection, transformMode, or scene changes)
   useEffect(() => {
     if (!scene) return;
 
     const targetName = selectedMaterial ? selectedMaterial.name : null;
-    const targetUuid = selectedMaterial ? selectedMaterial.uuid : null;
+    const isAll = selectedMaterial ? selectedMaterial.isAll : false;
     const isGroup = selectedMaterial ? selectedMaterial.isGroup : false;
     
-    if (!targetName || targetName === "Scene") {
+    if (!selectedMaterial || !targetName || targetName === "Scene") {
         setTransformTarget(null);
         relatedMeshesRef.current = [];
         followerOffsetsRef.current.clear();
         return;
     }
 
-    // Default to Full Model (modelGroup) if Model Name selected
-    if (targetName === modelName) {
+    // Default to Full Model (modelGroup) ONLY if pure model name clicked in list without isAll and not a multi-selection
+    if (targetName === modelName && !isAll && !isGroup) {
         relatedMeshesRef.current = [];
         followerOffsetsRef.current.clear();
 
@@ -2410,132 +2945,48 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         return;
     }
 
-    // Priority 0: Group Selection (Handle both physical Scene groups and UI-only Material groups)
-    if (isGroup) {
-        let physicalGroup = null;
-        scene.traverse((child) => {
-            if (physicalGroup) return;
-            if (child.isGroup && child.name === targetName) {
-                physicalGroup = child;
-            }
-        });
-        
-        if (physicalGroup) {
-            setTransformTarget(physicalGroup);
-            return; 
-        }
+    // Priority: Resolve all meshes targeted by the current selection (Group, All Meshes, Multi-selection, or Single Mesh)
+    const targetedMeshes = resolveTargetMeshes(selectedMaterial);
 
-        const groupMats = selectedMaterial.materials || [];
-        if (groupMats.length > 0) {
-            const allMatches = [];
-            scene.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    const m = child.material;
-                    const mats = Array.isArray(m) ? m : [m];
-                    if (mats.some(mat => groupMats.includes(mat.name))) {
-                        allMatches.push(child);
-                    }
-                }
+    if (targetedMeshes && targetedMeshes.length > 0) {
+        const leader = targetedMeshes[0];
+        setTransformTarget(leader);
+        relatedMeshesRef.current = targetedMeshes;
+        updatePivotToTarget(leader, targetedMeshes);
+
+        if (targetedMeshes.length > 1) {
+            leader.updateMatrixWorld(true);
+            const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
+            
+            const offsets = new Map();
+            targetedMeshes.forEach(mesh => {
+                if (mesh === leader) return;
+                mesh.updateMatrixWorld(true);
+                const relativeMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
+                offsets.set(mesh.uuid, relativeMatrix);
             });
-
-            if (allMatches.length > 0) {
-                const leader = allMatches[0];
-                setTransformTarget(leader);
-                relatedMeshesRef.current = allMatches;
-
-                if (allMatches.length > 1) {
-                    leader.updateMatrixWorld(true);
-                    const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
-                    
-                    const offsets = new Map();
-                    allMatches.forEach(mesh => {
-                        if (mesh === leader) return;
-                        mesh.updateMatrixWorld(true);
-                        const relativeMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
-                        offsets.set(mesh.uuid, relativeMatrix);
-                    });
-                    followerOffsetsRef.current = offsets;
-                } else {
-                    followerOffsetsRef.current = new Map();
-                }
-
-                return;
-            }
+            followerOffsetsRef.current = offsets;
+        } else {
+            followerOffsetsRef.current.clear();
         }
+
+        if (typeof onTransformChange === 'function') {
+            const pivot = pivotRef.current;
+            onTransformChange({
+                position: pivot ? pivot.position : leader.position,
+                rotation: pivot ? pivot.rotation : leader.rotation,
+                scale: pivot ? pivot.scale : leader.scale,
+                meshUuid: leader.uuid,
+                meshName: selectedMaterial?.name || leader.name
+            });
+        }
+        return;
     }
 
-    // Otherwise, try to find the mesh with the selected material
-    let foundMesh = null;
-
-    // Priority 1: UUID Match
-    if (targetUuid) {
-        scene.traverse((child) => {
-            if (foundMesh) return;
-            if (child.uuid === targetUuid) {
-                foundMesh = child;
-            }
-        });
-    }
-
-    // Priority 2: Name Match
-    if (!foundMesh) {
-        scene.traverse((child) => {
-            if (foundMesh) return;
-            if (child.isMesh && child.material) {
-                 const m = child.material;
-                 if (Array.isArray(m)) {
-                     if (m.some(mat => mat.name === targetName)) foundMesh = child;
-                 } else {
-                     if (m.name === targetName) foundMesh = child;
-                 }
-            }
-        });
-    }
-
-    // Multi-Mesh Identification
-    const allMatches = [];
-    if (foundMesh && !isGroup && targetName !== modelName) {
-        scene.traverse((child) => {
-            if (child.isMesh && child.material) {
-                const m = child.material;
-                let hasMatch = false;
-                if (Array.isArray(m)) {
-                    hasMatch = m.some(mat => mat.name === targetName);
-                } else {
-                    hasMatch = m.name === targetName;
-                }
-                if (hasMatch) allMatches.push(child);
-            }
-        });
-    }
-    relatedMeshesRef.current = allMatches;
-
-    if (allMatches.length > 1) {
-        const leader = foundMesh;
-        leader.updateMatrixWorld(true);
-        const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
-        
-        const offsets = new Map();
-        allMatches.forEach(mesh => {
-            if (mesh === leader) return;
-            mesh.updateMatrixWorld(true);
-            const relative = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
-            offsets.set(mesh.uuid, relative);
-        });
-        followerOffsetsRef.current = offsets;
-    } else {
-        followerOffsetsRef.current.clear();
-    }
-
-    setTransformTarget(foundMesh);
-    if (foundMesh && typeof onTransformChange === 'function') {
-        onTransformChange({
-            position: foundMesh.position,
-            rotation: foundMesh.rotation,
-            scale: foundMesh.scale
-        });
-    }
-  }, [scene, selectedMaterial, modelName, onTransformChange, modelGroup]);
+    setTransformTarget(null);
+    relatedMeshesRef.current = [];
+    followerOffsetsRef.current.clear();
+  }, [scene, selectedMaterial, transformMode, modelName, onTransformChange, modelGroup, updatePivotToTarget, resolveTargetMeshes]);
 
   // 4.5. Sync transformValues (from UI / Undo) → the currently ACTIVE transform target only.
   useEffect(() => {
@@ -2579,6 +3030,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
       }
       prevTransformTargetRef.current = transformTarget;
 
+      // Skip overwriting during active gizmo drag
+      if (!isResetOrUndo && isGizmoDraggingRef.current) {
+          return;
+      }
+
       if (transformTarget === modelGroup) {
           const norm = scene.userData?.normalization;
           if (norm) {
@@ -2604,28 +3060,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
           }
       }
 
-      transformTarget.position.set(
-          transformValues.position.x,
-          transformValues.position.y,
-          transformValues.position.z
-      );
-      transformTarget.rotation.set(
-          transformValues.rotation.x,
-          transformValues.rotation.y,
-          transformValues.rotation.z
-      );
-      transformTarget.scale.set(
-          transformValues.scale.x,
-          transformValues.scale.y,
-          transformValues.scale.z
-      );
-      transformTarget.updateMatrixWorld?.(true);
+      if (transformTarget !== modelGroup) {
+          // Child mesh transforms are exclusively managed by Effect 3.6 (meshTransforms)
+          // to prevent glitching, jumping, and position clobbering during undo/redo/sync
+          return;
+      }
 
   }, [transformTarget,
       transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z,
       transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
       transformValues?.scale?.x, transformValues?.scale?.y, transformValues?.scale?.z,
-      selectedMaterial, modelName, resetKey, modelGroup, scene]);
+      selectedMaterial, modelName, resetKey, modelGroup, scene, updatePivotToTarget]);
 
   // 5. Scene-Wide Reset Effect
   useEffect(() => {
@@ -2779,55 +3224,29 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
   return (
     <>
+         <primitive object={pivotRef.current} />
          {transformMode && transformTarget && (
               <TransformControls 
-                 key={transformTarget.uuid}
-                 object={transformTarget} 
+                 key={`gizmo_${transformMode}_${selectedMaterial?.isAll ? 'all' : (selectedMaterial?.name || 'sel')}_${relatedMeshesRef.current.length}_${transformTarget === modelGroup ? 'mg' : (transformTarget?.uuid || 'pv')}`}
+                 object={transformTarget === modelGroup ? modelGroup : pivotRef.current} 
                  mode={transformMode} 
                  size={0.8} 
-                  space="local" 
-                  onPointerDown={(e) => {
-                      e.stopPropagation();
-                  }}
-                  onChange={() => {
-                     if (typeof onTransformChange === 'function' && transformTarget) {
-                         // Multi-mesh sync during active transform
-                         if (relatedMeshesRef.current.length > 1 && !isSyncingRef.current) {
-                             isSyncingRef.current = true;
-                             try {
-                                 transformTarget.updateMatrixWorld(true);
-                                 const leaderWorldMatrix = transformTarget.matrixWorld;
-
-                                 relatedMeshesRef.current.forEach(follower => {
-                                     if (follower === transformTarget) return;
-                                     
-                                     const relativeMatrix = followerOffsetsRef.current.get(follower.uuid);
-                                     if (relativeMatrix) {
-                                         // follower.matrixWorld = leader.matrixWorld * relativeMatrix
-                                         const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldMatrix, relativeMatrix);
-                                         
-                                         // Apply to follower (maintaining its own parentage)
-                                         // We need to invert the follower's parent's world matrix to get the local matrix
-                                         const parentInverse = new THREE.Matrix4().copy(follower.parent.matrixWorld).invert();
-                                         const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentInverse, newWorldMatrix);
-                                         
-                                         newLocalMatrix.decompose(follower.position, follower.quaternion, follower.scale);
-                                         follower.updateMatrix();
-                                     }
-                                 });
-                             } finally {
-                                 isSyncingRef.current = false;
-                             }
-                         }
-
-                         // Always report the current target's live values back to the panel
-                         // so the display stays in sync while the user drags the gizmo.
-                         if (transformTarget === modelGroup) {
-                             const norm = scene.userData?.normalization;
-                             const bx = norm?.position?.[0] ?? 0;
-                             const by = norm?.position?.[1] ?? 0;
-                             const bz = norm?.position?.[2] ?? 0;
-                             const bScale = norm?.scale ?? 1;
+                 space="local" 
+                 onPointerDown={(e) => {
+                     e.stopPropagation();
+                 }}
+                 onMouseDown={(e) => {
+                     isGizmoDraggingRef.current = true;
+                     if (typeof onTransformStart === 'function') onTransformStart(e);
+                 }}
+                 onChange={() => {
+                     if (transformTarget === modelGroup) {
+                         const norm = scene.userData?.normalization;
+                         const bx = norm?.position?.[0] ?? 0;
+                         const by = norm?.position?.[1] ?? 0;
+                         const bz = norm?.position?.[2] ?? 0;
+                         const bScale = norm?.scale ?? 1;
+                         if (typeof onTransformChange === 'function') {
                              onTransformChange({
                                  position: {
                                      x: transformTarget.position.x - bx,
@@ -2845,17 +3264,64 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                      z: bScale ? transformTarget.scale.z / bScale : 1
                                  }
                              });
-                         } else {
+                         }
+                     } else {
+                         const pivot = pivotRef.current;
+                         if (pivot) {
+                             pivot.updateMatrixWorld(true);
+                             const pivotWorldMatrix = pivot.matrixWorld;
+                             const list = (relatedMeshesRef.current && relatedMeshesRef.current.length > 0)
+                                 ? relatedMeshesRef.current
+                                 : (transformTarget ? [transformTarget] : []);
+
+                             list.forEach(mesh => {
+                                 const relMatrix = pivotOffsetsRef.current.get(mesh.uuid);
+                                 if (relMatrix && mesh.parent) {
+                                     const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(pivotWorldMatrix, relMatrix);
+                                     const parentInverse = new THREE.Matrix4().copy(mesh.parent.matrixWorld).invert();
+                                     const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentInverse, newWorldMatrix);
+                                     newLocalMatrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+                                     mesh.updateMatrix();
+                                     mesh.updateMatrixWorld(true);
+                                 }
+                             });
+                         }
+
+                         if (typeof onTransformChange === 'function' && transformTarget) {
+                             const pivot = pivotRef.current;
                              onTransformChange({
-                                 position: transformTarget.position,
-                                 rotation: transformTarget.rotation,
-                                 scale: transformTarget.scale
+                                 position: pivot ? pivot.position : transformTarget.position,
+                                 rotation: pivot ? pivot.rotation : transformTarget.rotation,
+                                 scale: pivot ? pivot.scale : transformTarget.scale,
+                                 meshUuid: transformTarget.uuid,
+                                 meshName: transformTarget.name || selectedMaterial?.name
                              });
                          }
                      }
                  }}
-                  onMouseDown={typeof onTransformStart === 'function' ? onTransformStart : undefined}
-                  onMouseUp={typeof onTransformEnd === 'function' ? onTransformEnd : undefined}
+                 onMouseUp={(e) => {
+                     isGizmoDraggingRef.current = false;
+                     const all = {};
+                     const list = (relatedMeshesRef.current && relatedMeshesRef.current.length > 0)
+                         ? relatedMeshesRef.current
+                         : (transformTarget ? [transformTarget] : []);
+                     list.forEach(m => {
+                         if (m && m.uuid) {
+                             all[m.uuid] = {
+                                 position: { x: m.position.x, y: m.position.y, z: m.position.z },
+                                 rotation: { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z },
+                                 scale:    { x: m.scale.x,    y: m.scale.y,    z: m.scale.z },
+                                 name: m.name || ''
+                             };
+                         }
+                     });
+                     if (typeof onTransformEnd === 'function') {
+                         onTransformEnd(all);
+                     }
+                     if (transformTarget !== modelGroup) {
+                         updatePivotToTarget(transformTarget, relatedMeshesRef.current);
+                     }
+                 }}
               />
          )}
         <group 
@@ -2895,6 +3361,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                 // Identify the specific mesh hit: find the first intersection that is a mesh inside this scene
                 let mesh = e.object;
                 if (intersections && intersections.length > 0) {
+                    const currentSelectedUuid = selectedMaterial?.uuid || selectedMaterial?.meshUuid;
+                    const candidateHits = [];
                     for (const hit of intersections) {
                         let curr = hit.object;
                         let isPartOfScene = false;
@@ -2906,8 +3374,17 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             curr = curr.parent;
                         }
                         if (isPartOfScene && (hit.object.isMesh || hit.object.isSkinnedMesh)) {
-                            mesh = hit.object;
-                            break;
+                            candidateHits.push(hit.object);
+                        }
+                    }
+
+                    if (candidateHits.length > 0) {
+                        // In X-ray mode, if clicking on an already selected translucent mesh,
+                        // allow clicking through to inspect/select inner meshes behind it
+                        if (xrayMode && candidateHits[0]?.uuid === currentSelectedUuid && candidateHits.length > 1) {
+                            mesh = candidateHits[1];
+                        } else {
+                            mesh = candidateHits[0];
                         }
                     }
                 }
@@ -2923,6 +3400,37 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     }
                     const matName = (mat && mat.name) ? mat.name : (mesh.name || "Material");
                     const meshName = mesh.name || matName;
+
+                    // Extract fresh texture thumbnails at click time (bypasses stale load-time cache)
+                    const freshMaps = {};
+                    if (mat) {
+                        const texSlots = [
+                            'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+                            'emissiveMap', 'aoMap', 'bumpMap', 'displacementMap', 'alphaMap'
+                        ];
+                        for (const slot of texSlots) {
+                            if (mat[slot]) {
+                                const src = getTextureSource(mat[slot]);
+                                if (src) freshMaps[slot] = src;
+                            }
+                        }
+                    }
+
+                    let worldNormal = null;
+                    if (e.intersections?.[0]?.face?.normal && mesh) {
+                        try {
+                            const nMat = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+                            const nVec = e.intersections[0].face.normal.clone().applyMatrix3(nMat).normalize();
+                            worldNormal = { x: nVec.x, y: nVec.y, z: nVec.z };
+                        } catch (_) {
+                            worldNormal = {
+                                x: e.intersections[0].face.normal.x,
+                                y: e.intersections[0].face.normal.y,
+                                z: e.intersections[0].face.normal.z
+                            };
+                        }
+                    }
+
                     if (typeof onSelectMaterial === 'function') {
                         onSelectMaterial({ 
                             name: meshName, 
@@ -2932,7 +3440,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             meshName: mesh.name || meshName,
                             parentGroup: modelName,
                             isMesh: true,
-                            isShift: e.shiftKey 
+                            isShift: e.shiftKey,
+                            isTransformSelect: !!transformMode,
+                            freshMaps,
+                            clickPoint: e.point ? { x: e.point.x, y: e.point.y, z: e.point.z } : null,
+                            clickNormal: worldNormal
                         });
                     }
                 }
@@ -2943,12 +3455,13 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
             />
         </group>
 
-        {/* Clean silhouette outline for selected mesh */}
+        {/* Clean silhouette outline for all selected mesh(es) */}
         {(() => {
-          if (!selectedMaterial || selectedMaterial.name === modelName || selectedMaterial.name === 'Scene') return null;
-          const target = transformTarget || resolveTargetMeshes(selectedMaterial);
+          if (!selectedMaterial || selectedMaterial.name === 'Scene') return null;
+          const target = resolveTargetMeshes(selectedMaterial);
           if (!target || (Array.isArray(target) && target.length === 0)) return null;
-          return <MeshSelectionHighlight target={target} />;
+          const targetKey = Array.isArray(target) ? target.map(m => m.uuid).join('_') : (target.uuid || 'sel');
+          return <MeshSelectionHighlight key={targetKey} target={target} />;
         })()}
     </>
   );

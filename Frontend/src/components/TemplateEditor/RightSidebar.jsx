@@ -197,6 +197,9 @@ const RightSidebar = ({
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
   topText, setTopText, bottomText, setBottomText,
   current3DVId,
+  hotspots = [],
+  activeHotspotId = null,
+  onHotspotClick,
   v_id: v_idProp,
   flipbookVId: flipbookVIdProp,
   folderName: folderNameProp,
@@ -1081,6 +1084,9 @@ const RightSidebar = ({
               topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
               dataUrl={preview3DDataUrl}
               vId={current3DVId}
+              hotspots={hotspots}
+              activeHotspotId={activeHotspotId}
+              onHotspotClick={onHotspotClick}
             />
           </div>
         ) : activeTopTool === 'editor' ? (
