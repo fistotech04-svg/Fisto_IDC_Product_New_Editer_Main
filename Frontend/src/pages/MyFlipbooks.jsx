@@ -13,6 +13,7 @@ import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
 import { getSupabaseBaseUrl, resolveUploadsPath } from '../utils/supabaseUtils';
 import dashboardBannerImg from '../assets/Dashboard/Main.png';
+import DashboardTour from '../components/DashboardTour';
 
 
 // Lazy-load preview iframe: only fetches HTML when card is visible in viewport
@@ -1803,6 +1804,7 @@ export default function MyFlipbooks() {
 
     return (
         <div className="flex bg-[#eef0f8] h-full">
+            <DashboardTour />
             {/* Sidebar */}
             <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20 select-none">
 
@@ -1816,6 +1818,7 @@ export default function MyFlipbooks() {
                             const count = books.filter(b => !b.trash && b.folder !== 'Trash' && b.folder !== 'Recent Book' && b.folder !== 'Recent').length;
                             return (
                                 <div
+                                    data-tour="all-flipbooks-nav"
                                     onClick={() => { setActiveFolder('All Flipbook'); setSelectedBooks([]); }}
                                     className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
                                         isActive
@@ -1840,6 +1843,7 @@ export default function MyFlipbooks() {
                             const count = books.filter(b => !b.trash && (b.folder === 'Recent Book' || b.folder === 'Recent')).length;
                             return (
                                 <div
+                                    data-tour="recent"
                                     onClick={() => { setActiveFolder('Recent'); setSelectedBooks([]); }}
                                     className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
                                         isActive
@@ -1864,6 +1868,7 @@ export default function MyFlipbooks() {
                             const count = books.filter(b => !b.trash && b.folder !== 'Trash' && b.folder !== 'Recent Book' && b.folder !== 'Recent' && Boolean(b.isFavorite || b.favorite || b.isFav)).length;
                             return (
                                 <div
+                                    data-tour="favorites"
                                     onClick={() => { setActiveFolder('Favorites'); setSelectedBooks([]); }}
                                     className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
                                         isActive
@@ -1888,6 +1893,7 @@ export default function MyFlipbooks() {
                             const count = books.filter(b => Boolean(b.trash || b.folder === 'Trash') && b.folder !== 'Recent Book' && b.folder !== 'Recent').length;
                             return (
                                 <div
+                                    data-tour="trash"
                                     onClick={() => { setActiveFolder('Trash'); setSelectedBooks([]); }}
                                     className={`w-full flex items-center justify-between px-[0.85vw] py-[0.55vw] rounded-[0.5vw] transition-all text-[0.875vw] cursor-pointer select-none ${
                                         isActive
@@ -1946,6 +1952,7 @@ export default function MyFlipbooks() {
                                     </div>
                                 ) : (
                                     <div
+                                        data-tour={folder.name === 'My_Flipbooks' ? 'my-flipbooks' : undefined}
                                         key={folder.id}
                                         draggable={!isEditing}
                                         onDragStart={(e) => handleFolderDragStart(e, index, folder)}
@@ -2067,7 +2074,7 @@ export default function MyFlipbooks() {
                     const storagePercent = effectiveTotal > 0 ? Math.min(100, Math.round((effectiveUsed / effectiveTotal) * 100)) : 0;
 
                     return (
-                        <div className="mt-auto relative z-30 pt-[0.6vw]">
+                        <div data-tour="storage" className="mt-auto relative z-30 pt-[0.6vw]">
                             <div className="w-full bg-white rounded-[1vw] p-[0.8vw] border border-gray-200/80 shadow-[0_2px_10px_rgba(0,0,0,0.03)] flex flex-col select-none relative">
                                 {/* Top Header: Database/Storage Icon + Title + Close Button (closes upgrade button) */}
                                 <div className="flex items-center justify-between mb-[0.55vw]">
@@ -2298,7 +2305,7 @@ export default function MyFlipbooks() {
                     const displayName = rawName ? (rawName.charAt(0).toUpperCase() + rawName.slice(1)) : 'Naveen';
 
                     return (
-                        <div className="w-full bg-white rounded-[1vw] py-[0.95vw] px-[1.4vw] border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex justify-between items-center relative overflow-hidden mb-[0.9vw] flex-shrink-0">
+                        <div data-tour="welcome" className="w-full bg-white rounded-[1vw] py-[0.95vw] px-[1.4vw] border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex justify-between items-center relative overflow-hidden mb-[0.9vw] flex-shrink-0">
                             {/* Left Side: Greeting & Quick Action Cards */}
                             <div className="flex flex-col z-10">
                                 <h1 className="text-[1.45vw] font-bold text-[#1f2937] leading-tight">
@@ -2312,6 +2319,7 @@ export default function MyFlipbooks() {
                                 <div className="flex items-center gap-[0.9vw]">
                                     {/* 1. Drag & Drop or Upload */}
                                     <div
+                                        data-tour="upload"
                                         onClick={() => { setCreateModalInitialView('upload'); setIsCreateModalOpen(true); }}
                                         onDragOver={handleUploadBoxDragOver}
                                         onDrop={handleUploadBoxDrop}
@@ -2335,6 +2343,7 @@ export default function MyFlipbooks() {
 
                                     {/* 2. Create From Scratch */}
                                     <div
+                                        data-tour="create-from-scratch"
                                         onClick={() => {
                                             setSelectedTemplateIdForModal('corporate'); // default A4
                                             setCreateModalInitialView('template');
@@ -2358,6 +2367,7 @@ export default function MyFlipbooks() {
 
                                     {/* 3. Use a Template */}
                                     <div
+                                        data-tour="template"
                                         onClick={() => {
                                             navigate('/templates');
                                         }}
@@ -2393,7 +2403,7 @@ export default function MyFlipbooks() {
 
                 {/* Title & Filters Row */}
                 <div className="w-full mb-[0.8vw] relative z-20 flex-shrink-0">
-                    <h2 className="text-[1.15vw] font-bold text-[#1f2937] mb-[0.6vw]">
+                    <h2 data-tour="all-flipbooks" className="text-[1.15vw] font-bold text-[#1f2937] mb-[0.6vw]">
                         {activeFolder === 'All Flipbook' || activeFolder === 'All' || !activeFolder ? 'All Flipbooks' : (activeFolder === 'Recent Book' ? 'Recent' : activeFolder)}
                     </h2>
 
@@ -2401,7 +2411,7 @@ export default function MyFlipbooks() {
                         {/* Left: Search & Filter Dropdowns */}
                         <div className="flex items-center gap-[0.75vw]">
                             {/* Search Input */}
-                            <div className="relative w-[15vw]">
+                            <div data-tour="search" className="relative w-[15vw]">
                                 <Search className="absolute left-[0.9vw] top-1/2 -translate-y-1/2 text-[#ea543a]" size="0.95vw" />
                                 <input
                                     type="text"
@@ -2413,7 +2423,7 @@ export default function MyFlipbooks() {
                             </div>
 
                             {/* All Folders Dropdown */}
-                            <div className="relative" ref={folderDropdownRef}>
+                            <div data-tour="folder-filter" className="relative" ref={folderDropdownRef}>
                                 <button
                                     onClick={() => { setIsFolderDropdownOpen(!isFolderDropdownOpen); setIsStatusDropdownOpen(false); setIsSortDropdownOpen(false); }}
                                     className="flex items-center gap-[0.45vw] px-[0.9vw] py-[0.5vw] bg-white border border-gray-200 rounded-[0.6vw] text-[0.84vw] text-gray-700 hover:bg-gray-50 shadow-sm font-medium cursor-pointer"
@@ -2444,7 +2454,7 @@ export default function MyFlipbooks() {
                             </div>
 
                             {/* All Status Dropdown */}
-                            <div className="relative" ref={statusDropdownRef}>
+                            <div data-tour="status-filter" className="relative" ref={statusDropdownRef}>
                                 <button
                                     onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsSortDropdownOpen(false); setIsFolderDropdownOpen(false); }}
                                     className="flex items-center gap-[0.45vw] px-[0.9vw] py-[0.5vw] bg-white border border-gray-200 rounded-[0.6vw] text-[0.84vw] text-gray-700 hover:bg-gray-50 shadow-sm font-medium cursor-pointer"
@@ -2469,7 +2479,7 @@ export default function MyFlipbooks() {
                             </div>
 
                             {/* Sort by Dropdown */}
-                            <div className="relative" ref={sortDropdownRef}>
+                            <div data-tour="sort" className="relative" ref={sortDropdownRef}>
                                 <button
                                     onClick={() => { setIsSortDropdownOpen(!isSortDropdownOpen); setIsStatusDropdownOpen(false); setIsFolderDropdownOpen(false); }}
                                     className="flex items-center gap-[0.45vw] px-[0.9vw] py-[0.5vw] bg-white border border-gray-200 rounded-[0.6vw] text-[0.84vw] text-gray-700 hover:bg-gray-50 shadow-sm font-medium cursor-pointer"
@@ -2545,7 +2555,7 @@ export default function MyFlipbooks() {
                             )}
 
                             {/* Checkbox for multiple selection */}
-                            <label className="flex items-center gap-[0.5vw] cursor-pointer select-none" onClick={(e) => { e.preventDefault(); handleSelectAll(); }}>
+                            <label data-tour="multiple-selection" className="flex items-center gap-[0.5vw] cursor-pointer select-none" onClick={(e) => { e.preventDefault(); handleSelectAll(); }}>
                                 <div className={`w-[1.1vw] h-[1.1vw] rounded-[0.2vw] border flex items-center justify-center transition-all ${isAllSelected ? 'bg-gray-700 border-gray-700' : 'border-gray-400 bg-white'}`}>
                                     {isAllSelected && <Check size="0.75vw" className="text-white" strokeWidth={3} />}
                                 </div>
@@ -2875,6 +2885,7 @@ export default function MyFlipbooks() {
                         ) : activeFolder === 'All Flipbook' || activeFolder === 'All Flipbooks' ? (
                             <>
                                 <div
+                                    data-tour="empty-state"
                                     onClick={() => setIsCreateModalOpen(true)}
                                     className="w-[4vw] h-[4vw] rounded-full bg-[#ea543a]/10 flex items-center justify-center mb-[1vw] border border-[#ea543a]/20 cursor-pointer hover:bg-[#ea543a]/20 transition-all"
                                 >

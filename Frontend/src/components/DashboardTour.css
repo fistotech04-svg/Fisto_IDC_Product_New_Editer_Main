@@ -1,0 +1,170 @@
+/* Custom styles for the Flipbook Tour */
+
+/* Ensure the backdrop doesn't artificially dim the highlighted target */
+.tg-backdrop, .flipbook-tour-backdrop {
+    box-shadow: rgba(15, 23, 42, 0.4) 0 0 0.07vw 0.14vw, rgba(15, 23, 42, 0.4) 0 0 0 1000vh !important;
+}
+
+/* Force the active element to sit firmly above the backdrop and not inherit dark overlays */
+.tg-active-element {
+    position: relative !important;
+    z-index: 999999 !important;
+    background-color: transparent !important;
+}
+
+/* ============================================================
+   GLOBAL INTERACTION LOCKDOWN DURING TOUR
+   ============================================================ */
+
+/* 1. Disable all pointer events in the entire application while the tour is active */
+body.tg-no-interaction,
+body.tg-no-interaction * {
+    pointer-events: none !important;
+}
+
+/* 2. Re-enable pointer events ONLY for the Tour Guide dialog and its controls */
+body.tg-no-interaction .tg-dialog,
+body.tg-no-interaction .tg-dialog * {
+    pointer-events: auto !important;
+}
+
+/* 3. Explicitly ensure the highlighted active element and its children remain disabled */
+body.tg-no-interaction .tg-active-element,
+body.tg-no-interaction .tg-active-element * {
+    pointer-events: none !important;
+}
+
+/* Main Dialog Styling */
+.tg-dialog, .flipbook-tour-dialog {
+    background: #ffffff !important;
+    border-radius: 1.11vw !important; /* 16px */
+    box-shadow: 0 1.38vw 2.77vw -0.69vw rgba(0, 0, 0, 0.15), 0 0.69vw 1.04vw -0.34vw rgba(0, 0, 0, 0.1) !important;
+    border: 0.07vw solid rgba(229, 231, 235, 0.8) !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+    box-sizing: border-box !important;
+    width: min(360px, calc(100vw - 32px)) !important;
+}
+
+/* Header */
+.tg-dialog .tg-dialog-header {
+    padding: 1.66vw 1.66vw 0.83vw 1.66vw !important; /* 24px 24px 12px 24px */
+}
+
+.tg-dialog .tg-dialog-header .tg-dialog-title {
+    color: #111827 !important;
+    font-size: 1.25vw !important; /* 1.25rem -> 1.25vw */
+    font-weight: 700 !important;
+    margin-right: auto !important;
+}
+
+/* Body Content */
+.tg-dialog .tg-dialog-body {
+    color: #4b5563 !important;
+    font-size: 0.95vw !important; /* 0.95rem -> 0.95vw */
+    line-height: 1.6 !important;
+    padding: 0 1.66vw 1.66vw 1.66vw !important; /* 24px */
+}
+
+/* Footer / Action area */
+.tg-dialog .tg-dialog-footer {
+    padding: 1.11vw 1.66vw 1.66vw 1.66vw !important; /* 16px 24px 24px 24px */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    /* background: #ffffff !important; */
+}
+
+/* Buttons */
+.tg-dialog .tg-dialog-footer button.tg-dialog-btn {
+    padding: 0.69vw 1.38vw !important; /* 10px 20px */
+    border-radius: 0.55vw !important; /* 8px */
+    font-weight: 600 !important;
+    font-size: 0.875vw !important; /* 0.875rem -> 0.875vw */
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    border: none !important;
+}
+
+/* Back Button */
+.tg-dialog .tg-dialog-footer button.tg-dialog-btn#tg-dialog-prev-btn {
+    background-color: #f3f4f6 !important;
+    color: #4b5563 !important;
+    border: 0.07vw solid #e5e7eb !important;
+}
+
+.tg-dialog .tg-dialog-footer button.tg-dialog-btn#tg-dialog-prev-btn:hover {
+    background-color: #e5e7eb !important;
+    color: #1f2937 !important;
+}
+
+/* Next / Finish Button */
+.tg-dialog .tg-dialog-footer button.tg-dialog-btn#tg-dialog-next-btn {
+    background-color: #ea543a !important;
+    color: #ffffff !important;
+    margin-left: auto !important;
+    box-shadow: 0 0.14vw 0.55vw rgba(234, 84, 58, 0.3) !important;
+}
+
+.tg-dialog .tg-dialog-footer button.tg-dialog-btn#tg-dialog-next-btn:hover {
+    background-color: #d4452d !important;
+    box-shadow: 0 0.27vw 0.83vw rgba(234, 84, 58, 0.4) !important; /* 4px 12px */
+}
+
+/* Disable State */
+.tg-dialog .tg-dialog-footer button.tg-dialog-btn.disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+/* Dots and Progress Indicator */
+.tg-dialog .tg-dialog-dots,
+.tg-dialog .tg-dialog-progress {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    gap: 0.55vw !important; /* 8px */
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.tg-dialog .tg-dialog-progress {
+    font-size: 0.85vw !important; /* ~12px */
+    color: #6b7280 !important; /* muted gray */
+    font-weight: 500 !important;
+    margin-right: auto !important; /* push buttons to right */
+}
+
+.tg-dialog .tg-dialog-dots > span.tg-dot {
+    width: 0.55vw !important; /* 8px */
+    height: 0.55vw !important;
+    border-radius: 50% !important;
+    background-color: #d1d5db !important;
+    margin: 0 !important;
+    transition: all 0.2s ease !important;
+}
+
+.tg-dialog .tg-dialog-dots > span.tg-dot.tg-dot-active {
+    background-color: #ea543a !important;
+    transform: scale(1.3) !important;
+}
+
+/* Close button */
+.tg-dialog .tg-dialog-header .tg-dialog-close-btn {
+    opacity: 0.4 !important;
+    transition: opacity 0.2s ease !important;
+    width: 0.83vw !important; /* 12px */
+    height: 0.83vw !important;
+}
+
+.tg-dialog .tg-dialog-header .tg-dialog-close-btn:hover {
+    opacity: 0.8 !important;
+}
+
+/* Clean up extra elements injected by TourGuide */
+.tg-dialog .tg-dialog-footer .tg-dialog-footer-sup {
+    margin: 0 !important;
+}
+
