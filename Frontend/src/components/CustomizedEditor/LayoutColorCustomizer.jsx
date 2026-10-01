@@ -163,7 +163,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                                 } else {
                                     // Force 100% opacity for other contrast elements if using standard colors on light bg
                                     const isLightBg = isLightColor(primaryHex);
-                                    const isStandardPurple = secondaryHex.toUpperCase() === '#575C9C';
+                                    const isStandardPurple = secondaryHex.toUpperCase() === '#555555';
                                     if (isLightBg && isStandardPurple) targetOpacity = 100;
                                 }
 
@@ -494,7 +494,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                             { primary: '#FFE6CB', secondary: '#B57B6C' },
                             { primary: '#94A3B8', secondary: '#FFFFFF' },
                             { primary: '#B9887A', secondary: '#FFFFFF' },
-                            { primary: '#555555', secondary: '#FFFFFF' },
+                            { primary: '#575C9C', secondary: '#FFFFFF' },
                         ].map((preset, i) => (
                             <button
                                 key={i}

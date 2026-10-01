@@ -3862,6 +3862,9 @@ const PreviewArea = React.memo(({
                 if (settings?.navigation?.mouseWheel) {
                     if (isFlippingRef.current) return;
 
+                    // Only flip on significant scroll to avoid accidental tiny trackpad scrolls locking the flip state
+                    if (Math.abs(e.data.deltaY) < 10) return;
+
                     if (e.data.deltaY > 0) {
                         bookRef.current?.pageFlip()?.flipNext();
                     } else if (e.data.deltaY < 0) {
@@ -4086,7 +4089,7 @@ const PreviewArea = React.memo(({
         }
 
         const duration = settings.media?.autoFlipSettings?.duration || settings.toolbar?.autoFlipDuration || 5; // duration in seconds
-        const showCountdown = settings.media?.autoFlipSettings?.countdown ?? settings.toolbar?.nextFlipCountdown ?? true;
+        const showCountdown = settings.media?.autoFlipSettings?.countdown ?? settings.toolbar?.nextFlipCountdown ?? false;
 
         // The overall timer for the flip
         const timer = setTimeout(() => {
@@ -4158,6 +4161,11 @@ const PreviewArea = React.memo(({
 
         const opacity = (backgroundSettings?.opacity ?? 100) / 100;
 
+        let finalColor = backgroundSettings?.color || '#D9D9D9';
+        if (finalColor.toUpperCase() === '#DADBE8' || finalColor.toUpperCase() === '#E2E4F0') {
+            finalColor = '#D9D9D9';
+        }
+
         if (backgroundSettings?.style === 'Gradient') {
             return { backgroundImage: backgroundSettings.gradient, opacity };
         } else if (backgroundSettings?.style === 'Image' && backgroundSettings.image) {
@@ -4188,7 +4196,7 @@ const PreviewArea = React.memo(({
             } : {};
 
             return {
-                backgroundColor: backgroundSettings?.color || '#DADBE8',
+                backgroundColor: finalColor,
                 backgroundImage: `url(${backgroundSettings.image})`,
                 backgroundSize: (bgCrop && bgCrop.inset) ? '100% 100%' : (fitMap[backgroundSettings.fit] || 'cover'),
                 backgroundPosition: 'center',
@@ -4198,7 +4206,7 @@ const PreviewArea = React.memo(({
                 ...cropStyle
             };
         }
-        return { backgroundColor: hexToRgba(backgroundSettings?.color || '#DADBE8', backgroundSettings?.opacity ?? 100) };
+        return { backgroundColor: hexToRgba(finalColor, backgroundSettings?.opacity ?? 100) };
     }, [backgroundSettings]);
 
     const {
@@ -5173,6 +5181,7 @@ const PreviewArea = React.memo(({
     const commonLayoutProps = {
         settings,
         bookName,
+        currentBook,
         activeLayout,
         hideHeader,
         searchQuery,

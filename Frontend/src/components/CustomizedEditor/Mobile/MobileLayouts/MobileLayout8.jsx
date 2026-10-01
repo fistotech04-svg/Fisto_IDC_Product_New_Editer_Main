@@ -592,7 +592,14 @@ const MobileLayout8 = ({
                     />
                 )}
                 {showSharePopup && (
-                    <FlipbookSharePopup onClose={() => setShowSharePopup(false)} bookName={bookName} url={window.location.href} isMobile={true} isLandscape={isLandscape} />
+                    <FlipbookSharePopup
+                    onClose={() => setShowSharePopup(false)}
+                    bookName={props.currentBook?.flipbookName || bookName}
+                    url={props.currentBook?.shareUrl || window.location.href}
+                    isPublished={props.currentBook?.status === 'Published'}
+                    isMobile={true}
+                    isLandscape={isLandscape}
+                />
                 )}
             </div>
         );

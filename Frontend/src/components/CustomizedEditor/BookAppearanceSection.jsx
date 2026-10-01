@@ -99,9 +99,10 @@ const BookAppearanceSection = ({
               onChange={(isEnabling) => {
                 let newCustomHardPages = bookAppearanceSettings?.customHardPages || [];
 
-                if (isEnabling) {
-                  newCustomHardPages = pages.map((_, i) => i);
-                }
+                // Do not auto-select all pages when enabling
+                // if (isEnabling) {
+                //   newCustomHardPages = pages.map((_, i) => i);
+                // }
 
                 onUpdateBookAppearance({
                   ...bookAppearanceSettings,

@@ -227,10 +227,11 @@ const MobileLayout6 = (props) => {
             {showSharePopup && (
                 <FlipbookSharePopup
                     onClose={() => setShowSharePopup(false)}
-                    bookName={bookName}
-                    url={window.location.href}
+                    bookName={props.currentBook?.flipbookName || bookName}
+                    url={props.currentBook?.shareUrl || window.location.href}
+                    isPublished={props.currentBook?.status === 'Published'}
                     isMobile={true}
-                    isPublished={isPublished}
+                    isLandscape={isLandscape}
                 />
             )}
         </div>

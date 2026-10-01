@@ -1037,7 +1037,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     }
 
     const isBookPublished = Boolean(
-        currentBook?.isPublished
+        currentBook?.isPublished || 
+        currentBook?.published || 
+        currentBook?.is_published || 
+        currentBook?.status === 'publish' ||
+        currentBook?.status === 'published' ||
+        currentBook?.meta?.isPublished
     );
 
     const handleCopy = () => {
@@ -1105,7 +1110,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
     if (isTabletLayout) {
         return (
-            <div className="absolute inset-0 z-[150] flex items-center justify-center p-[2cqw]">
+            <div className="absolute inset-0 z-[5000] flex items-center justify-center p-[2cqw]">
                 {/* Backdrop */}
                 <div
                     className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
@@ -1376,7 +1381,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     }
 
     return (
-        <div className={`${isAbsolutePosition ? 'absolute' : 'fixed'} inset-0 z-[150] flex items-center justify-center`}>
+        <div className={`${isAbsolutePosition ? 'absolute' : 'fixed'} inset-0 z-[5000] flex items-center justify-center`}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"

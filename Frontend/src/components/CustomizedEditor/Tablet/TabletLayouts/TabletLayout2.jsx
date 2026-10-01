@@ -205,11 +205,11 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
           <div className="relative w-[22cqw] h-[55%] rounded-[1.5cqw] flex items-center px-[1cqw] group border border-transparent transition-all duration-300 z-20" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
             <style>{`
                 #quick-search-tablet-${activeLayout}::placeholder {
-                    color: ${getLayoutColor('toolbar-bg', '#575C9C')} !important;
+                    color: ${getLayoutColor('toolbar-bg', '#555555')} !important;
                     opacity: 0.8;
                 }
             `}</style>
-            <Icon icon="lucide:search" className="w-[1.4cqw] h-[1.4cqw]" style={{ color: getLayoutColor('toolbar-bg', '#575C9C'), opacity: 0.8 }} />
+            <Icon icon="lucide:search" className="w-[1.4cqw] h-[1.4cqw]" style={{ color: getLayoutColor('toolbar-bg', '#555555'), opacity: 0.8 }} />
             <input
               type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
               id={`quick-search-tablet-${activeLayout}`}
@@ -264,7 +264,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                   }
               }}
               className="bg-transparent border-0 outline-none focus:outline-none focus:ring-0 w-full h-full text-[1.2cqw] ml-[0.8cqw] font-medium"
-              style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+              style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
             />
           </div>
 
@@ -279,7 +279,7 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                       style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}
                   >
                       <div className="relative z-10 rounded-[1cqw] overflow-hidden">
-                          <div className="rounded-[1cqw] overflow-hidden" style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}>
+                          <div className="rounded-[1cqw] overflow-hidden" style={{ backgroundColor: getLayoutColor('dropdown-bg', '#555555') }}>
                               <div className="flex flex-col py-[0.5cqw]">
                                   {recommendations.map((rec, idx) => (
                                       <button
@@ -553,11 +553,11 @@ const TabletLayout2 = ({ children, bookRef, currentPage, pages, offset = 0, onPa
                                   <radialGradient id="ringFillGradientTablet" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
                                       <stop offset="0%" stopColor="white" stopOpacity="0" />
                                       <stop offset="56%" stopColor="white" stopOpacity="0" />
-                                      <stop offset="60%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
-                                      <stop offset="70%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.02" />
-                                      <stop offset="94%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.02" />
-                                      <stop offset="98%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
-                                      <stop offset="100%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
+                                      <stop offset="60%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.05" />
+                                      <stop offset="70%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.02" />
+                                      <stop offset="94%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.02" />
+                                      <stop offset="98%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.05" />
+                                      <stop offset="100%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.05" />
                                   </radialGradient>
                               </defs>
                               <path

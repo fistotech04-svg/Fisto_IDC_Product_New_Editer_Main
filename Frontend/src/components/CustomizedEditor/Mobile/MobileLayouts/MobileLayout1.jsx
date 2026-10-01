@@ -529,9 +529,13 @@ const MobileLayout1 = (props) => {
 
                 {showSharePopup && !isLandscape && (
                     <FlipbookSharePopup
-                        onClose={() => setShowSharePopup(false)}
-                        isMobile={true}
-                    />
+                    onClose={() => setShowSharePopup(false)}
+                    bookName={props.currentBook?.flipbookName || bookName}
+                    url={props.currentBook?.shareUrl || window.location.href}
+                    isPublished={props.currentBook?.status === 'Published'}
+                    isMobile={true}
+                    isLandscape={isLandscape}
+                />
                 )}
             </AnimatePresence>
         </div>
@@ -540,7 +544,10 @@ const MobileLayout1 = (props) => {
     const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ backgroundColor: getLayoutColor('page-bg', '#DADBE8') }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ backgroundColor: props.backgroundSettings?.color || getLayoutColor('page-bg', '#DADBE8') }}>
+            <div className="absolute inset-0 z-0" style={props.backgroundStyle} />
+            <div className="flex flex-col h-full w-full z-10 relative pointer-events-none">
+                <div className="pointer-events-auto flex flex-col h-full w-full">
             {/* Notch Spacer - fills the area near the hardware notch with a status bar color */}
             {!isPhysicalMobile && <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />}
             {/* Search Area */}
@@ -749,6 +756,8 @@ const MobileLayout1 = (props) => {
             </footer>
 
             {renderPopups()}
+                </div>
+            </div>
         </div>
     );
 };

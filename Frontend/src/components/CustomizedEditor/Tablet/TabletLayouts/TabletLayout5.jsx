@@ -215,7 +215,7 @@ const TabletLayout5 = ({
     const totalPages = pagesCount;
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
     const pillBgColor = currentPage === 0 ? getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1');
-    const iconColor = currentPage === 0 ? getLayoutColor('toolbar-bg', '#575C9C') : getLayoutColor('toolbar-text-main', '#FFFFFF');
+    const iconColor = currentPage === 0 ? getLayoutColor('toolbar-bg', '#555555') : getLayoutColor('toolbar-text-main', '#FFFFFF');
 
     return (
         <div className="flex flex-col w-full h-full min-h-0 overflow-hidden font-sans relative" style={{ ...backgroundStyle, backgroundColor: 'transparent', containerType: 'size' }}>
@@ -294,7 +294,7 @@ const TabletLayout5 = ({
                                 }}
                                 placeholder="Quick Search..."
                                 className="bg-transparent border-0 outline-none w-full ml-[1cqw] font-medium text-[1.6cqw]"
-                                style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
+                                style={{ color: getLayoutColor('search-text-v1', '#555555') }}
                             />
                             <AnimatePresence>
                                 {showSuggestions && recommendations.length > 0 && (
@@ -303,11 +303,11 @@ const TabletLayout5 = ({
                                         animate={{ opacity: 1, y: 0 }} 
                                         exit={{ opacity: 0, y: -5 }} 
                                         className="absolute top-full mt-[1cqw] left-0 w-full rounded-[1.2cqw] shadow-[0_1cqw_3cqw_rgba(0,0,0,0.1)] border z-[100] overflow-hidden pointer-events-auto"
-                                        style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1'), borderColor: getLayoutColor('dropdown-text', '#575C9C') }}
+                                        style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1'), borderColor: getLayoutColor('dropdown-text', '#555555') }}
                                     >
                                         <div className="flex flex-col py-[1.5cqw]">
                                             <div className="px-[2cqw] mb-[1cqw]">
-                                                <span className="font-bold text-[1.5cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>Suggestion</span>
+                                                <span className="font-bold text-[1.5cqw]" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>Suggestion</span>
                                             </div>
                                             {recommendations.map((rec, idx) => (
                                                 <button 
@@ -322,10 +322,10 @@ const TabletLayout5 = ({
                                                     }}
                                                 >
                                                     <div className="flex-1 truncate mr-[1cqw] opacity-90 group-hover:opacity-100">
-                                                        <span className="font-bold text-[1.4cqw]" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), fontWeight: 800 }}>{rec.boldPart}</span>
-                                                        <span className="text-[1.4cqw] opacity-70" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{rec.greyPart}</span>
+                                                        <span className="font-bold text-[1.4cqw]" style={{ color: getLayoutColor('dropdown-text', '#555555'), fontWeight: 800 }}>{rec.boldPart}</span>
+                                                        <span className="text-[1.4cqw] opacity-70" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{rec.greyPart}</span>
                                                     </div>
-                                                    <span className="font-bold text-[1.4cqw] whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#575C9C'), opacity: 0.5 }}>Pg {rec.pageNumber}</span>
+                                                    <span className="font-bold text-[1.4cqw] whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#555555'), opacity: 0.5 }}>Pg {rec.pageNumber}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -340,7 +340,7 @@ const TabletLayout5 = ({
                 <div className="absolute left-1/2 -translate-x-1/2 text-center max-w-[40cqw]">
                     <span
                         className="text-[2.2cqw] font-bold truncate drop-shadow-sm"
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                     >
                         {/* bookName hidden */}
                     </span>
@@ -371,7 +371,7 @@ const TabletLayout5 = ({
                         profileSettings={profileSettings}
                         layoutColors={settings?.layoutColors}
                         handleContactClick={handleContactClick}
-                        fallbackText="#575C9C"
+                        fallbackText="#555555"
                         onClose={() => setShowProfilePopup(false)}
                     />
                 )}
@@ -380,7 +380,7 @@ const TabletLayout5 = ({
                 <button
                     onClick={() => bookRef?.current?.pageFlip()?.flipPrev()}
                     className={`absolute left-[4cqw] w-[5cqw] h-[5cqw] flex items-center justify-center transition-all z-10 ${currentPage === 0 ? 'opacity-20 cursor-not-allowed' : 'opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer'}`}
-                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                    style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                     disabled={currentPage === 0}
                 >
                     <Icon icon="ph:caret-left" className="w-[4cqw] h-[4cqw]" />
@@ -398,7 +398,7 @@ const TabletLayout5 = ({
                 <button
                     onClick={() => bookRef?.current?.pageFlip()?.flipNext()}
                     className={`absolute right-[4cqw] w-[5cqw] h-[5cqw] flex items-center justify-center transition-all z-10 ${currentPage >= pagesCount - 1 ? 'opacity-20 cursor-not-allowed' : 'opacity-60 hover:opacity-100 hover:scale-110 cursor-pointer'}`}
-                    style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                    style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                     disabled={currentPage >= pagesCount - 1}
                 >
                     <Icon icon="ph:caret-right" className="w-[4cqw] h-[4cqw]" />
@@ -527,7 +527,7 @@ const TabletLayout5 = ({
                                 onClick={() => setCurrentZoom?.(1)}
                                 className="text-[1.4cqw] font-bold px-[1cqw] py-[0.5cqh] rounded-full shadow-sm"
                                 style={{
-                                    backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
+                                    backgroundColor: getLayoutColor('toolbar-bg', '#555555'),
                                     color: '#FFFFFF'
                                 }}
                             >
@@ -546,7 +546,7 @@ const TabletLayout5 = ({
                         className={`absolute z-[150] bottom-[11cqh] left-1/2 -translate-x-1/2 w-fit max-w-[75cqw] ${spreads.length === 1 ? 'rounded-[1.2cqw]' : 'rounded-full'} shadow-lg flex items-center border overflow-hidden`}
                         style={{
                             backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1'),
-                            borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                            borderColor: getLayoutColor('dropdown-text', '#555555')
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -559,7 +559,7 @@ const TabletLayout5 = ({
                                 <button
                                     className="w-[4cqw] h-[8cqw] flex items-center justify-center hover:scale-110 transition-all shrink-0"
                                     onClick={(e) => { e.stopPropagation(); scroll('left'); }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                 >
                                     <Icon icon="ph:caret-left" className="w-[1.8cqw] h-[1.8cqw]" />
                                 </button>
@@ -592,7 +592,7 @@ const TabletLayout5 = ({
                                             <div
                                                 className="w-full h-[6cqw] bg-white border-[1.2px] transition-all rounded-[0.2cqw] overflow-hidden relative"
                                                 style={{
-                                                    borderColor: getLayoutColor('dropdown-text', '#575C9C')
+                                                    borderColor: getLayoutColor('dropdown-text', '#555555')
                                                 }}
                                             >
                                                 <div className="flex w-full h-full gap-0 bg-white justify-center relative">
@@ -636,7 +636,7 @@ const TabletLayout5 = ({
                                 <button
                                     className="w-[4cqw] h-[8cqw] flex items-center justify-center hover:scale-110 transition-all shrink-0"
                                     onClick={(e) => { e.stopPropagation(); scroll('right'); }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                 >
                                     <Icon icon="ph:caret-right" className="w-[1.8cqw] h-[1.8cqw]" />
                                 </button>

@@ -18,16 +18,16 @@ const SidebarItem = ({
         onClick={onClick}
         className={`w-full flex items-center justify-between p-[0.75vw] rounded-[0.75vw] transition-all duration-300 ${
           isActive 
-            ? 'bg-[#3E4491] text-white shadow-md active-sidebar-item' 
-            : 'bg-white text-gray-700 hover:bg-gray-50'
+            ? 'bg-[#EC5137]/5 border border-[#EC5137] text-[#EC5137] active-sidebar-item' 
+            : 'bg-white text-gray-900 border border-transparent hover:bg-gray-50'
         }`}
       >
         <div className="flex items-center gap-[1vw]">
           <Icon 
             icon={icon} 
-            className={`w-[1.25vw] h-[1.25vw] transition-colors ${isActive ? 'text-white' : 'text-gray-500'}`} 
+            className={`w-[1.25vw] h-[1.25vw] transition-colors ${isActive ? 'text-[#EC5137]' : 'text-black'}`} 
           />
-          <span className={`text-[0.8125vw] font-semibold transition-colors ${isActive ? 'text-white' : 'text-gray-700'}`}>
+          <span className={`text-[0.8125vw] font-semibold transition-colors ${isActive ? 'text-[#EC5137]' : 'text-gray-900'}`}>
             {label}
           </span>
         </div>
@@ -35,7 +35,7 @@ const SidebarItem = ({
           <Icon
             icon="lucide:chevron-down"
             className={`w-[1vw] h-[1vw] transition-all duration-300 ${
-              isActive ? 'text-white' : 'text-gray-400'
+              isActive ? 'text-[#EC5137]' : 'text-gray-600'
             } ${isOpen ? "rotate-180" : "rotate-0"}`}
           />
         )}

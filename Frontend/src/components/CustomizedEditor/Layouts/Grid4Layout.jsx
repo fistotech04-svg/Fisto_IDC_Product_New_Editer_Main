@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import MobileLayout1 from '../Mobile/MobileLayouts/MobileLayout1';
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<video\b[^<]*(?:(?!<\/video>)<[^<]*)*<\/video>/gi, '<div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">Video</div>')
@@ -21,8 +21,8 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                         padding: 0; 
                         overflow: hidden; 
                         background: white; 
-                        width: 400px; 
-                        height: 566px; 
+                        width: ${baseWidth}px; 
+                        height: ${baseHeight}px; 
                         position: relative;
                     }
                     * { box-sizing: border-box; }
@@ -31,7 +31,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -39,20 +39,20 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <iframe
-                className="border-none pointer-events-none"
-                srcDoc={srcDoc}
-                title={`Thumb ${index}`}
-                loading="lazy"
-                style={{
-                    width: '400px',
-                    height: '566px',
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    backgroundColor: 'white'
-                }}
-            />
+        <div className="w-full h-full relative overflow-hidden bg-white">
+            <div className="absolute left-1/2 top-1/2" style={{ transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}>
+                <iframe
+                    className="border-none pointer-events-none"
+                    srcDoc={srcDoc}
+                    title={`Thumb ${index}`}
+                    loading="lazy"
+                    style={{
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
+                        backgroundColor: 'white'
+                    }}
+                />
+            </div>
         </div>
     );
 });
@@ -578,7 +578,7 @@ const Grid4Layout = ({
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={backgroundStyle} onClick={() => setRecommendations([])}>
             {/* Top Bar: Brand - Title - Search */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isFullscreen ? 'h-[6vh]' : (!isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1010] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isFullscreen ? 'h-[6vh]' : (!isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1010] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}>
                 <div className="flex items-center">
                     {settings.brandingProfile.logo && logoSettings?.src && (
                         <img
@@ -599,7 +599,7 @@ const Grid4Layout = ({
                     <div className={`relative ${isMobileLandscape ? 'mr-[5vw]' : ''}`} onClick={(e) => e.stopPropagation()}>
                         <div className={`flex items-center ${isMobileLandscape ? 'px-[1.5vw] py-[1vh] w-[22vw]' : 'px-[1vw] py-[0.5vh] w-[16vw]'} shadow-sm border border-black/10 transition-all relative z-[101]`}
                             style={{ backgroundColor: getLayoutColor('search-bg-v2', '#E0E3F5') }}>
-                            <Icon icon="lucide:search" className={`${'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
+                            <Icon icon="lucide:search" className={`${'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#555555') }} />
                             <input
                                 type="text"
                                 value={localSearchQuery}
@@ -650,7 +650,7 @@ const Grid4Layout = ({
                                 placeholder="Quick Search..."
                                 className={`bg-transparent border-0 outline-none focus:ring-0 ${'text-[0.9vw]'} ml-[0.8vw] w-full font-medium`}
                                 style={{
-                                    color: getLayoutColor('search-text-v1', '#575C9C'),
+                                    color: getLayoutColor('search-text-v1', '#555555'),
                                     '--placeholder-color': getLayoutColorRgba('search-text-v1', '87, 92, 156', '0.7')
                                 }}
                             />
@@ -672,7 +672,7 @@ const Grid4Layout = ({
                                             <div key={`${rec.word}-${rec.pageNumber}-${idx}`}>
                                                 <button
                                                     className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-black/5 transition-colors group w-full text-left"
-                                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                                    style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                                     onClick={() => {
                                                         onPageClick(rec.pageNumber - 1);
                                                         const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
@@ -706,7 +706,7 @@ const Grid4Layout = ({
                     ref={buttonsRef}
                     onMouseMove={(e) => setSidebarMousePos({ x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setSidebarMousePos(null)}
-                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isFullscreen ? 'w-[3.6vw] items-center' : (!isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center')} flex flex-col ${isFullscreen ? 'justify-center pb-[18vh]' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isFullscreen ? 'w-[3.6vw] items-center' : (!isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center')} flex flex-col ${isFullscreen ? 'justify-center pb-[18vh]' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#555555') }}>
 
                     {(settings?.navigation?.tableOfContents ?? true) && renderSidebarBtn(
                         <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.35vw] h-[1.35vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
@@ -815,7 +815,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Thumbnail Sidebar Integration */}
                 {(settings?.navigation?.pageThumbnails ?? true) && showThumbnails && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[14vw]' : 'left-[4.2vw] w-[11vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 255, 255, 255), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
                         >
@@ -844,6 +844,24 @@ const Grid4Layout = ({
                             >
                                 {spreads.map((spread, idx) => {
                                     const isSelected = spread.indices.includes(currentPage);
+                                    const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                    const pageWidth = dimWidth || 400;
+                                    const pageHeight = dimHeight || 566;
+                                    const availableWidthPx = 8.4 * vw;
+                                    // Compute max height based on actual page aspect ratio so portrait/landscape/square all render correctly
+                                    const pageAspectRatio = pageWidth / pageHeight; // >1 for landscape, <1 for portrait, =1 for square
+                                    // Each single page fits half the available width; height = singlePageWidth / pageAspectRatio
+                                    const singlePageMaxWidth = availableWidthPx / 2;
+                                    const availableHeightPx = singlePageMaxWidth / pageAspectRatio;
+                                    // Always size the box for 2 pages so 1st/last single pages have the same box size and are centered
+                                    const scaleX = (availableWidthPx / 2) / pageWidth;
+                                    const scaleY = availableHeightPx / pageHeight;
+                                    const thumbScale = Math.min(scaleX, scaleY);
+                                    
+                                    const totalScaledWidthPx = pageWidth * thumbScale * 2;
+                                    const totalScaledHeightPx = pageHeight * thumbScale;
+                                    const paddingPx = 0.6 * vw;
+
                                     return (
                                         <div
                                             key={idx}
@@ -851,29 +869,25 @@ const Grid4Layout = ({
                                             onClick={() => onPageClick(spread.indices[0])}
                                         >
                                             <div
-                                                className={`relative bg-white shadow-md rounded-[0.2vw] overflow-hidden border-[0.15vw] transition-all p-[0.3vw] ${isSelected ? 'shadow-lg active-thumbnail' : 'border-gray-200 group-hover:border-gray-300'}`}
+                                                className={`relative bg-white shadow-md rounded-[0.2vw] overflow-hidden border-[0.15vw] transition-all p-[0.3vw] flex justify-center items-center ${isSelected ? 'shadow-lg active-thumbnail' : 'border-gray-200 group-hover:border-gray-300'}`}
                                                 style={{
-                                                    width: '9vw',
-                                                    height: '6.5vw',
+                                                    width: `${totalScaledWidthPx + paddingPx}px`,
+                                                    height: `${totalScaledHeightPx + paddingPx}px`,
                                                     borderColor: isSelected ? getLayoutColor('thumbnail-inner-v2', '#3E4491') : 'transparent'
                                                 }}
                                             >
-                                                <div className="flex w-full h-full gap-[1px] bg-gray-100 justify-center">
+                                                <div className="flex w-full h-full gap-0 bg-gray-100 justify-center">
                                                     {spread.pages.map((page, pIdx) => {
-                                                        const pageWidth = 400;
-                                                        const pageHeight = 566;
-                                                        const availableWidth = (window.innerWidth * 0.045);
-                                                        const availableHeight = (window.innerWidth * 0.06);
-                                                        const scaleX = (availableWidth - 2) / pageWidth;
-                                                        const scaleY = (availableHeight - 2) / pageHeight;
-                                                        const thumbScale = Math.min(scaleX, scaleY);
+                                                        const scaledWidth = pageWidth * thumbScale;
 
                                                         return (
-                                                            <div key={`${idx}-${pIdx}`} className="flex-1 max-w-[50%] bg-white overflow-hidden relative flex items-center justify-center">
+                                                            <div key={`${idx}-${pIdx}`} className="bg-white overflow-hidden relative flex items-center justify-center h-full" style={{ width: `${scaledWidth}px` }}>
                                                                 <PageThumbnail
                                                                     html={page.html || page.content}
                                                                     index={spread.indices[pIdx]}
                                                                     scale={thumbScale}
+                                                                    baseWidth={pageWidth}
+                                                                    baseHeight={pageHeight}
                                                                 />
                                                             </div>
                                                         );
@@ -895,7 +909,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Table of Contents Sidebar */}
                 {showTOC && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[14vw]' : 'left-[4.2vw] w-[11vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), calc(0.4 + var(--toc-bg-opacity, 1) * 0.6))` }}
                         >
@@ -904,17 +918,17 @@ const Grid4Layout = ({
                                 <div className="flex items-center justify-between px-[1vw]">
                                     <span
                                         className={`${'text-[1.1vw]'} font-bold`}
-                                        style={{ color: getLayoutColor('toc-text', '#575C9C'), fontFamily: "'Poppins', sans-serif" }}
+                                        style={{ color: getLayoutColor('toc-text', '#555555'), fontFamily: "'Poppins', sans-serif" }}
                                     >Table of Contents</span>
                                     <button
                                         onClick={() => setShowTOCMemo(false)}
                                         className="transition-colors opacity-70 hover:opacity-100"
-                                        style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                        style={{ color: getLayoutColor('toc-text', '#555555') }}
                                     >
                                         <Icon icon="lucide:x" className={`${'w-[1.2vw] h-[1.2vw]'}`} />
                                     </button>
                                 </div>
-                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: getLayoutColor('toc-text', '#575C9C'), opacity: 0.5, margin: '0' }} />
+                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: getLayoutColor('toc-text', '#555555'), opacity: 0.5, margin: '0' }} />
                             </div>
 
                             {/* Search Bar */}
@@ -924,7 +938,7 @@ const Grid4Layout = ({
                                         <Icon
                                             icon="lucide:search"
                                             className="absolute left-[0.6vw] top-1/2 -translate-y-1/2 w-[0.85vw] h-[0.85vw]"
-                                            style={{ color: getLayoutColor('toc-text', '#575C9C'), opacity: 0.6 }}
+                                            style={{ color: getLayoutColor('toc-text', '#555555'), opacity: 0.6 }}
                                         />
                                         <input
                                             type="text"
@@ -934,7 +948,7 @@ const Grid4Layout = ({
                                             className="w-full rounded-[0.3vw] pl-[2vw] pr-[0.8vw] py-[0.4vw] text-[0.8vw] outline-none transition-colors border shadow-sm focus:ring-1"
                                             style={{
                                                 backgroundColor: 'transparent',
-                                                color: getLayoutColor('toc-text', '#575C9C'),
+                                                color: getLayoutColor('toc-text', '#555555'),
                                                 borderColor: getLayoutColorRgba('toc-text', '87, 92, 156', '0.2')
                                             }}
                                         />
@@ -966,7 +980,7 @@ const Grid4Layout = ({
                                             <div key={heading.id} className={`${hIdx > 0 ? 'mt-[1.5vh]' : ''}`}>
                                                 <div
                                                     className="flex items-center justify-between py-[0.6vh] rounded-[0.3vw] cursor-pointer transition-colors"
-                                                    style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                    style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                     onClick={() => onPageClick && onPageClick(heading.page - 1)}
                                                 >
                                                     <span className={`${'text-[0.85vw]'} font-medium truncate pr-[0.5vw] flex items-center`}>
@@ -985,7 +999,7 @@ const Grid4Layout = ({
                                                         <div
                                                             key={sub.id}
                                                             className="flex items-center justify-between py-[0.6vh] rounded-[0.3vw] cursor-pointer transition-colors pl-[1vw]"
-                                                            style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                                            style={{ color: getLayoutColor('toc-text', '#555555') }}
                                                             onClick={() => onPageClick && onPageClick(sub.page - 1)}
                                                         >
                                                             <span className={`${'text-[0.85vw]'} font-normal truncate pr-[0.5vw] flex items-center`}>
@@ -1003,7 +1017,7 @@ const Grid4Layout = ({
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="text-[0.8vw] text-center pt-[10vw] opacity-60 font-medium" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
+                                        <div className="text-[0.8vw] text-center pt-[10vw] opacity-60 font-medium" style={{ color: getLayoutColor('toc-text', '#555555') }}>
                                             No Table Of Content Found
                                         </div>
                                     );
@@ -1037,13 +1051,13 @@ const Grid4Layout = ({
                                     <>
                                         <div className="flex items-start gap-[0.5vw]">
                                             <span className={`${'text-[0.85vw]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Name :</span>
-                                            <span className={`${'text-[0.85vw]'} font-medium opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{profileSettings?.name}</span>
+                                            <span className={`${'text-[0.85vw]'} font-medium opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#555555') }}>{profileSettings?.name}</span>
                                         </div>
 
                                         <div className="flex flex-col gap-[0.5vh]">
                                             <div className="flex items-start gap-[0.5vw]">
                                                 <span className={`${'text-[0.85vw]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>About :</span>
-                                                <div className={`${'text-[0.85vw]'} font-medium leading-relaxed text-justify opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                                                <div className={`${'text-[0.85vw]'} font-medium leading-relaxed text-justify opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                                                     {profileSettings?.about}
                                                 </div>
                                             </div>
@@ -1073,7 +1087,7 @@ const Grid4Layout = ({
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="text-[0.85vw] text-center pt-[10vw] opacity-60 font-medium" style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                                    <div className="text-[0.85vw] text-center pt-[10vw] opacity-60 font-medium" style={{ color: getLayoutColor('dropdown-text', '#555555') }}>
                                         No profile found
                                     </div>
                                 )}
@@ -1083,7 +1097,7 @@ const Grid4Layout = ({
                 )}
 
                 {/* Canvas Area */}
-                <div ref={previewAreaRef} className="flex-1 flex flex-col min-w-0 relative bg-[#DADBE8]/20"
+                <div ref={previewAreaRef} className="flex-1 flex flex-col min-w-0 relative bg-[#D9D9D9]/20"
                     onClick={() => {
                         setRecommendations([]);
                     }}
@@ -1129,13 +1143,13 @@ const Grid4Layout = ({
 
                     {/* Page Indicator Badge */}
                     {(settings?.navigation?.pageQuickAccess ?? true) && (
-                        <div className={`absolute ${isFullscreen ? 'left-[4.5vw]' : 'left-[1.5vw]'} rounded-[0.4vw] ${!isBigBars ? 'p-[0.4vw]' : 'p-[0.6vw]'} shadow-md z-20 flex items-center justify-center`}
+                        <div className={`absolute ${isFullscreen ? 'left-[4.5vw]' : 'left-[1.5vw]'} rounded-[0.4vw] ${!isBigBars ? 'p-[0.25vw]' : 'p-[0.3vw]'} shadow-md z-20 flex items-center justify-center`}
                             style={{
                                 backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'),
                                 bottom: isFullscreen ? '9vh' : '3vh'
                             }}
                         >
-                            <span className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
+                            <span className={`${!isBigBars ? 'text-[0.55vw]' : 'text-[0.65vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#555555') }}>Page </span>
                             <input
                                 type="text"
                                 value={pageInputValue}
@@ -1164,10 +1178,10 @@ const Grid4Layout = ({
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${!isBigBars ? 'text-[0.6vw] mx-[0.3vw] px-[0.15vw] py-[0.1vw]' : 'text-[0.85vw] mx-[0.4vw] px-[0.2vw] py-[0.15vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
+                                className={`${!isBigBars ? 'text-[0.55vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : 'text-[0.65vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]'} font-medium rounded-[0.25vw] outline-none text-center transition-colors shadow-inner`}
                                 style={{
                                     width: `${String(pages.length).length + 1.2}ch`,
-                                    color: getLayoutColor('search-text-v1', '#575C9C'),
+                                    color: getLayoutColor('search-text-v1', '#555555'),
                                     backgroundColor: getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.1),
                                     border: `1px solid ${getLayoutColorAlpha('search-text-v1', '87, 92, 156', 0.2)}`
                                 }}
@@ -1186,7 +1200,7 @@ const Grid4Layout = ({
                                     }
                                 }}
                             />
-                            <span className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}> / {totalPages}</span>
+                            <span className={`${!isBigBars ? 'text-[0.55vw]' : 'text-[0.65vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#555555') }}> / {totalPages}</span>
                         </div>
                     )}
 
@@ -1207,7 +1221,7 @@ const Grid4Layout = ({
             </div>
 
             {/* Bottom Bar: Multi-Region Integration */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isFullscreen ? 'h-[6vh]' : (!isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1010] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isFullscreen ? 'h-[6vh]' : (!isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1010] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#555555') }}>
                 {/* Left: Playback Icons */}
                 <div className="flex items-center gap-[1.5vw] ml-[1.5vw]">
                     {(settings?.navigation?.startEndNav ?? true) && (
@@ -1282,7 +1296,7 @@ const Grid4Layout = ({
                                             className="font-bold whitespace-nowrap"
                                             style={{
                                                 fontSize: isMobileLandscape ? '1.2vw' : '0.85vw',
-                                                color: getLayoutColor('dropdown-text', '#575C9C')
+                                                color: getLayoutColor('dropdown-text', '#555555')
                                             }}
                                         >
                                             {progressHover.spread.label}
@@ -1292,7 +1306,7 @@ const Grid4Layout = ({
                                             className="w-full rounded-full"
                                             style={{
                                                 height: '2.5px',
-                                                backgroundColor: getLayoutColor('dropdown-text', '#575C9C'),
+                                                backgroundColor: getLayoutColor('dropdown-text', '#555555'),
                                                 margin: '0.5vw 0'
                                             }}
                                         />
@@ -1300,25 +1314,29 @@ const Grid4Layout = ({
                                         <div
                                             className="flex justify-center overflow-hidden rounded-[0.3vw] shadow-inner"
                                             style={{
-                                                width: `${(400 * (70) / 566) * 2 + 1}px`,
+                                                width: `${((dimWidth || 400) * 70 / (dimHeight || 566)) * progressHover.spread.pages.length}px`,
                                                 backgroundColor: '#f3f4f6'
                                             }}
                                         >
-                                            <div className="flex gap-[1px] bg-gray-100 p-[1px]">
+                                            <div className="flex gap-0 bg-gray-100 justify-center w-full h-full">
                                                 {progressHover.spread.pages.map((page, pIdx) => {
+                                                    const pageWidth = dimWidth || 400;
+                                                    const pageHeight = dimHeight || 566;
                                                     const boxHeight = 70;
-                                                    const scale = boxHeight / 566;
-                                                    const boxWidth = 400 * scale;
+                                                    const scale = boxHeight / pageHeight;
+                                                    const boxWidth = pageWidth * scale;
                                                     return (
                                                         <div
                                                             key={`${progressHover.spread.indices[0]}-${pIdx}`}
-                                                            className="bg-white overflow-hidden relative flex items-center justify-center border border-gray-100"
+                                                            className="bg-white overflow-hidden relative flex items-center justify-center border-0"
                                                             style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
                                                         >
                                                             <PageThumbnail
                                                                 html={page.html || page.content}
                                                                 index={progressHover.spread.indices[pIdx]}
                                                                 scale={scale}
+                                                                baseWidth={pageWidth}
+                                                                baseHeight={pageHeight}
                                                             />
                                                         </div>
                                                     );

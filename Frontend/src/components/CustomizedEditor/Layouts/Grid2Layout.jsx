@@ -617,10 +617,10 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
         if (!spreads || spreads.length === 0) return { displaySpreads: [], angleStep: 26 };
 
         const displaySpreads = [...spreads];
-        // Fixed compact step: ~26Â° keeps segments visually touching.
-        // If the book has enough pages to naturally fill the circle, use the even distribution instead.
+        // Fixed compact step: ~26° keeps segments visually touching.
+        // Always use fixed spacing so pages don't get crushed when there are many pages!
         const compactStep = 26;
-        const angleStep = Math.min(compactStep, 360 / displaySpreads.length);
+        const angleStep = compactStep;
 
         return { displaySpreads, angleStep };
     }, [spreads]);
@@ -633,6 +633,12 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
         }
     }, [activePopup]);
 
+    // Ensure the radial dial always stays in sync with the open page
+    // If the user navigates the book via arrows or clicking, reset any independent dial scrolling
+    useEffect(() => {
+        setRadialScroll(0);
+    }, [activeSpreadIdx]);
+
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative" style={backgroundStyle} onClick={() => closeAllPopups()}>
             {/* Layout 2 Header */}
@@ -644,7 +650,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                     onMouseLeave={() => setDockMousePos(null)}
                 >
                     {/* Left: Search Bar */}
-                    <div className={`flex items-center ${isMobileLandscape ? 'ml-[1.5vw]' : ''}`}>
+                    <div className={`flex items-center transition-transform duration-300 ${isMobileLandscape ? 'ml-[1.5vw]' : ''} ${isSidebarOpen && !isMobileLandscape ? '-translate-x-[1vw]' : ''}`}>
                         {(settings?.interaction?.search ?? true) && !isPdfProject && (
                             <div className="relative">
                                 <div
@@ -654,14 +660,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 >
                                     <style>{`
                                     #quick-search-v1-${activeLayout}::placeholder {
-                                        color: ${getLayoutColor('toolbar-bg', '#575C9C')} !important;
+                                        color: ${getLayoutColor('toolbar-bg', '#555555')} !important;
                                         opacity: 0.8;
                                     }
                                 `}</style>
                                     <Icon
                                         icon="lucide:search"
                                         className={`${isMobileLandscape ? 'w-[0.6vw] h-[0.6vw] shrink-0' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.1vw] h-[1.1vw]'}`}
-                                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C'), opacity: 0.8 }}
+                                        style={{ color: getLayoutColor('toolbar-bg', '#555555'), opacity: 0.8 }}
                                     />
                                     <input
                                         type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -714,7 +720,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         id={`quick-search-v1-${activeLayout}`}
                                         placeholder="Quick Search..."
                                         className={`bg-transparent border-0 outline-none focus:outline-none focus:ring-0 ${isMobileLandscape ? 'text-[0.6vw] ml-[0.3vw] p-0' : isTablet ? 'text-[0.6vw] ml-[0.65vw]' : 'text-[0.85vw] ml-[0.65vw]'} w-full font-medium`}
-                                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C'), fontFamily: textFont }}
+                                        style={{ color: getLayoutColor('toolbar-bg', '#555555'), fontFamily: textFont }}
                                     />
                                 </div>
 
@@ -731,7 +737,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                             <div className={`relative z-10 ${isMobileLandscape ? 'rounded-[0.5vw]' : isTablet ? 'rounded-[0.6vw]' : 'rounded-[0.9vw]'} overflow-hidden`}>
                                                 <div
                                                     className={`${isMobileLandscape ? 'rounded-[0.5vw]' : isTablet ? 'rounded-[0.6vw]' : 'rounded-[0.9vw]'} overflow-hidden`}
-                                                    style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
+                                                    style={{ backgroundColor: getLayoutColor('dropdown-bg', '#555555') }}
                                                 >
                                                     <div className={`flex flex-col ${isMobileLandscape ? 'py-[0.2vw]' : isTablet ? 'py-[0.25vw]' : 'py-[0.4vw]'}`}>
                                                         {recommendations.map((rec, idx) => (
@@ -926,7 +932,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             <button
                                 className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[2vw] h-[2vw] ' : 'w-[3vw] h-[3vw]'} flex items-center justify-center transition-all group z-20`}
                                 style={{
-                                    color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                    color: getLayoutColor('toolbar-bg', '#555555'),
                                     left: `calc(50% - ${(currentPage === 0 || currentPage >= (pages?.length || 0) - 1 || (pages?.length || 0) <= 1 ? 0.5 : 1) * dimWidth * responsiveScale}px - ${isMobileLandscape ? 2.5 : isTablet ? 3 : 4}vw)`
                                 }}
                                 onClick={(e) => {
@@ -943,7 +949,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             <button
                                 className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[2vw] h-[2vw] ' : 'w-[3vw] h-[3vw]'} flex items-center justify-center transition-all group z-20`}
                                 style={{
-                                    color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                    color: getLayoutColor('toolbar-bg', '#555555'),
                                     right: `calc(50% - ${(currentPage === 0 || currentPage >= (pages?.length || 0) - 1 || (pages?.length || 0) <= 1 ? 0.5 : 1) * dimWidth * responsiveScale}px - ${isMobileLandscape ? 2.5 : isTablet ? 3 : 4}vw)`
                                 }}
                                 onClick={(e) => {
@@ -961,15 +967,15 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                     {/* Page Counter Badge */}
                     {(settings?.navigation?.pageQuickAccess ?? true) && (
                         <div
-                            className={`absolute right-[1.5vw] rounded-[0.5vw] ${isMobileLandscape ? 'px-[0.3vw] py-[0.1vw]' : isTablet ? 'px-[0.3vw] py-[0.1vw]' : 'px-[0.8vw] py-[0.4vw]'} border border-gray-100 shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-20`}
+                            className={`absolute right-[1.5vw] rounded-[0.5vw] ${isMobileLandscape ? 'p-[0.2vw]' : isTablet ? 'p-[0.25vw]' : 'p-[0.3vw]'} flex items-center justify-center border border-gray-100 shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-20`}
                             style={{
                                 backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                 bottom: isFullscreen ? (isMobileLandscape ? '7vh' : isTablet ? '8.5vh' : '10.5vh') : '2vh'
                             }}
                         >
                             <span
-                                className={`${isMobileLandscape ? 'text-[0.45vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.75vw]'} font-bold`}
-                                style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                                className={`${isMobileLandscape ? 'text-[0.45vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.65vw]'} font-bold`}
+                                style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                             >Page </span>
                             <input
                                 type="text" autoComplete="off" spellCheck="false" autoCorrect="off"
@@ -999,9 +1005,9 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${isMobileLandscape ? 'text-[0.45vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : isTablet ? 'text-[0.55vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : 'text-[0.75vw] mx-[0.4vw] px-[0.2vw] py-[0.1vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
+                                className={`${isMobileLandscape ? 'text-[0.45vw] mx-[0.2vw] px-[0.1vw] py-[0.05vw]' : isTablet ? 'text-[0.55vw] mx-[0.3vw] px-[0.15vw] py-[0.05vw]' : 'text-[0.65vw] mx-[0.3vw] px-[0.2vw] py-[0.05vw]'} font-bold rounded-[0.2vw] outline-none text-center transition-colors shadow-inner`}
                                 style={{
-                                    color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                    color: getLayoutColor('toolbar-bg', '#555555'),
                                     backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1),
                                     border: `1px solid ${getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2)}`,
                                     width: `${String(pages.length).length + 1.2}ch`
@@ -1022,8 +1028,8 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 }}
                             />
                             <span
-                                className={`${isMobileLandscape ? 'text-[0.45vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.75vw]'} font-bold`}
-                                style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                                className={`${isMobileLandscape ? 'text-[0.45vw]' : isTablet ? 'text-[0.55vw]' : 'text-[0.65vw]'} font-bold`}
+                                style={{ color: getLayoutColor('toolbar-bg', '#555555') }}
                             > / {pagesCount}</span>
                         </div>
                     )}
@@ -1104,7 +1110,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                 transition={{ duration: 0.2 }}
                                                 className={`absolute ${isMobileLandscape ? 'bottom-[calc(100%+0.5vw)]' : 'bottom-[calc(100%+2.2vw)]'} left-1/2 ${isTablet ? 'w-[7.5vw] rounded-[0.8vw] p-[0.35vw] pb-[0.25vw]' : isMobileLandscape ? 'w-[5vw] rounded-[0.6vw] p-[0.2vw] pb-[0.1vw]' : 'w-[9vw] rounded-[1vw] p-[0.4vw] pb-[0.3vw]'} z-[100] pointer-events-none border-[1.5px]`}
                                                 style={{
-                                                    backgroundColor: getLayoutColor('dropdown-bg', '#575C9C'),
+                                                    backgroundColor: getLayoutColor('dropdown-bg', '#555555'),
                                                     borderColor: getLayoutColorRgba('dropdown-text', '255, 255, 255', '0.4')
                                                 }}
                                             >
@@ -1120,7 +1126,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                 </div>
                                                 <div
                                                     className={`text-center ${isTablet ? 'text-[0.55vw]' : isMobileLandscape ? 'text-[0.5vw]' : 'text-[0.9vw]'} font-medium pb-[0.1vw] whitespace-nowrap`}
-                                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                                    style={{ color: getLayoutColor('dropdown-text', '#555555') }}
                                                 >
                                                     {spread.label}
                                                 </div>
@@ -1130,7 +1136,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                                         viewBox="0 0 60 20"
                                                         className="w-full h-full"
                                                         style={{
-                                                            fill: getLayoutColor('dropdown-bg', '#575C9C'),
+                                                            fill: getLayoutColor('dropdown-bg', '#555555'),
                                                             stroke: getLayoutColorRgba('dropdown-text', '255, 255, 255', '0.4'),
                                                             strokeWidth: 3
                                                         }}
@@ -1222,119 +1228,148 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                             style={{ transform: 'translateX(40%) translateY(0%)' }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* 1. Transparent Orbit Track (Geometric Reference) */}
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div style={{
-                                    position: 'absolute',
-                                    width: '100%',
-                                    height: '100%',
-                                    borderRadius: '50%',
-                                    border: `14.5vh solid ${getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.05')}`,
-                                    boxSizing: 'border-box',
-                                    filter: 'blur(4px)',
-                                    pointerEvents: 'none',
-                                }} />
-                                <svg viewBox="0 0 888 888" className="w-full h-full pointer-events-none" style={{ position: 'absolute' }}>
-                                    <defs>
-                                        <radialGradient id="ringFillGradient" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
-                                            <stop offset="0%" stopColor="white" stopOpacity="0" />
-                                            <stop offset="56%" stopColor="white" stopOpacity="0" />
-                                            <stop offset="60%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
-                                            <stop offset="70%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.02" />
-                                            <stop offset="94%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.02" />
-                                            <stop offset="98%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
-                                            <stop offset="100%" stopColor={getLayoutColor('dropdown-bg', '#575C9C')} stopOpacity="0.05" />
-                                        </radialGradient>
-                                    </defs>
-                                    <path
-                                        d="M444 0C689.214 0 888 198.786 888 444C888 689.214 689.214 888 444 888C198.786 888 0 689.214 0 444C0 198.786 198.786 0 444 0ZM444 184C300.4 184 184 300.4 184 444C184 587.6 300.4 704 444 704C587.6 704 704 587.6 704 444C704 300.4 587.6 184 444 184Z"
-                                        fill="url(#ringFillGradient)"
-                                        filter="url(#clean-shadow)"
-                                    />
-                                </svg>
+                            {/* Clipping/Masking container for the orbital track and pages */}
+                            <div 
+                                className="absolute inset-0 pointer-events-none"
+                                style={{
+                                    clipPath: 'polygon(-20% -20%, 50% -20%, 50% 120%, -20% 120%)',
+                                    WebkitClipPath: 'polygon(-20% -20%, 50% -20%, 50% 120%, -20% 120%)'
+                                }}
+                            >
+                                {/* 1. Transparent Orbit Track (Geometric Reference) */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div style={{
+                                        position: 'absolute',
+                                        width: '100%',
+                                        height: '100%',
+                                        borderRadius: '50%',
+                                        border: `14.5vh solid ${getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.05')}`,
+                                        boxSizing: 'border-box',
+                                        filter: 'blur(4px)',
+                                        pointerEvents: 'none',
+                                    }} />
+                                    <svg viewBox="0 0 888 888" className="w-full h-full pointer-events-none" style={{ position: 'absolute' }}>
+                                        <defs>
+                                            <radialGradient id="ringFillGradient" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
+                                                <stop offset="0%" stopColor="white" stopOpacity="0" />
+                                                <stop offset="56%" stopColor="white" stopOpacity="0" />
+                                                <stop offset="60%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.05" />
+                                                <stop offset="70%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.02" />
+                                                <stop offset="94%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.02" />
+                                                <stop offset="98%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.05" />
+                                                <stop offset="100%" stopColor={getLayoutColor('dropdown-bg', '#555555')} stopOpacity="0.05" />
+                                            </radialGradient>
+                                        </defs>
+                                        <path
+                                            d="M444 0C689.214 0 888 198.786 888 444C888 689.214 689.214 888 444 888C198.786 888 0 689.214 0 444C0 198.786 198.786 0 444 0ZM444 184C300.4 184 184 300.4 184 444C184 587.6 300.4 704 444 704C587.6 704 704 587.6 704 444C704 300.4 587.6 184 444 184Z"
+                                            fill="url(#ringFillGradient)"
+                                            filter="url(#clean-shadow)"
+                                        />
+                                    </svg>
+                                </div>
+
+                                {/* 2. Map All Pages to Circle */}
+                                {(() => {
+                                    const baseAngle = 180; // center of visibility at 9 o'clock
+                                    const orbitRadius = 39.6; // Midpoint of ring
+                                    const focusIndex = activeSpreadIdx + radialScroll;
+
+                                    const parentRotation = -focusIndex * angleStep;
+
+                                    return (
+                                        <motion.div
+                                            className="absolute inset-0 z-10 pointer-events-none"
+                                            animate={{ rotate: parentRotation }}
+                                            transition={{
+                                                type: "spring",
+                                                stiffness: 120,
+                                                damping: 20,
+                                                mass: 0.8
+                                            }}
+                                        >
+                                            {displaySpreads.map((spread, i) => {
+                                                const total = displaySpreads.length;
+                                                
+                                                // Calculate virtual index to create a perfect continuous infinite carousel
+                                                // This prevents spiral overlapping/interleaving by shifting the index by multiples of total
+                                                let virtualIndex = i;
+                                                const shouldWrap = total > 8;
+                                                if (total > 0 && shouldWrap) {
+                                                    while (virtualIndex - focusIndex > total / 2) {
+                                                        virtualIndex -= total;
+                                                    }
+                                                    while (focusIndex - virtualIndex > total / 2) {
+                                                        virtualIndex += total;
+                                                    }
+                                                }
+
+                                                const fixedAngleDeg = baseAngle + virtualIndex * angleStep;
+                                                const fixedAngleRad = fixedAngleDeg * (Math.PI / 180);
+                                                const x = 50 + orbitRadius * Math.cos(fixedAngleRad);
+                                                const y = 50 + orbitRadius * Math.sin(fixedAngleRad);
+
+                                                // Handle active state with modulo for infinite rotation
+                                                const rawFocusedIdx = Math.round(focusIndex);
+                                                const mappedFocusedIdx = ((rawFocusedIdx % total) + total) % total;
+                                                const isActive = (hoveredIdx !== null ? (hoveredIdx === i) : (mappedFocusedIdx === i));
+
+                                                // Dynamic Visibility / Clipping Logic using Virtual Index
+                                                const distance = Math.abs(virtualIndex - focusIndex);
+                                                const shouldClip = total > 8;
+                                                const isVisuallyVisible = !shouldClip || distance <= 7;
+
+                                                return (
+                                                    <motion.div
+                                                        key={i}
+                                                        className={`absolute cursor-pointer flex items-center justify-center p-0 transition-opacity duration-300 ${isVisuallyVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                                                        style={{
+                                                            left: `${x}%`,
+                                                            top: `${y}%`,
+                                                            width: '14vh',
+                                                            height: '11vh',
+                                                            marginLeft: '-7vh',
+                                                            marginTop: '-5.5vh',
+                                                            zIndex: isActive ? 50 : 10,
+                                                        }}
+                                                        animate={{
+                                                            rotate: fixedAngleDeg + 90,
+                                                            scale: isActive ? 1.05 : 1
+                                                        }}
+                                                        transition={{ duration: 0 }}
+                                                        onMouseEnter={() => setHoveredIdx(i)}
+                                                        onMouseLeave={() => setHoveredIdx(null)}
+                                                        onClick={() => { onPageClick(spread.indices[0]); }}
+                                                    >
+                                                        <svg viewBox="0 0 170 173" className="w-full h-full overflow-visible">
+                                                            <g transform="rotate(90, 85, 86.5)">
+                                                                <path
+                                                                    d="M9.29472 11.4862C11.1722 3.10828 19.7989 -1.79399 28.0408 0.611489L161.222 39.4818C168.942 41.7352 173.506 49.6146 172.035 57.5216C167.9 79.7315 167.621 96.4086 170.486 118.929C171.485 126.787 166.576 134.264 158.88 136.14L24.4315 168.911C16.05 170.953 7.62316 165.607 6.15266 157.106C-2.91853 104.667 -2.03183 62.0294 9.29472 11.4862Z"
+                                                                    fill={getLayoutColor('dropdown-bg', '#3E4491')}
+                                                                    className="transition-colors duration-300"
+                                                                />
+                                                            </g>
+                                                            <text
+                                                                x="50%"
+                                                                y="50%"
+                                                                fill={getLayoutColor('dropdown-text', '#FFFFFF')}
+                                                                fontSize="20"
+                                                                fontWeight="bolder"
+                                                                textAnchor="middle"
+                                                                alignmentBaseline="middle"
+                                                                style={{ letterSpacing: '0.04em' }}
+                                                                className="select-none opacity-90"
+                                                                transform="rotate(90, 85, 86.5)"
+                                                            >
+                                                                {spread.label}
+                                                            </text>
+                                                        </svg>
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </motion.div>
+                                    );
+                                })()}
                             </div>
-
-                            {/* 2. Map All Pages to Circle */}
-                            {(() => {
-                                const baseAngle = 180; // center of visibility at 9 o'clock
-                                const orbitRadius = 39.6; // Midpoint of ring
-                                const focusIndex = activeSpreadIdx + radialScroll;
-
-                                const parentRotation = -focusIndex * angleStep;
-
-                                return (
-                                    <motion.div
-                                        className="absolute inset-0 z-10 pointer-events-none"
-                                        animate={{ rotate: parentRotation }}
-                                        transition={{
-                                            type: "spring",
-                                            stiffness: 120,
-                                            damping: 20,
-                                            mass: 0.8
-                                        }}
-                                    >
-                                        {displaySpreads.map((spread, i) => {
-                                            const fixedAngleDeg = baseAngle + i * angleStep;
-                                            const fixedAngleRad = fixedAngleDeg * (Math.PI / 180);
-                                            const x = 50 + orbitRadius * Math.cos(fixedAngleRad);
-                                            const y = 50 + orbitRadius * Math.sin(fixedAngleRad);
-
-                                            // Handle active state with modulo for infinite rotation
-                                            const rawFocusedIdx = Math.round(focusIndex);
-                                            const mappedFocusedIdx = ((rawFocusedIdx % displaySpreads.length) + displaySpreads.length) % displaySpreads.length;
-                                            const isActive = (hoveredIdx !== null ? (hoveredIdx === i) : (mappedFocusedIdx === i));
-
-                                            return (
-                                                <motion.div
-                                                    key={i}
-                                                    className="absolute pointer-events-auto cursor-pointer flex items-center justify-center p-0"
-                                                    style={{
-                                                        left: `${x}%`,
-                                                        top: `${y}%`,
-                                                        width: '14vh',
-                                                        height: '11vh',
-                                                        marginLeft: '-7vh',
-                                                        marginTop: '-5.5vh',
-                                                        zIndex: isActive ? 50 : 10,
-                                                    }}
-                                                    animate={{
-                                                        rotate: fixedAngleDeg + 90,
-                                                        scale: isActive ? 1.05 : 1
-                                                    }}
-                                                    transition={{ duration: 0 }}
-                                                    onMouseEnter={() => setHoveredIdx(i)}
-                                                    onMouseLeave={() => setHoveredIdx(null)}
-                                                    onClick={() => { onPageClick(spread.indices[0]); }}
-                                                >
-                                                    <svg viewBox="0 0 170 173" className="w-full h-full overflow-visible">
-                                                        <g transform="rotate(90, 85, 86.5)">
-                                                            <path
-                                                                d="M9.29472 11.4862C11.1722 3.10828 19.7989 -1.79399 28.0408 0.611489L161.222 39.4818C168.942 41.7352 173.506 49.6146 172.035 57.5216C167.9 79.7315 167.621 96.4086 170.486 118.929C171.485 126.787 166.576 134.264 158.88 136.14L24.4315 168.911C16.05 170.953 7.62316 165.607 6.15266 157.106C-2.91853 104.667 -2.03183 62.0294 9.29472 11.4862Z"
-                                                                fill={getLayoutColor('dropdown-bg', '#3E4491')}
-                                                                className="transition-colors duration-300"
-                                                            />
-                                                        </g>
-                                                        <text
-                                                            x="50%"
-                                                            y="50%"
-                                                            fill={getLayoutColor('dropdown-text', '#FFFFFF')}
-                                                            fontSize="20"
-                                                            fontWeight="bolder"
-                                                            textAnchor="middle"
-                                                            alignmentBaseline="middle"
-                                                            style={{ letterSpacing: '0.04em' }}
-                                                            className="select-none opacity-90"
-                                                            transform="rotate(90, 85, 86.5)"
-                                                        >
-                                                            {spread.label}
-                                                        </text>
-                                                    </svg>
-                                                </motion.div>
-                                            );
-                                        })}
-                                    </motion.div>
-                                );
-                            })()}
 
                             {/* 3. Center hub Preview Area */}
                             <motion.div

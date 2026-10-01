@@ -191,9 +191,15 @@ const CustomizedEditor = () => {
 
   const [backgroundSettings, setBackgroundSettings] = useState(() => {
     const bg = currentBook?.Customized_Settings?.Background || currentBook?.settings?.Background || location.state?.backgroundSettings || location.state?.background;
-    if (bg && typeof bg === 'object') return { ...bg, applyDynamicColor: bg.applyDynamicColor ?? true };
+    if (bg && typeof bg === 'object') {
+      let finalBg = { ...bg, applyDynamicColor: bg.applyDynamicColor ?? true };
+      if (finalBg.color === '#DADBE8' || finalBg.color === '#E2E4F0' || finalBg.color === '#dadbe8' || finalBg.color === '#e2e4f0') {
+        finalBg.color = '#D9D9D9';
+      }
+      return finalBg;
+    }
     return {
-      color: '#DADBE8',
+      color: '#D9D9D9',
       style: 'Solid',
       gradient: 'linear-gradient(to bottom, #b363f1ff, #a855f7)',
       image: '',
@@ -458,7 +464,7 @@ const CustomizedEditor = () => {
       autoFlip: true,
       autoFlipSettings: {
         duration: 4,
-        countdown: true
+        countdown: false
       },
       backgroundAudio: true,
       audio: true,
@@ -488,7 +494,7 @@ const CustomizedEditor = () => {
       displayMode: 'icon',
       addTextBelowIcons: false,
       addSearchOnTop: true,
-      textProperties: { font: 'Arial', fill: '#ffffffff', stroke: '#' },
+      textProperties: { font: 'Poppins', fill: '#ffffffff', stroke: '#' },
       toolbarColor: { fill: '#3E4491', stroke: '#' },
       iconsColor: { fill: '#ffffff', stroke: '#' },
       processBar: { fill: '#ffffffff', stroke: '#' },
@@ -532,7 +538,7 @@ const CustomizedEditor = () => {
       timing: 'after-pages',
       afterPages: 4,
       allowSkip: true,
-      fontStyle: 'Arial',
+      fontStyle: 'Poppins',
       textFill: '#3E4491',
       textStroke: '',
       bgFill: '#ffffffff',
@@ -1561,7 +1567,7 @@ const CustomizedEditor = () => {
                     ...(prev?.gallery || {}),
                     ...loadedGallerySettings,
                     transitionEffect: loadedGallerySettings.transitionEffect || prev?.gallery?.transitionEffect || 'Linear',
-                    primaryColor: loadedGallerySettings.primaryColor || prev?.gallery?.primaryColor || '#575C9C',
+                    primaryColor: loadedGallerySettings.primaryColor || prev?.gallery?.primaryColor || '#555555',
                     secondaryColor: loadedGallerySettings.secondaryColor || prev?.gallery?.secondaryColor || '#9B9B9B',
                     bgColor: loadedGallerySettings.bgColor || prev?.gallery?.bgColor || '#FFFFFF',
                     navStyle: loadedGallerySettings.navStyle || loadedGallerySettings.navigationIconType || prev?.gallery?.navStyle || 1,
@@ -1723,6 +1729,7 @@ const CustomizedEditor = () => {
             onUpdateLayout={setLayoutSettings}
             layoutColors={layoutColors}
             onUpdateLayoutColors={setLayoutColors}
+            onTocSettingsClick={() => setTocOpenTrigger(prev => prev + 1)}
             pages={pages}
             folder={folder}
             flipbookName={bookName}
@@ -1830,7 +1837,7 @@ const CustomizedEditor = () => {
 
   return (
     <div
-      className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none relative"
+      className="flex flex-col h-full w-full bg-[#D9D9D9] overflow-hidden font-sans select-none relative"
       style={layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(v => v.trim()).map(v => {
         const i = v.indexOf(':');
         return [v.slice(0, i).trim(), v.slice(i + 1).trim()];

@@ -947,7 +947,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
             <SectionHeader title="Popup Customization" />
             <ColorPickerItem
               label="Primary"
-              color={gallery.primaryColor || '#575C9C'}
+              color={gallery.primaryColor || '#555555'}
               opacity={gallery.primaryOpacity || 100}
               onChange={(val) => updateGallery('primaryColor', val)}
               onOpacityChange={(val) => updateGallery('primaryOpacity', val)}
@@ -1052,6 +1052,8 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         <ReplaceMediaModal
           show={showLibrary}
           mediaType="image"
+          titleText={libraryTargetIndex !== null && slideshowImages[libraryTargetIndex] ? 'Replace Image' : 'Add Image'}
+          buttonText={libraryTargetIndex !== null && slideshowImages[libraryTargetIndex] ? 'Replace Image' : 'Add Image'}
           onClose={() => {
             setShowLibrary(false);
             setLibraryTargetIndex(null);
@@ -1108,7 +1110,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         {activePopupPicker && createPortal(
           <ColorPicker
             color={
-              activePopupPicker === 'primary' ? (gallery.primaryColor || '#575C9C') :
+              activePopupPicker === 'primary' ? (gallery.primaryColor || '#555555') :
                 activePopupPicker === 'secondary' ? (gallery.secondaryColor || '#9B9B9B') :
                   (gallery.bgColor || '#FFFFFF')
             }
@@ -1686,7 +1688,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                 <SectionHeader title="Popup Customization" />
                 <ColorPickerItem
                   label="Primary"
-                  color={gallery.primaryColor || '#575C9C'}
+                  color={gallery.primaryColor || '#555555'}
                   opacity={gallery.primaryOpacity || 100}
                   onChange={(val) => updateGallery('primaryColor', val)}
                   onOpacityChange={(val) => updateGallery('primaryOpacity', val)}
@@ -1898,7 +1900,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         {activePopupPicker && createPortal(
           <ColorPicker
             color={
-              activePopupPicker === 'primary' ? (gallery.primaryColor || '#575C9C') :
+              activePopupPicker === 'primary' ? (gallery.primaryColor || '#555555') :
                 activePopupPicker === 'secondary' ? (gallery.secondaryColor || '#9B9B9B') :
                   (gallery.bgColor || '#FFFFFF')
             }

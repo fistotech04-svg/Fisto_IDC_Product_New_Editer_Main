@@ -241,6 +241,56 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
         }
     };
 
+    // Keyboard and Mouse Wheel Actions
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (settings?.navigation?.keyboard ?? true) {
+                if (e.key === 'ArrowRight') {
+                    bookRef.current?.pageFlip()?.flipNext();
+                } else if (e.key === 'ArrowLeft') {
+                    bookRef.current?.pageFlip()?.flipPrev();
+                }
+            }
+        };
+
+        let lastWheelTime = 0;
+        const handleWheel = (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                if (e.deltaY < 0 && handleZoomIn) handleZoomIn();
+                else if (e.deltaY > 0 && handleZoomOut) handleZoomOut();
+            } else if (settings?.navigation?.mouseWheel ?? true) {
+                // Prevent flipping if scrolling inside a naturally scrollable element
+                if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto') || e.target.closest('.thumbnail-bar') || e.target.closest('input') || e.target.closest('.no-scrollbar')) {
+                    return;
+                }
+                
+                const now = Date.now();
+                if (now - lastWheelTime < 600) return; // Debounce to prevent rapid flipping
+                
+                if (e.deltaY > 0) {
+                    bookRef.current?.pageFlip()?.flipNext();
+                    lastWheelTime = now;
+                } else if (e.deltaY < 0) {
+                    bookRef.current?.pageFlip()?.flipPrev();
+                    lastWheelTime = now;
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        
+        const container = document.getElementById('tablet-layout-container') || window;
+        container.addEventListener('wheel', handleWheel, { passive: false });
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            container.removeEventListener('wheel', handleWheel);
+        };
+    }, [settings?.navigation?.keyboard, settings?.navigation?.mouseWheel]);
+
 
     return (
         <div
@@ -412,17 +462,48 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                 </div>
 
                 {/* Page Indicator Pill */}
-                <div className="absolute bottom-[2cqw] left-[2cqw] px-[2cqw] py-[0.8cqw] rounded-full shadow-sm font-semibold text-[1.4cqw] flex items-center justify-center z-10" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), color: getLayoutColor('toolbar-bg', '#5C5898') }}>
-                    Page
+                <div className="absolute bottom-[2cqw] left-[2cqw] px-[2cqw] py-[0.8cqw] rounded-[1.5cqw] shadow-[0_4px_15px_rgba(0,0,0,0.1)] flex items-center justify-center z-[900] transition-all duration-300 backdrop-blur-sm" 
+                    style={{ 
+                        backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), 
+                        opacity: 'var(--toolbar-text-main-opacity, 1)' 
+                    }}
+                >
+                    <span
+                        className="text-[1.4cqw] font-bold transition-colors"
+                        style={{ color: getLayoutColor('toolbar-bg', '#5C5898') }}
+                    >Page </span>
                     <input
                         type="text"
                         value={inputPage}
                         onChange={(e) => setInputPage(e.target.value)}
                         onKeyDown={handlePageInputSubmit}
                         onBlur={handlePageInputSubmit}
-                        className="w-[4cqw] text-center bg-transparent outline-none mx-[0.5cqw]"
+                        className="text-[1.4cqw] font-bold rounded-[0.4cqw] outline-none text-center transition-colors shadow-inner mx-[0.6cqw] px-[0.4cqw] py-[0.1cqw]"
+                        style={{
+                            color: getLayoutColor('toolbar-bg', '#5C5898'),
+                            backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1),
+                            border: `1px solid ${getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.2)}`,
+                            width: `${String(Array.isArray(pages) ? pages.length : pages || 12).length + 1.2}ch`
+                        }}
+                        onFocus={(e) => {
+                            e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
+                            e.target.style.borderColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.4);
+                        }}
+                        onMouseOver={(e) => {
+                            if(document.activeElement !== e.target) {
+                                e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.15);
+                            }
+                        }}
+                        onMouseOut={(e) => {
+                            if(document.activeElement !== e.target) {
+                                e.target.style.backgroundColor = getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.1);
+                            }
+                        }}
                     />
-                    / {Array.isArray(pages) ? pages.length : pages || 12}
+                    <span
+                        className="text-[1.4cqw] font-bold transition-colors"
+                        style={{ color: getLayoutColor('toolbar-bg', '#5C5898') }}
+                    > / {Array.isArray(pages) ? pages.length : pages || 12}</span>
                 </div>
             </div>
 
@@ -558,14 +639,15 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                 {/* Left Icons */}
                 <div className="flex items-center gap-[1.5cqw]">
                     <button
-                        className=" hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => { e.stopPropagation(); setShowTOCMemo?.(!showTOC); }}
                         style={{ opacity: showTOC ? 0.7 : 1 }}
                     >
                         <Icon icon="fluent:text-bullet-list-24-filled" className="w-[1.8cqw] h-[1.8cqw]" />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Contents</span>
                     </button>
                     <button
-                        className=" hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             if (showThumbnailBar) {
@@ -578,13 +660,14 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         style={{ opacity: showThumbnailBar ? 0.7 : 1 }}
                     >
                         <Icon icon="ph:squares-four-fill" className="w-[1.8cqw] h-[1.8cqw]" />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Thumbnails</span>
                     </button>
                 </div>
 
                 {/* Middle Playback & Scrubber */}
                 <div className="flex items-center gap-[1.5cqw] flex-1 max-w-[40cqw] mx-[2cqw]">
                     <button
-                        className=" hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={() => {
                             setShowTOCMemo?.(false);
                             setShowThumbnailBarMemo?.(false);
@@ -592,12 +675,14 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         }}
                     >
                         <Icon icon="ph:skip-back" className="w-[1.8cqw] h-[1.8cqw]" />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>First</span>
                     </button>
-                    <button className=" hover:text-gray-200 transition-colors">
+                    <button className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}>
                         <Icon icon="ph:play-fill" className="w-[1.8cqw] h-[1.8cqw] " />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Play</span>
                     </button>
                     <button
-                        className=" hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={() => {
                             setShowTOCMemo?.(false);
                             setShowThumbnailBarMemo?.(false);
@@ -609,6 +694,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         }}
                     >
                         <Icon icon="ph:skip-forward" className="w-[1.8cqw] h-[1.8cqw]" />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Last</span>
                     </button>
 
                     <div
@@ -632,7 +718,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                     {(settings?.media?.backgroundAudio ?? true) && (
                         <div className="relative">
                             <button
-                                className=" hover:text-gray-200 transition-colors relative"
+                                className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setShowTOCMemo?.(false);
@@ -644,11 +730,12 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                                 style={{ opacity: showSoundPopup ? 0.7 : 1 }}
                             >
                                 <Icon icon="solar:music-notes-bold" className="w-[1.6cqw] h-[1.6cqw]" />
+                                <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Sound</span>
                             </button>
                         </div>
                     )}
                     <button
-                        className=" hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowTOCMemo?.(false);
@@ -660,9 +747,10 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         style={{ opacity: showGalleryPopup ? 0.7 : 1 }}
                     >
                         <Icon icon="clarity:image-gallery-solid" className="w-[1.6cqw] h-[1.6cqw]" />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Gallery</span>
                     </button>
                     <button
-                        className=" hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowTOCMemo?.(false);
@@ -673,6 +761,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         style={{ opacity: showProfilePopup ? 0.7 : 1 }}
                     >
                         <Icon icon="fluent:person-24-filled" className="w-[1.6cqw] h-[1.6cqw]" />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Profile</span>
                     </button>
 
                     {/* Zoom Section */}
@@ -726,7 +815,7 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                     </div>
 
                     <button
-                        className="hover:text-gray-200 transition-colors ml-[1cqw]"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors ml-[1cqw] group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowTOCMemo?.(false);
@@ -738,18 +827,21 @@ const TabletLayout1 = ({ children, bookRef, currentPage, pages, offset = 0, sett
                         }}
                     >
                         <Icon icon="mage:share-fill" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Share</span>
                     </button>
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => { e.stopPropagation(); handleDownload?.(); }}
                     >
                         <Icon icon="meteor-icons:download" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Download</span>
                     </button>
                     <button
-                        className="hover:text-gray-200 transition-colors"
+                        className={`flex flex-col items-center justify-center relative hover:text-gray-200 transition-colors group ${!settings?.toolbar?.addTextBelowIcons ? 'translate-y-[0.8vh]' : ''}`}
                         onClick={(e) => { e.stopPropagation(); handleFullScreen?.(); }}
                     >
                         <Icon icon="lucide:fullscreen" className="w-[1.6cqw] h-[1.6cqw]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
+                        <span className={`mt-[0.3cqw] text-[1cqw] font-medium whitespace-nowrap transition-opacity duration-200 ${settings?.toolbar?.addTextBelowIcons ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>Fullscreen</span>
                     </button>
                 </div>
 

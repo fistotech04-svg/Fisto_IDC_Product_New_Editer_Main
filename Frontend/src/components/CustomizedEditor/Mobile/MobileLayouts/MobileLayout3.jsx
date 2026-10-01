@@ -454,9 +454,13 @@ const MobileLayout3 = (props) => {
                 )}
                 {showSharePopup && !isLandscape && (
                     <FlipbookSharePopup
-                        onClose={() => toggleSharePopup(false)}
-                        isMobile={true}
-                    />
+                    onClose={() => setShowSharePopup(false)}
+                    bookName={props.currentBook?.flipbookName || bookName}
+                    url={props.currentBook?.shareUrl || window.location.href}
+                    isPublished={props.currentBook?.status === 'Published'}
+                    isMobile={true}
+                    isLandscape={isLandscape}
+                />
                 )}
             </AnimatePresence>
         </div>

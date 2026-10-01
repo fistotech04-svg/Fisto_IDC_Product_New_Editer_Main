@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
+const PageThumbnail = React.memo(({ html, index, scale = 0.15, baseWidth = 400, baseHeight = 566 }) => {
     const cleanHtml = (html || '')
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<video\b[^<]*(?:(?!<\/video>)<[^<]*)*<\/video>/gi, '<div style="width:100%;height:100%;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af">Video</div>')
@@ -20,8 +20,8 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                         padding: 0; 
                         overflow: hidden; 
                         background: white; 
-                        width: 400px; 
-                        height: 566px; 
+                        width: ${baseWidth}px; 
+                        height: ${baseHeight}px; 
                         position: relative;
                     }
                     * { box-sizing: border-box; }
@@ -30,7 +30,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                 </style>
             </head>
             <body>
-                 <div style="width: 400px; height: 566px; overflow: hidden; position: relative; background: white;">
+                 <div style="width: ${baseWidth}px; height: ${baseHeight}px; overflow: hidden; position: relative; background: white;">
                     ${cleanHtml}
                 </div>
             </body>
@@ -38,20 +38,20 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     `;
 
     return (
-        <div className="w-full h-full relative overflow-hidden bg-white flex items-center justify-center">
-            <iframe
-                className="border-none pointer-events-none"
-                srcDoc={srcDoc}
-                title={`Thumb ${index}`}
-                loading="lazy"
-                style={{
-                    width: '400px',
-                    height: '566px',
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    backgroundColor: 'white'
-                }}
-            />
+        <div className="w-full h-full relative overflow-hidden bg-white">
+            <div className="absolute left-1/2 top-1/2" style={{ transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center center' }}>
+                <iframe
+                    className="border-none pointer-events-none"
+                    srcDoc={srcDoc}
+                    title={`Thumb ${index}`}
+                    loading="lazy"
+                    style={{
+                        width: `${baseWidth}px`,
+                        height: `${baseHeight}px`,
+                        backgroundColor: 'white'
+                    }}
+                />
+            </div>
         </div>
     );
 });
@@ -257,6 +257,40 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
         };
     }, [zoomIn, zoomOut, bookRef, settings?.navigation?.mouseWheel]);
 
+    const spreads = useMemo(() => {
+        const s = [];
+        if (!pages || pages.length === 0) return s;
+
+        // Page 1 (Front Cover)
+        s.push({ label: 'Page 1', indices: [0], pages: [pages[0]] });
+
+        // Middle spreads
+        for (let i = 1; i < pages.length - 1; i += 2) {
+            const indices = [i];
+            const spreadPages = [pages[i]];
+            if (i + 1 < pages.length) {
+                indices.push(i + 1);
+                spreadPages.push(pages[i + 1]);
+            }
+            s.push({
+                label: indices.length > 1 ? `Page ${indices[0] + 1}-${indices[1] + 1}` : `Page ${indices[0] + 1}`,
+                indices,
+                pages: spreadPages
+            });
+        }
+
+        // Last page (Back Cover) if not already included
+        const lastIdx = pages.length - 1;
+        if (lastIdx > 0 && !s.some(spread => spread.indices.includes(lastIdx))) {
+            s.push({
+                label: `Page ${lastIdx + 1}`,
+                indices: [lastIdx],
+                pages: [pages[lastIdx]]
+            });
+        }
+        return s;
+    }, [pages]);
+
     const localOffset = React.useMemo(() => {
         if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
@@ -298,6 +332,16 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
     const isFullscreen = isFullscreenProp || false;
     const isCanvasHovered = false; const setIsCanvasHovered = () => {};
     const thumbScrollRef = useRef(null);
+    const [canThumbScrollLeft, setCanThumbScrollLeft] = useState(false);
+    const [canThumbScrollRight, setCanThumbScrollRight] = useState(true);
+
+    const checkThumbScroll = React.useCallback(() => {
+        if (thumbScrollRef.current) {
+            const { scrollLeft, scrollWidth, clientWidth } = thumbScrollRef.current;
+            setCanThumbScrollLeft(scrollLeft > 0);
+            setCanThumbScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
+        }
+    }, []);
     const layoutRef = useRef(null);
     const showThumbnails = showThumbnailBar;
     const setShowThumbnails = setShowThumbnailBarMemo;
@@ -361,9 +405,12 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
             const activeEl = thumbScrollRef.current.querySelector(`[data-thumb-index="${currentPage}"]`);
             if (activeEl) {
                 activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                setTimeout(checkThumbScroll, 350);
+            } else {
+                checkThumbScroll();
             }
         }
-    }, [showThumbnails, currentPage]);
+    }, [showThumbnails, currentPage, checkThumbScroll]);
 
     // Ensure perfect alignment of thumbnails popup with its button during sidebar transitions
     useEffect(() => {
@@ -392,7 +439,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
 
 
 
-    const primaryColor = layoutColors?.primary || '#575C9C';
+    const primaryColor = layoutColors?.primary || '#555555';
     const baseBgColor = layoutColors?.secondary || '#E3E4EF';
 
     const getLayoutColor = (id, defaultColor) => {
@@ -890,102 +937,103 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         <div
                             key="thumb-panel"
                             id="layout8-thumb-panel"
-                            className="absolute w-[44vw] h-[10.5vw] z-[45] pointer-events-auto flex flex-col"
+                            className="absolute w-[44.8vw] h-[11vw] z-[45] pointer-events-auto flex flex-col"
                             style={{
                                 top: addTextBelowIcons
-                                    ? (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.5vw)' : 'calc(4.8vh + 0.5vw)') : (isTablet ? 'calc(5.6vh + 0.5vw)' : 'calc(6.2vh + 0.5vw)'))
-                                    : (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.7vw)' : 'calc(4.8vh + 0.7vw)') : (isTablet ? 'calc(5.6vh + 0.7vw)' : 'calc(6.2vh + 0.7vw)')),
+                                    ? (isTablet ? 'calc(5.6vh + 0.5vw)' : 'calc(6.2vh + 0.5vw)')
+                                    : (isTablet ? 'calc(5.6vh + 0.7vw)' : 'calc(6.2vh + 0.7vw)'),
                                 marginTop: '-3.6vw',
                                 left: popupPositions['thumbnails'] ? `${popupPositions['thumbnails']}px` : '50%',
-                                transform: `translateX(-46.2%)`
+                                transform: `translateX(-30%)`
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* SVG Background Layer */}
                             <div className="absolute inset-0 z-0 pointer-events-none">
-                                <svg width="100%" height="100%" viewBox="0 0 780 178" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                                <svg width="100%" height="100%" viewBox="0 0 780 195" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
                                     <defs>
                                         <clipPath id="thumb-shape-clip" clipPathUnits="objectBoundingBox">
-                                            <path transform="scale(0.00128205, 0.00561798)" d="M0 87C0 75.9543 8.95431 67 20 67H760C771.046 67 780 75.9543 780 87V158C780 169.046 771.046 178 760 178H20C8.9543 178 0 169.046 0 158V87Z" />
-                                            <path transform="scale(0.00128205, 0.00561798)" d="M328.818 33.0909C328.818 14.8153 343.633 0 361.909 0C380.185 0 395 14.8153 395 33.0909V41.7377C395.011 60.2573 398.967 66.6391 417 67H304C322.752 67 328.818 52.7213 328.818 41.7377V33.0909Z" />
+                                            <path transform="scale(0.00128205, 0.005128205)" d="M0 87C0 75.9543 8.95431 67 20 67H760C771.046 67 780 75.9543 780 87V175C780 186.046 771.046 195 760 195H20C8.9543 195 0 186.046 0 175V87Z" />
+                                            <path transform="scale(0.00128205, 0.005128205) translate(235.54, 67) scale(0.85, 0.9) translate(-361.9, -67)" d="M328.818 33.0909C328.818 14.8153 343.633 0 361.909 0C380.185 0 395 14.8153 395 33.0909V41.7377C395.011 60.2573 398.967 66.6391 417 67H304C322.752 67 328.818 52.7213 328.818 41.7377V33.0909Z" />
                                         </clipPath>
                                     </defs>
-                                    <path d="M0 87C0 75.9543 8.95431 67 20 67H760C771.046 67 780 75.9543 780 87V158C780 169.046 771.046 178 760 178H20C8.9543 178 0 169.046 0 158V87Z" fill={getLayoutColor('dropdown-bg', primaryColor)} fillOpacity="0.8"/>
-                                    <path d="M328.818 33.0909C328.818 14.8153 343.633 0 361.909 0C380.185 0 395 14.8153 395 33.0909V41.7377C395.011 60.2573 398.967 66.6391 417 67H304C322.752 67 328.818 52.7213 328.818 41.7377V33.0909Z" fill={getLayoutColor('dropdown-bg', primaryColor)} fillOpacity="0.8"/>
+                                    <path d="M0 87C0 75.9543 8.95431 67 20 67H760C771.046 67 780 75.9543 780 87V175C780 186.046 771.046 195 760 195H20C8.9543 195 0 186.046 0 175V87Z" fill={getLayoutColor('dropdown-bg', primaryColor)} fillOpacity="0.8"/>
+                                    <path transform="translate(235.54, 67) scale(0.85, 0.9) translate(-361.9, -67)" d="M328.818 33.0909C328.818 14.8153 343.633 0 361.909 0C380.185 0 395 14.8153 395 33.0909V41.7377C395.011 60.2573 398.967 66.6391 417 67H304C322.752 67 328.818 52.7213 328.818 41.7377V33.0909Z" fill={getLayoutColor('dropdown-bg', primaryColor)} fillOpacity="0.8"/>
                                 </svg>
                             </div>
 
                             {/* Content Layer */}
                             <div
-                                className="relative z-10 w-full h-full flex items-center pt-[3.8vw] pb-[0.2vw] px-[1.5vw] backdrop-blur-md"
+                                className="relative z-10 w-full h-full flex items-center pt-[4.2vw] pb-[0vw] px-[1vw] backdrop-blur-md"
                                 style={{ 
                                     clipPath: 'url(#thumb-shape-clip)', 
                                     WebkitClipPath: 'url(#thumb-shape-clip)' 
                                 }}
                             >
                                 {/* Left Arrow */}
-                                {Math.ceil(pages.length / 2) > 6 && (
+                                {spreads.length > 6 && (
                                     <button
                                         onClick={() => thumbScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
-                                        className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
+                                        className={`z-10 transition-opacity p-[0.5vw] ${canThumbScrollLeft ? 'opacity-100 hover:opacity-80 cursor-pointer' : 'opacity-30 cursor-default'}`}
+                                        disabled={!canThumbScrollLeft}
                                         style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
                                     >
-                                        <Icon icon="lucide:arrow-left" className="w-[1.8vw] h-[1.8vw]" />
+                                        <Icon icon="lucide:arrow-left" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
                                     </button>
                                 )}
 
                                 {/* Scrollable thumbnail row - Showing Double Spreads */}
                                 <div
                                     ref={thumbScrollRef}
-                                    className="flex-1 flex gap-[1.5vw] px-[1.5vw] items-center overflow-x-auto custom-scrollbar h-full py-[0.5vh]"
+                                    onScroll={checkThumbScroll}
+                                    className="flex-1 flex gap-[0.8vw] px-[0.5vw] items-center overflow-x-auto h-full py-[0.5vh]"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                                 >
-                                    {Array.from({ length: Math.ceil(pages.length / 2) }).map((_, spreadIdx) => {
-                                        const p1Idx = spreadIdx * 2;
-                                        const p2Idx = p1Idx + 1;
-                                        const isCurrent = currentPage === p1Idx || currentPage === p2Idx;
+                                    {spreads.map((spread, spreadIdx) => {
+                                        const isCurrent = spread.indices.includes(currentPage);
+                                        const vw = typeof window !== 'undefined' ? window.innerWidth / 100 : 19.2;
+                                        const pageWidth = dimWidth || 400;
+                                        const pageHeight = dimHeight || 566;
+                                        const availableHeightVw = pageHeight > pageWidth ? 4.2 : 3.3;
+                                        const availableHeightPx = availableHeightVw * vw;
+                                        const thumbScale = availableHeightPx / pageHeight;
+                                        const scaledWidthPx = pageWidth * thumbScale;
+                                        const totalWidthPx = scaledWidthPx * 2;
 
                                         return (
                                             <div
                                                 key={spreadIdx}
-                                                data-thumb-index={p1Idx}
-                                                onClick={() => { onPageClick(p1Idx); }}
+                                                data-thumb-index={spread.indices[0]}
+                                                onClick={() => { onPageClick(spread.indices[0]); }}
                                                 className="flex-shrink-0 flex flex-col items-center cursor-pointer group py-[0.5vh]"
                                             >
                                                 <div
-                                                    className="rounded-[0.5vw] overflow-hidden transition-all duration-300 bg-white shadow-lg flex flex-col items-center px-[0.3vw] pt-[0.3vw] pb-[0.2vw]"
+                                                    className="rounded-[0.5vw] overflow-hidden transition-all duration-300 bg-white shadow-lg flex flex-col items-center justify-center px-[0.3vw] pt-[0.3vw] pb-[0.2vw]"
                                                     style={{
-                                                        width: '6.3vw',
-                                                        height: '4.8vw',
+                                                        width: `${totalWidthPx + (0.6 * vw)}px`, // padding included
+                                                        height: 'auto',
                                                         border: isCurrent ? `0.12vw solid ${getLayoutColor('dropdown-bg', primaryColor)}` : 'none',
                                                         transform: isCurrent ? 'scale(1.04)' : 'scale(1)'
                                                     }}
                                                 >
                                                     {/* Pages Spread container */}
-                                                    <div className="flex w-full flex-1 gap-[0.1vw] items-center justify-center overflow-hidden">
-                                                        <div className="w-[45%] h-[75%] overflow-hidden bg-white shadow-sm flex items-center justify-center rounded-[0.1vw]">
-                                                            <PageThumbnail
-                                                                html={pages[p1Idx]?.html || pages[p1Idx]?.content || ''}
-                                                                index={p1Idx}
-                                                                scale={0.045}
-                                                            />
-                                                        </div>
-                                                        {p2Idx < pages.length ? (
-                                                            <div className="w-[45%] h-[75%] overflow-hidden bg-white shadow-sm flex items-center justify-center rounded-[0.1vw]">
+                                                    <div className="flex w-full gap-0 items-center justify-center overflow-hidden bg-gray-50 rounded-[0.1vw]" style={{ height: `${availableHeightVw}vw` }}>
+                                                        {spread.pages.map((page, pIdx) => (
+                                                            <div key={`${spreadIdx}-${pIdx}`} className="bg-white overflow-hidden relative flex items-center justify-center border-0" style={{ width: `${scaledWidthPx}px`, height: '100%' }}>
                                                                 <PageThumbnail
-                                                                    html={pages[p2Idx]?.html || pages[p2Idx]?.content || ''}
-                                                                    index={p2Idx}
-                                                                    scale={0.045}
+                                                                    html={page.html || page.content || ''}
+                                                                    index={spread.indices[pIdx]}
+                                                                    scale={thumbScale}
+                                                                    baseWidth={pageWidth}
+                                                                    baseHeight={pageHeight}
                                                                 />
                                                             </div>
-                                                        ) : (
-                                                            <div className="w-[45%] h-[75%] bg-gray-50 rounded-[0.1vw]" />
-                                                        )}
+                                                        ))}
                                                     </div>
 
-                                                    <div className="w-full flex justify-center py-[0.1vw] border-t border-gray-50">
-                                                        <span className="text-[0.6vw] font-bold tracking-tight" style={{ color: bodyTextColor }}>
-                                                            Page {p1Idx + 1}{p2Idx < pages.length ? `-${p2Idx + 1}` : ''}
+                                                    <div className="w-full flex justify-center py-[0.1vw] mt-[0.2vw]">
+                                                        <span className="text-[0.6vw] font-bold tracking-tight text-[#555555]">
+                                                            {spread.label}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -995,13 +1043,14 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 </div>
 
                                 {/* Right Arrow */}
-                                {Math.ceil(pages.length / 2) > 6 && (
+                                {spreads.length > 6 && (
                                     <button
                                         onClick={() => thumbScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
-                                        className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
+                                        className={`z-10 transition-opacity p-[0.5vw] ${canThumbScrollRight ? 'opacity-100 hover:opacity-80 cursor-pointer' : 'opacity-30 cursor-default'}`}
+                                        disabled={!canThumbScrollRight}
                                         style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
                                     >
-                                        <Icon icon="lucide:arrow-right" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
+                                        <Icon icon="lucide:arrow-right" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
                                     </button>
                                 )}
                             </div>
@@ -1010,7 +1059,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                 )}
             </>
 
-            {/* â•â•â•â•â•â•â•â•â•â•â• Bottom Navigation Bar â•â•â•â•â•â•â•â•â•â•â• */}
+            {/* Bottom Navigation Bar*/}
             {!isTablet && (
             <div
                 className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
@@ -1023,7 +1072,7 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                         <span className="font-bold tracking-wide truncate max-w-[80%]" style={{ 
                             color: (() => {
                                 const c1 = getLayoutColor('toolbar-bg', primaryColor);
-                                const c2 = getLayoutColor('toolbar-text-main', '#575C9C');
+                                const c2 = getLayoutColor('toolbar-text-main', '#555555');
                                 const isWhite = (c) => typeof c === 'string' && (c.toLowerCase() === '#ffffff' || c.replace(/\s/g, '') === 'rgb(255,255,255)' || c.replace(/\s/g, '') === 'rgba(255,255,255,1)');
                                 return isWhite(c1) ? c2 : c1;
                             })(), 
@@ -1136,21 +1185,21 @@ if (e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-x-auto')
                                 style={{
                                     color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                                     width: `${String(pages.length).length + 1.2}ch`,
-                                    backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '33',
-                                    border: `1px solid ${getLayoutColor('toolbar-text-main', '#FFFFFF')}59`
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    border: `1px solid rgba(255,255,255,0.35)`
                                 }}
                                 onFocus={(e) => {
-                                    e.target.style.backgroundColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '4D';
-                                    e.target.style.borderColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '99';
+                                    e.target.style.backgroundColor = 'rgba(255,255,255,0.3)';
+                                    e.target.style.borderColor = 'rgba(255,255,255,0.6)';
                                 }}
                                 onMouseOver={(e) => {
                                     if(document.activeElement !== e.target) {
-                                        e.target.style.backgroundColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '40';
+                                        e.target.style.backgroundColor = 'rgba(255,255,255,0.25)';
                                     }
                                 }}
                                 onMouseOut={(e) => {
                                     if(document.activeElement !== e.target) {
-                                        e.target.style.backgroundColor = getLayoutColor('toolbar-text-main', '#FFFFFF') + '33';
+                                        e.target.style.backgroundColor = 'rgba(255,255,255,0.2)';
                                     }
                                 }}
                             />
