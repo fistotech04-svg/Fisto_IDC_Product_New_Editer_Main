@@ -1150,6 +1150,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     if (newMaps.map) {
                         mat.map = newMaps.map;
                         mat.userData.appliedMap = newMaps.map;
+                        mat.transparent = true;
+                        mat.alphaTest = 0.05;
                     }
                     if (newMaps.normalMap) {
                         mat.normalMap = newMaps.normalMap;
@@ -2266,8 +2268,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         child.name,
                         child.userData?.initialName,
                         m.name,
-                        m.uuid,
-                        m.userData?.baseMaterialName
+                        m.uuid
                     ].filter(Boolean);
 
                     let customSetting = null;
@@ -2290,13 +2291,27 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             const finalCol = new THREE.Color(customSetting.color);
                             finalCol.multiplyScalar(intensity);
                             m.color.copy(finalCol);
+                        } else if (m.userData.originalColor && m.color && typeof m.color.set === 'function') {
+                            try {
+                                if (m.userData.originalColor.isColor) {
+                                    m.color.copy(m.userData.originalColor);
+                                } else if (typeof m.userData.originalColor === 'string') {
+                                    m.color.set(m.userData.originalColor);
+                                } else if (typeof m.userData.originalColor === 'object' && typeof m.userData.originalColor.r === 'number') {
+                                    m.color.setRGB(m.userData.originalColor.r, m.userData.originalColor.g, m.userData.originalColor.b);
+                                }
+                            } catch (_) { }
                         }
                         if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
                             if (customSetting.metallic !== undefined) {
                                 m.metalness = (customSetting.metallic ?? 0) / 100;
+                            } else if (m.userData.originalMetalness !== undefined) {
+                                m.metalness = m.userData.originalMetalness;
                             }
                             if (customSetting.roughness !== undefined) {
                                 m.roughness = (customSetting.roughness ?? 50) / 100;
+                            } else if (m.userData.originalRoughness !== undefined) {
+                                m.roughness = m.userData.originalRoughness;
                             }
                             if (customSetting.ao !== undefined && m.aoMap) {
                                 m.aoMapIntensity = (customSetting.ao ?? 100) / 100;
@@ -2306,6 +2321,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             const a = (customSetting.alpha ?? 100) / 100;
                             m.opacity = a;
                             m.transparent = a < 0.999 || !!m.alphaMap;
+                        } else if (m.userData.originalOpacity !== undefined) {
+                            m.opacity = m.userData.originalOpacity;
+                            m.transparent = m.userData.originalTransparent !== undefined ? m.userData.originalTransparent : (m.opacity < 0.999 || !!m.alphaMap);
                         }
                         if (customSetting.emissiveColor && m.emissive && typeof m.emissive.set === 'function') {
                             m.emissive.set(customSetting.emissiveColor);
@@ -2394,6 +2412,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                     if (globalTextureCache.has(cacheKey)) {
                                         const cachedTex = globalTextureCache.get(cacheKey);
                                         m[mapProp] = cachedTex;
+                                        if (mapProp === 'map') {
+                                            m.transparent = true;
+                                            m.alphaTest = 0.05;
+                                        }
                                         if (m[mapProp]?.repeat && typeof m[mapProp].repeat.set === 'function' && hasCustomUV) {
                                             m[mapProp].repeat.set(texScaleX, texScaleY);
                                         }
@@ -2411,6 +2433,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                         }
                                         globalTextureCache.set(cacheKey, tex);
                                         m[mapProp] = tex;
+                                        if (mapProp === 'map') {
+                                            m.transparent = true;
+                                            m.alphaTest = 0.05;
+                                        }
                                         m.userData[`is_${mapProp}_removed`] = false;
                                         m.needsUpdate = true;
                                     });
@@ -2859,6 +2885,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                     if (globalTextureCache.has(cacheKey)) {
                                         const cachedTex = globalTextureCache.get(cacheKey);
                                         m[mapProp] = cachedTex;
+                                        if (mapProp === 'map') {
+                                            m.transparent = true;
+                                            m.alphaTest = 0.05;
+                                        }
                                         if (m[mapProp]?.repeat && typeof m[mapProp].repeat.set === 'function') m[mapProp].repeat.set(texScaleX, texScaleY);
                                         m.userData[`is_${mapProp}_removed`] = false;
                                         m.needsUpdate = true;
@@ -2873,6 +2903,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                         if (tex?.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(texScaleX, texScaleY);
                                         globalTextureCache.set(cacheKey, tex);
                                         m[mapProp] = tex;
+                                        if (mapProp === 'map') {
+                                            m.transparent = true;
+                                            m.alphaTest = 0.05;
+                                        }
                                         m.userData[`is_${mapProp}_removed`] = false;
                                         m.needsUpdate = true;
                                     });
