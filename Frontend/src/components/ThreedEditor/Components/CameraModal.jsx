@@ -7,7 +7,6 @@ import { jsPDF } from "jspdf";
 import RenderModel from "./ModelLoaders";
 import ColorPicker from "../ColorPicker";
 import axios from "axios";
-
 export default function CameraModal({ 
     isOpen, 
     onClose, 
@@ -25,17 +24,6 @@ export default function CameraModal({
     const [bgColor, setBgColor] = useState('transparent');
     const [customColor, setCustomColor] = useState('#D7D8E8');
 
-    // Helper component to manage camera zoom from state
-    const ZoomManager = ({ zoom }) => {
-        const { camera } = useThree();
-        React.useEffect(() => {
-            if (camera) {
-                camera.zoom = zoom / 100;
-                camera.updateProjectionMatrix();
-            }
-        }, [zoom, camera]);
-        return null;
-    };
     const [opacity, setOpacity] = useState(100);
     const [selectedFrame, setSelectedFrame] = useState('free');
     const [zoom, setZoom] = useState(100); // Default to 100%
@@ -54,10 +42,9 @@ export default function CameraModal({
     const sceneRef = useRef(null);
     const camRef   = useRef(null);
 
-    if (!isOpen) return null;
-
     // Sync scroll wheel with zoom state
     React.useEffect(() => {
+        if (!isOpen) return;
         const wrapper = zoomWrapperRef.current;
         if (!wrapper) return;
 
@@ -69,7 +56,9 @@ export default function CameraModal({
 
         wrapper.addEventListener('wheel', handleWheel, { passive: false });
         return () => wrapper.removeEventListener('wheel', handleWheel);
-    }, []);
+    }, [isOpen]);
+
+    if (!isOpen) return null;
 
     const handleTakeShot = () => {
         setIsCapturing(true);
@@ -609,7 +598,7 @@ export default function CameraModal({
                                                     gl.shadowMap.type = THREE.PCFShadowMap;
                                                 }}
                                             >
-                                                <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
+                                                <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} zoom={zoom / 100} />
                                                 {(() => {
                                                     const rawX = materialSettings?.lightPosition?.x ?? 10;
                                                     const rawY = materialSettings?.lightPosition?.y ?? 10;
@@ -678,7 +667,6 @@ export default function CameraModal({
                                                     rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
                                                 />
                                                 <OrbitControls makeDefault enableDamping={true} dampingFactor={0.1} enableZoom={false} target={[0, 0, 0]} />
-                                                <ZoomManager zoom={zoom} />
                                             </Canvas>
                                         </Suspense>
 

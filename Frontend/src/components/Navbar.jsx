@@ -108,6 +108,22 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
           </Link>
 
           {isThreedEditor && (
+            <>
+            <button
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  if (!window.confirm("Leave 3D Editor?\n\nUnsaved changes might be lost.")) {
+                    return;
+                  }
+                }
+                navigate('/my-flipbooks');
+              }}
+              className="flex items-center gap-[0.45vw] px-[0.85vw] py-[0.4vw] bg-white hover:bg-gray-50 text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+              title="Go to My Flipbook"
+            >
+              <Icon icon="solar:home-2-linear" className="w-[1vw] h-[1vw] text-[#ea543a]" />
+              <span>Go to My Flipbook</span>
+            </button>
             <button
               onClick={() => {
                 if (hasUnsavedChanges) {
@@ -117,12 +133,13 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
                 }
                 navigate('/3d-editor');
               }}
-              className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] bg-gray-100 hover:bg-[#fff5f3] hover:text-[#ea543a] text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200/80 transition-all cursor-pointer whitespace-nowrap"
-              title="Back to 3D Dashboard"
+              className="flex items-center gap-[0.45vw] px-[0.85vw] py-[0.4vw] bg-white hover:bg-gray-50 text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+              title="Go to My Flipbook"
             >
-              <Icon icon="ph:arrow-left-bold" className="w-[0.85vw] h-[0.85vw] text-[#ea543a]" />
+              <Icon icon="lucide:arrow-left" className="w-[1vw] h-[1vw] text-[#ea543a]" />
               <span>3D Dashboard</span>
             </button>
+            </>
           )}
 
           {/* Navigation Links - Hidden on 3D editor or small screens to prevent overlap */}
@@ -242,9 +259,108 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
 
         {/* Right Section - Actions */}
         <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
+          {isThreedEditor ? (
+            <>
+              {/* Saved Badge */}
+              <div className="flex items-center gap-[0.4vw] text-emerald-600 font-semibold text-[0.78vw] bg-emerald-50 px-[0.7vw] py-[0.35vw] rounded-full border border-emerald-200/80 shadow-2xs">
+                <Icon icon="solar:check-circle-bold" className="w-[0.95vw] h-[0.95vw] text-emerald-500" />
+                <span>Saved</span>
+              </div>
 
-          {/* Action Button (Add 3D Model / Go To Editor) */}
-          <div className="relative group/tooltip flex items-center ml-[0.2vw]">
+              {/* Save Button */}
+              <div className="relative group/tooltip flex items-center ml-[0.2vw]">
+                <button
+                  onClick={onSave}
+                  disabled={isSaving}
+                  className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm cursor-pointer active:scale-95
+                    ${hasUnsavedChanges 
+                        ? 'bg-[#FFFBEB] text-yellow-600 hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
+                        : 'bg-[#F2FDF8] text-green-600 hover:bg-green-100 ring-[0.06vw] ring-green-300'
+                    }`}
+                  title="Save"
+                >
+                  {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
+                </button>
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
+                  <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
+                  <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                    {hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "Click to Save"}
+                  </div>
+                </div>
+
+                {/* Success Toast Popup */}
+                {saveSuccessInfo && (saveSuccessInfo.isManual || !isAutoSaveEnabled) && (
+                  <div className="absolute top-full right-0 mt-[0.5vw] w-[12vw] z-[99999] animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="bg-[#5CBC49] rounded-[0.5vw] shadow-2xl p-[0.6vw] text-white relative">
+                      <div className="absolute -top-[0.2vw] right-[1vw] w-[0.6vw] h-[0.6vw] bg-[#5CBC49] rotate-45 transform"></div>
+                      <div className="flex items-center gap-[0.4vw]">
+                        <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                          <Icon icon="lucide:check" className="w-[0.8vw] h-[0.8vw] text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.75vw] font-semibold truncate">{saveSuccessInfo.name || '3D Model'}</p>
+                          <p className="text-[0.65vw] text-white/90">Saved successfully</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Save As Copy Button */}
+              {onSaveAs && (
+                <div className="relative group/tooltip flex items-center ml-[0.2vw]">
+                  <button
+                    onClick={onSaveAs}
+                    disabled={isSaving}
+                    className="p-[0.6vw] bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 cursor-pointer rounded-[0.5vw] transition-all border border-gray-200/80 active:scale-95 shadow-xs flex items-center justify-center"
+                    title="Save As Copy"
+                  >
+                    <Icon icon="material-symbols:save-as-outline-rounded" className="w-[1.2vw] h-[1.2vw]" />
+                  </button>
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
+                    <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
+                    <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                      Save As Copy
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Publish Button */}
+              <div className="relative flex items-center ml-[0.3vw]">
+                <button
+                  onClick={onPublish}
+                  className="flex items-center gap-[0.4vw] px-[1.1vw] py-[0.5vw] text-[0.8vw] font-bold cursor-pointer rounded-[0.5vw] bg-[#ea543a] hover:bg-[#d9442a] text-white shadow-sm transition-all active:scale-95"
+                >
+                  <Icon icon="solar:book-2-bold" className="w-[1vw] h-[1vw]" />
+                  <span>Publish</span>
+                </button>
+              </div>
+
+              {/* User Avatar */}
+              <div
+                onClick={() => setIsProfileOpen(true)}
+                className="flex items-center gap-[0.35vw] cursor-pointer p-[0.2vw] hover:opacity-90 transition-opacity ml-[0.3vw]"
+              >
+                <div className="w-[2.1vw] h-[2.1vw] rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center shadow-2xs">
+                  <img
+                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces"
+                    alt="User"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                  <User size="1.2vw" className="text-gray-500" />
+                </div>
+                <ChevronDown size="0.85vw" className="text-gray-500" />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Action Button (Add 3D Model / Go To Editor) */}
+              <div className="relative group/tooltip flex items-center ml-[0.2vw]">
             <button 
               onClick={() => {
                 if (hasUnsavedChanges) {
@@ -489,8 +605,10 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
               </>
             )}
           </div>
-        </div>
-      </nav>
+        </>
+      )}
+    </div>
+  </nav>
 
       {/* Render Profile Modal */}
       <ProfileModal 

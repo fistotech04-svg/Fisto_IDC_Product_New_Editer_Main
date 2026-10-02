@@ -6,7 +6,7 @@ function toComparableArray(val) {
     if (val instanceof Set) return Array.from(val).sort();
     try {
         return Array.from(val).sort();
-    } catch (_) {
+    } catch {
         return [];
     }
 }
@@ -37,11 +37,14 @@ function areStatesEqual(a, b) {
         // Compare meshTransforms (individual child mesh transforms)
         if (JSON.stringify(a.meshTransforms || {}) !== JSON.stringify(b.meshTransforms || {})) return false;
 
+        // Compare customizedMaterials (per-material user customizations across all meshes)
+        if (JSON.stringify(a.customizedMaterials || {}) !== JSON.stringify(b.customizedMaterials || {})) return false;
+
         // Compare materialSettings
         if (JSON.stringify(a.materialSettings) !== JSON.stringify(b.materialSettings)) return false;
 
         return true;
-    } catch (_) {
+    } catch {
         return false;
     }
 }
@@ -113,7 +116,7 @@ export default function useModalHistory(initialState) {
         setHistory(curHistory);
     }, []);
 
-    const currentState = history[index] || historyRef.current[indexRef.current];
+    const currentState = history[index] ?? history[0] ?? null;
 
     return {
         state: currentState,
