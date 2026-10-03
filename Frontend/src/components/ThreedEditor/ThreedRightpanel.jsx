@@ -15,12 +15,14 @@ import React, { useRef, useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
 import Customized from "./Customized";
+import CameraSnapshotSection from "./Components/CameraSnapshotSection";
 import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
 export default function RightPanel({
   onFileProcess,
   hasModel,
   onExport,
+  onCaptureSnapshot,
   autoRotate,
   setAutoRotate,
   xrayMode,
@@ -181,7 +183,7 @@ export default function RightPanel({
       </div>
 
       {/* ─── TAB CONTENT ─── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-[1vw] custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-[1vw] custom-scrollbar">
         {/* TAB 2: LAYERS (Image 3) */}
         {activeRightTab === "layers" ? (
           <div className="h-full flex flex-col bg-white">
@@ -710,6 +712,13 @@ export default function RightPanel({
                     onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("fov", v)}
                   />
                 </div>
+
+                {/* Camera Snapshot & Multi-format Export with Card View & Custom Background */}
+                <CameraSnapshotSection
+                  onCaptureSnapshot={onCaptureSnapshot}
+                  modelName={modelName}
+                  disabled={!hasModel}
+                />
               </div>
             )}
 

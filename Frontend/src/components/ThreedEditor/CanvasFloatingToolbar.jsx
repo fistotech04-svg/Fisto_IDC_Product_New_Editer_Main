@@ -177,24 +177,6 @@ export default function CanvasFloatingToolbar({
       {/* ─── BOTTOM FLOATING NAVIGATION BAR ─── */}
       <div className="absolute bottom-[1.2vw] left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none">
         <div className="bg-[#181b20]/90 backdrop-blur-md px-[1.2vw] py-[0.55vw] rounded-[0.8vw] border border-white/10 shadow-2xl flex items-center gap-[1.6vw] text-white">
-          {/* Orbit Button */}
-          <button
-            type="button"
-            onClick={() => onSelectNavMode && onSelectNavMode("orbit")}
-            className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${
-              navMode === "orbit" ? "text-white" : "text-gray-300 hover:text-white"
-            }`}
-            title="Orbit View (Rotate)"
-          >
-            <Icon
-              icon="hugeicons:bitcoin-target"
-              className={`w-[1.15vw] h-[1.15vw] transition-transform group-hover:scale-110 ${
-                navMode === "orbit" ? "text-[#ea543a]" : "text-gray-200"
-              }`}
-            />
-            <span className="text-[0.62vw] font-normal mt-[0.2vw]">Orbit</span>
-          </button>
-
           {/* Hand / Pan Button */}
           <button
             type="button"

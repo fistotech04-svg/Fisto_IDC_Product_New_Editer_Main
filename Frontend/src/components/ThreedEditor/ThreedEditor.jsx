@@ -542,6 +542,7 @@ export default function ThreedEditor() {
   const modelRefs = useRef(new Map());
   const glInstanceRef = useRef(null);
   const cameraInstanceRef = useRef(null);
+  const sceneInstanceRef = useRef(null);
   const originalTransformRef = useRef(null);
   const meshTransformsRef = useRef({});
   const handleSelectMaterialRef = useRef(null);
@@ -2329,6 +2330,119 @@ export default function ThreedEditor() {
     await handleSave({ isSaveAs: true, newName: trimmed });
   };
 
+  // ─── CAMERA SNAPSHOT CAPTURE HANDLER ────────────────────────────
+  const handleCaptureSnapshot = useCallback(async ({ bgType = "transparent", solidColor = "#FFFFFF", bgOpacity = 100, customImage = null }) => {
+    const gl = glInstanceRef.current;
+    const camera = cameraInstanceRef.current;
+    const scene = sceneInstanceRef.current || (gl?.domElement ? null : null);
+
+    if (!gl || !camera) {
+      console.warn("WebGL renderer or camera not ready for snapshot capture");
+      return null;
+    }
+
+    try {
+      // 1. Temporarily activate capturing mode (hides gizmos, grids, hotspots, floor planes)
+      setIsCapturing(true);
+
+      // Give React one frame / microtick to re-render without gizmos
+      await new Promise(r => setTimeout(r, 60));
+
+      const domCanvas = gl.domElement;
+      const dpr = gl.getPixelRatio();
+      const origW = domCanvas.width / dpr;
+      const origH = domCanvas.height / dpr;
+      const ratio = origW / origH;
+
+      // Render crisp snapshot at 2048px on longest side
+      const CAPTURE_PX = 2048;
+      const capW = ratio >= 1 ? CAPTURE_PX : Math.round(CAPTURE_PX * ratio);
+      const capH = ratio >= 1 ? Math.round(CAPTURE_PX / ratio) : CAPTURE_PX;
+
+      // Render with clean background
+      const prevClearAlpha = gl.getClearAlpha ? gl.getClearAlpha() : 1;
+      const prevClearColor = new THREE.Color();
+      if (gl.getClearColor) gl.getClearColor(prevClearColor);
+
+      gl.setClearAlpha(0);
+      gl.setPixelRatio(1);
+      gl.setSize(capW, capH, false);
+
+      const targetScene = scene || gl.scene;
+      if (targetScene) {
+        gl.render(targetScene, camera);
+      }
+
+      // 2. Composite onto 2D canvas with chosen background
+      const compositeCanvas = document.createElement("canvas");
+      compositeCanvas.width = capW;
+      compositeCanvas.height = capH;
+      const ctx = compositeCanvas.getContext("2d");
+
+      const alphaVal = typeof bgOpacity === "number" ? Math.max(0, Math.min(1, bgOpacity / 100)) : 1.0;
+
+      if (bgType === "solid") {
+        ctx.globalAlpha = alphaVal;
+        ctx.fillStyle = solidColor || "#FFFFFF";
+        ctx.fillRect(0, 0, capW, capH);
+        ctx.globalAlpha = 1.0;
+      } else if (bgType === "customImage" && customImage) {
+        // Draw user custom backdrop image with cover fitting
+        await new Promise((resolve) => {
+          const bgImg = new Image();
+          bgImg.onload = () => {
+            const imgRatio = bgImg.width / bgImg.height;
+            let drawW = capW;
+            let drawH = capH;
+            let offX = 0;
+            let offY = 0;
+
+            if (imgRatio > ratio) {
+              drawW = capH * imgRatio;
+              offX = (capW - drawW) / 2;
+            } else {
+              drawH = capW / imgRatio;
+              offY = (capH - drawH) / 2;
+            }
+
+            ctx.globalAlpha = alphaVal;
+            ctx.drawImage(bgImg, offX, offY, drawW, drawH);
+            ctx.globalAlpha = 1.0;
+            resolve();
+          };
+          bgImg.onerror = () => {
+            // Fallback to white if image fails to load
+            ctx.globalAlpha = alphaVal;
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, capW, capH);
+            ctx.globalAlpha = 1.0;
+            resolve();
+          };
+          bgImg.src = customImage;
+        });
+      }
+      // If bgType === 'transparent', canvas starts clear with full alpha transparency
+
+      // 3. Draw 3D model render layer on top
+      ctx.drawImage(domCanvas, 0, 0);
+
+      const dataUrl = compositeCanvas.toDataURL("image/png");
+
+      // 4. Restore original viewport size and settings
+      gl.setPixelRatio(dpr);
+      gl.setSize(origW, origH, false);
+      if (gl.setClearColor) gl.setClearColor(prevClearColor, prevClearAlpha);
+      if (targetScene) gl.render(targetScene, camera);
+
+      return dataUrl;
+    } catch (err) {
+      console.error("Camera snapshot capture error:", err);
+      return null;
+    } finally {
+      setIsCapturing(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (setSaveHandler) {
       setSaveHandler(() => handleSave);
@@ -3684,25 +3798,10 @@ export default function ThreedEditor() {
     }
     setXrayMaterials(next);
 
-    let nextMaterialSettings = materialSettings;
-    if (!isCurrentlyXray) {
-      nextMaterialSettings = {
-        ...materialSettings,
-        color: '#2a7a94',         // much darker steel-cyan
-        emissiveColor: '#1a5468',
-        emissiveIntensity: 100,
-        roughness: 42,
-        metallic: 0,
-        alpha: 50
-      };
-      setMaterialSettings(nextMaterialSettings);
-    }
-
     commitHistoryNow(buildSnapshot({
-      xrayMaterials: Array.from(next),
-      materialSettings: nextMaterialSettings
+      xrayMaterials: Array.from(next)
     }));
-  }, [xrayMaterials, xrayMode, materialSettings, commitHistoryNow, buildSnapshot]);
+  }, [xrayMaterials, xrayMode, commitHistoryNow, buildSnapshot]);
 
   // Auto-expand sidebar when a specific material is selected
   useEffect(() => {
@@ -5206,8 +5305,15 @@ export default function ThreedEditor() {
         }
 
         next.maps = {
-          ...(prev.maps || {}),
-          ...finalMaps,
+          map: finalMaps.map || null,
+          normalMap: finalMaps.normalMap || null,
+          roughnessMap: finalMaps.roughnessMap || null,
+          metalnessMap: finalMaps.metalnessMap || null,
+          displacementMap: null,
+          aoMap: finalMaps.aoMap || null,
+          emissiveMap: finalMaps.emissiveMap || null,
+          alphaMap: finalMaps.alphaMap || null,
+          bumpMap: finalMaps.bumpMap || null,
           ...(prev.customEnvMap || prev.maps?.envMap ? { envMap: prev.customEnvMap || prev.maps?.envMap } : {})
         };
         // Set factors to 100% when applying a full texture set
@@ -5813,9 +5919,10 @@ export default function ThreedEditor() {
                         powerPreference: "high-performance"
                       }}
                       shadows={{ type: THREE.PCFShadowMap }}
-                      onCreated={({ gl, camera }) => {
+                      onCreated={({ gl, camera, scene }) => {
                         glInstanceRef.current = gl;
                         cameraInstanceRef.current = camera;
+                        sceneInstanceRef.current = scene;
                         gl.shadowMap.enabled = true;
                         gl.shadowMap.type = THREE.PCFShadowMap;
                         gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -6154,6 +6261,7 @@ export default function ThreedEditor() {
             onFileProcess={processFile}
             hasModel={models.length > 0}
             onExport={() => setShowExportModal(true)}
+            onCaptureSnapshot={handleCaptureSnapshot}
             autoRotate={autoRotate}
             setAutoRotate={setAutoRotate}
             xrayMode={xrayMode}
