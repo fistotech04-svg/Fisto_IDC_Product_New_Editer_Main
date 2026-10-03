@@ -11,15 +11,15 @@ export default function CanvasFloatingToolbar({
   transformMode = "select",
   onSelectTransformMode,
   canTransform = true,
-  xrayMode = false,
-  onToggleXray,
-  hasXrayActive = false,
+  navMode = "orbit",
+  onSelectNavMode,
+  onZoomIn,
+  onZoomOut,
+  onResetView,
   canUndo = false,
   canRedo = false,
   onUndo,
   onRedo,
-  targetPosition = { x: 0, y: 0, z: 0 },
-  onResetPosition
 }) {
   const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
   const viewMenuRef = useRef(null);
@@ -46,178 +46,208 @@ export default function CanvasFloatingToolbar({
   ];
 
   const transformTools = [
-    { id: "select", label: "Select", icon: "solar:cursor-bold-duotone" },
-    { id: "translate", label: "Move", icon: "si:move-line" },
-    { id: "rotate", label: "Rotate", icon: "mdi:rotate-orbit" },
+    { id: "select", label: "Select", icon: "clarity:cursor-arrow-line" },
+    { id: "translate", label: "Move", icon: "iconamoon:move-thin" },
+    { id: "rotate", label: "Rotate", icon: "hugeicons:rotate-01" },
     { id: "scale", label: "Scale", icon: "solar:scale-outline" }
   ];
 
   return (
     <>
-      {/* ─── TOP FLOATING TOOLBAR PILL ─── */}
-      <div className="absolute top-[1.2vw] left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none">
-        <div className="flex items-center gap-[0.7vw] bg-[#1a1d21]/90 backdrop-blur-md px-[0.9vw] py-[0.4vw] rounded-full border border-white/10 shadow-2xl text-white text-[0.75vw]">
-          
-          {/* Perspective Dropdown */}
-          <div className="relative" ref={viewMenuRef}>
-            <button
-              onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
-              className="flex items-center gap-[0.4vw] text-gray-200 hover:text-white px-[0.4vw] py-[0.2vw] rounded-full hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <Icon icon="solar:camera-bold-duotone" className="w-[1vw] h-[1vw] text-gray-300" />
-              <span className="font-medium text-[0.75vw]">{cameraMode}</span>
-              <Icon icon="heroicons:chevron-down-20-solid" className={`w-[0.8vw] h-[0.8vw] transition-transform ${isViewMenuOpen ? "rotate-180" : ""}`} />
-            </button>
+      {/* ─── TOP CENTER FLOATING TOOLBAR ─── */}
+      <div className="absolute top-[1.2vw] left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none flex items-center gap-[0.6vw]">
+        {/* Perspective Dropdown Capsule */}
+        <div className="relative" ref={viewMenuRef}>
+          <button
+            onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
+            className="flex items-center gap-[0.45vw] bg-[#181b20]/90 backdrop-blur-md px-[0.75vw] py-[0.4vw] rounded-[0.55vw] border border-white/10 shadow-xl text-gray-200 hover:text-white hover:bg-[#23272e]/90 transition-colors cursor-pointer"
+          >
+            <Icon icon="ant-design:camera-outlined" className="w-[1vw] h-[1vw] text-gray-300" />
+            <span className="font-medium text-[0.75vw]">{cameraMode}</span>
+            <Icon icon="heroicons:chevron-down-20-solid" className={`w-[0.8vw] h-[0.8vw] transition-transform duration-200 ${isViewMenuOpen ? "rotate-180" : ""}`} />
+          </button>
 
-            {isViewMenuOpen && (
-              <div className="absolute top-full left-0 mt-[0.5vw] w-[9vw] bg-[#1f2329]/95 backdrop-blur-lg border border-white/15 rounded-[0.6vw] shadow-2xl py-[0.3vw] z-50 text-white animate-in fade-in zoom-in-95 duration-150">
-                {cameraOptions.map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => {
-                      setIsViewMenuOpen(false);
-                      onSelectCameraView && onSelectCameraView(opt.id);
-                    }}
-                    className={`w-full text-left px-[0.7vw] py-[0.35vw] text-[0.72vw] font-medium hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between ${
-                      cameraMode.toLowerCase().includes(opt.id) ? "text-[#ea543a]" : "text-gray-200"
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                    {cameraMode.toLowerCase().includes(opt.id) && (
-                      <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-[#ea543a]" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {isViewMenuOpen && (
+            <div className="absolute top-full left-0 mt-[0.4vw] w-[9.5vw] bg-[#1a1d22]/95 backdrop-blur-lg border border-white/15 rounded-[0.6vw] shadow-2xl py-[0.3vw] z-50 text-white animate-in fade-in zoom-in-95 duration-150">
+              {cameraOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    setIsViewMenuOpen(false);
+                    onSelectCameraView && onSelectCameraView(opt.id);
+                  }}
+                  className={`w-full text-left px-[0.75vw] py-[0.4vw] text-[0.72vw] font-medium hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between ${
+                    cameraMode.toLowerCase().includes(opt.id) ? "text-[#ea543a]" : "text-gray-200"
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {cameraMode.toLowerCase().includes(opt.id) && (
+                    <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-[#ea543a]" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-          <div className="w-[1px] h-[1.1vw] bg-white/15" />
-
-          {/* Wireframe Button (Turns bright coral/orange when active) */}
+        {/* Wireframe & Shades Capsule */}
+        <div className="flex items-center gap-[0.3vw] bg-[#181b20]/90 backdrop-blur-md p-[0.25vw] rounded-[0.55vw] border border-white/10 shadow-xl">
+          {/* Wireframe Button */}
           <button
             onClick={onToggleWireframe}
-            className={`flex items-center gap-[0.35vw] px-[0.7vw] py-[0.25vw] rounded-full text-[0.72vw] font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${
               isWireframe
                 ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
                 : "text-gray-300 hover:text-white hover:bg-white/10"
             }`}
           >
-            <Icon icon="solar:box-minimalistic-linear" className="w-[0.9vw] h-[0.9vw]" />
+            <Icon icon="ph:polygon-light" className="w-[0.95vw] h-[0.95vw]" />
             <span>Wireframe</span>
           </button>
 
+          {/* Shades Button */}
+          <button
+            onClick={onToggleShades}
+            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${
+              isShades
+                ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
+                : "text-gray-300 hover:text-white hover:bg-white/10"
+            }`}
+          >
+            <Icon icon="carbon:circle-solid" className="w-[0.85vw] h-[0.85vw]" />
+            <span>Shades</span>
+          </button>
+        </div>
 
-
-          <div className="w-[1px] h-[1.1vw] bg-white/15" />
-
-          {/* Shades Switch */}
-          <div className="flex items-center gap-[0.45vw] px-[0.2vw]">
+        {/* Optional Undo / Redo controls if provided */}
+        {(onUndo || onRedo) && (
+          <div className="flex items-center gap-[0.2vw] bg-[#181b20]/90 backdrop-blur-md p-[0.25vw] rounded-[0.55vw] border border-white/10 shadow-xl">
             <button
-              onClick={onToggleShades}
-              className={`w-[1.8vw] h-[1vw] rounded-full flex items-center px-[0.15vw] transition-colors cursor-pointer ${
-                isShades ? "bg-white" : "bg-white/30"
+              onClick={onUndo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+              className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${
+                canUndo
+                  ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
+                  : "text-gray-600 cursor-not-allowed opacity-40"
               }`}
             >
-              <div
-                className={`w-[0.75vw] h-[0.75vw] rounded-full transition-transform ${
-                  isShades ? "bg-[#1a1d21] translate-x-[0.75vw]" : "bg-white translate-x-0"
-                }`}
-              />
+              <Icon icon="lucide:undo-dot" className="w-[0.95vw] h-[0.95vw]" />
             </button>
-            <span className="text-[0.72vw] font-medium text-gray-200">Shades</span>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Y)"
+              className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${
+                canRedo
+                  ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
+                  : "text-gray-600 cursor-not-allowed opacity-40"
+              }`}
+            >
+              <Icon icon="lucide:redo-dot" className="w-[0.95vw] h-[0.95vw]" />
+            </button>
           </div>
-
-          {(onUndo || onRedo) && (
-            <>
-              <div className="w-[1px] h-[1.1vw] bg-white/15" />
-              <div className="flex items-center gap-[0.15vw]">
-                <button
-                  onClick={onUndo}
-                  disabled={!canUndo}
-                  title="Undo (Ctrl+Z)"
-                  className={`w-[1.6vw] h-[1.6vw] rounded-full flex items-center justify-center transition-colors ${
-                    canUndo
-                      ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
-                      : "text-gray-600 cursor-not-allowed opacity-40"
-                  }`}
-                >
-                  <Icon icon="lucide:undo-dot" className="w-[0.95vw] h-[0.95vw]" />
-                </button>
-                <button
-                  onClick={onRedo}
-                  disabled={!canRedo}
-                  title="Redo (Ctrl+Y)"
-                  className={`w-[1.6vw] h-[1.6vw] rounded-full flex items-center justify-center transition-colors ${
-                    canRedo
-                      ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
-                      : "text-gray-600 cursor-not-allowed opacity-40"
-                  }`}
-                >
-                  <Icon icon="lucide:redo-dot" className="w-[0.95vw] h-[0.95vw]" />
-                </button>
-              </div>
-            </>
-          )}
-
-        </div>
+        )}
       </div>
 
-      {/* ─── RIGHT FLOATING TOOL DOCK ─── */}
+      {/* ─── RIGHT FLOATING TRANSFORM DOCK ─── */}
       <div className="absolute right-[1.2vw] top-1/2 -translate-y-1/2 z-30 pointer-events-auto select-none">
-        <div className="bg-[#1a1d21]/90 backdrop-blur-md p-[0.35vw] rounded-[0.8vw] border border-white/10 shadow-2xl flex flex-col items-center gap-[0.35vw]">
+        <div className="bg-[#181b20]/90 backdrop-blur-md p-[0.35vw] rounded-[0.7vw] border border-white/10 shadow-2xl flex flex-col items-center gap-[0.35vw]">
           {transformTools.map((tool) => {
             const isActive = transformMode === tool.id;
             return (
               <button
                 key={tool.id}
                 onClick={() => onSelectTransformMode && onSelectTransformMode(tool.id)}
-                title={tool.id.toUpperCase()}
-                className={`w-[2.4vw] h-[2.4vw] rounded-[0.55vw] flex flex-col items-center justify-center transition-all cursor-pointer ${
+                title={tool.label}
+                className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex flex-col items-center justify-center transition-all cursor-pointer ${
                   isActive
                     ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
-                    : "text-gray-400 hover:text-white hover:bg-white/10"
+                    : "text-gray-300 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Icon icon={tool.icon} className="w-[1.05vw] h-[1.05vw]" />
-                <span className="text-[0.45vw] font-semibold leading-none mt-[0.1vw]">{tool.label}</span>
+                <span className="text-[0.48vw] font-medium leading-none mt-[0.18vw]">{tool.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ─── BOTTOM-LEFT COORDINATES & RESET BADGE ─── */}
-      {targetPosition && (
-        <div className="absolute left-[1.2vw] bottom-[1.2vw] z-30 pointer-events-auto select-none">
-          <div className="bg-[#1a1d21]/90 backdrop-blur-md px-[0.8vw] py-[0.35vw] rounded-[0.6vw] border border-white/10 shadow-2xl flex items-center gap-[0.8vw] text-white">
-            <div className="text-[0.68vw] font-semibold flex items-baseline gap-[0.3vw]">
-              <span className="text-gray-400 uppercase tracking-widest text-[0.52vw]">X</span>
-              <span className="text-gray-200 min-w-[1.2vw] text-left">{targetPosition?.x ?? 0}</span>
-            </div>
-            <div className="text-[0.68vw] font-semibold flex items-baseline gap-[0.3vw]">
-              <span className="text-gray-400 uppercase tracking-widest text-[0.52vw]">Y</span>
-              <span className="text-gray-200 min-w-[1.2vw] text-left">{targetPosition?.y ?? 0}</span>
-            </div>
-            <div className="text-[0.68vw] font-semibold flex items-baseline gap-[0.3vw]">
-              <span className="text-gray-400 uppercase tracking-widest text-[0.52vw]">Z</span>
-              <span className="text-gray-200 min-w-[1.2vw] text-left">{targetPosition?.z ?? 0}</span>
-            </div>
-            {onResetPosition && (
-              <>
-                <div className="h-[0.9vw] w-[1px] bg-white/15" />
-                <button
-                  onClick={onResetPosition}
-                  className="text-[0.65vw] font-bold text-[#ea543a] hover:text-[#ff6b52] uppercase tracking-wider transition-colors cursor-pointer"
-                  title="Reset Coordinates"
-                >
-                  Reset
-                </button>
-              </>
-            )}
-          </div>
+      {/* ─── BOTTOM FLOATING NAVIGATION BAR ─── */}
+      <div className="absolute bottom-[1.2vw] left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none">
+        <div className="bg-[#181b20]/90 backdrop-blur-md px-[1.2vw] py-[0.55vw] rounded-[0.8vw] border border-white/10 shadow-2xl flex items-center gap-[1.6vw] text-white">
+          {/* Orbit Button */}
+          <button
+            type="button"
+            onClick={() => onSelectNavMode && onSelectNavMode("orbit")}
+            className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${
+              navMode === "orbit" ? "text-white" : "text-gray-300 hover:text-white"
+            }`}
+            title="Orbit View (Rotate)"
+          >
+            <Icon
+              icon="hugeicons:bitcoin-target"
+              className={`w-[1.15vw] h-[1.15vw] transition-transform group-hover:scale-110 ${
+                navMode === "orbit" ? "text-[#ea543a]" : "text-gray-200"
+              }`}
+            />
+            <span className="text-[0.62vw] font-normal mt-[0.2vw]">Orbit</span>
+          </button>
+
+          {/* Hand / Pan Button */}
+          <button
+            type="button"
+            onClick={() => onSelectNavMode && onSelectNavMode("pan")}
+            className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${
+              navMode === "pan" ? "text-white" : "text-gray-300 hover:text-white"
+            }`}
+            title="Hand / Pan View"
+          >
+            <Icon
+              icon="famicons:hand-right-outline"
+              className={`w-[1.15vw] h-[1.15vw] transition-transform group-hover:scale-110 ${
+                navMode === "pan" ? "text-[#ea543a]" : "text-gray-200"
+              }`}
+            />
+            <span className="text-[0.62vw] font-normal mt-[0.2vw]">Hand</span>
+          </button>
+
+          {/* Zoom In Button */}
+          <button
+            type="button"
+            onClick={onZoomIn}
+            className="flex flex-col items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer group"
+            title="Zoom In"
+          >
+            <Icon icon="f7:zoom-in" className="w-[1.15vw] h-[1.15vw] text-gray-200 transition-transform group-hover:scale-110" />
+            <span className="text-[0.62vw] font-normal mt-[0.2vw]">Zoom in</span>
+          </button>
+
+          {/* Zoom Out Button */}
+          <button
+            type="button"
+            onClick={onZoomOut}
+            className="flex flex-col items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer group"
+            title="Zoom Out"
+          >
+            <Icon icon="f7:zoom-out" className="w-[1.15vw] h-[1.15vw] text-gray-200 transition-transform group-hover:scale-110" />
+            <span className="text-[0.62vw] font-normal mt-[0.2vw]">Zoom out</span>
+          </button>
+
+          {/* Reset Button */}
+          <button
+            type="button"
+            onClick={onResetView}
+            className="flex flex-col items-center justify-center text-gray-300 hover:text-white transition-colors cursor-pointer group"
+            title="Reset View"
+          >
+            <Icon icon="fluent-mdl2:full-view" className="w-[1.15vw] h-[1.15vw] text-gray-200 transition-transform group-hover:scale-110" />
+            <span className="text-[0.62vw] font-normal mt-[0.2vw]">Reset</span>
+          </button>
         </div>
-      )}
+      </div>
     </>
   );
 }
+

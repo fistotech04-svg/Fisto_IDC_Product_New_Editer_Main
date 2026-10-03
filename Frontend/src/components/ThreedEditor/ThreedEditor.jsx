@@ -271,6 +271,7 @@ export default function ThreedEditor() {
   const [activeLeftTab, setActiveLeftTab] = useState("model"); // 'model' | 'textures' | 'materials' | 'lighting' | 'camera' | 'animation'
   const [cameraViewMode, setCameraViewMode] = useState("Perspective");
   const [isShades, setIsShades] = useState(true);
+  const [navMode, setNavMode] = useState("orbit"); // "orbit" | "pan"
   const [manualLoading, setManualLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -4177,11 +4178,26 @@ export default function ThreedEditor() {
         if (targetKeys.length > 0) {
           const nextCustomMap = { ...(customizedMaterialsRef.current || {}) };
           targetKeys.forEach(tKey => {
+            const prevEntry = nextCustomMap[tKey] || {};
             nextCustomMap[tKey] = {
-              ...(nextCustomMap[tKey] || {}),
+              ...prevEntry,
               [key]: effectiveVal,
               ...(materialKeys.includes(key) ? { useFactorColor: true } : {})
             };
+            if (tKey === '__ALL__') {
+              try {
+                const liveMeshes = [];
+                if (sceneWrapperRef.current) {
+                  sceneWrapperRef.current.traverse((obj) => {
+                    if ((obj.isMesh || obj.isSkinnedMesh) && obj.uuid) {
+                      liveMeshes.push(obj.uuid);
+                      if (obj.name) liveMeshes.push(obj.name);
+                    }
+                  });
+                }
+                nextCustomMap[tKey].__meshes__ = Array.from(new Set(liveMeshes));
+              } catch (_) { /* non-fatal */ }
+            }
           });
           customizedMaterialsRef.current = nextCustomMap;
           setCustomizedMaterials(nextCustomMap);
@@ -4191,12 +4207,13 @@ export default function ThreedEditor() {
           materialSettings: next,
           customizedMaterials: customizedMaterialsRef.current
         });
-        const discreteKeys = ['environment', 'appliedTexture', 'color', 'emissiveColor'];
-        if (discreteKeys.includes(key)) {
+        const instantKeys = ['environment', 'appliedTexture'];
+        if (instantKeys.includes(key)) {
           commitHistoryNow(snapshot);
         } else {
-          commitHistoryDebounced(snapshot);
+          commitHistoryDebounced(snapshot, key === 'color' || key === 'emissiveColor' ? 500 : 400);
         }
+
       } else {
         // When syncing from model to UI, ensure factor override and lastChangedProp are disabled
         next.useFactorColor = false;
@@ -4845,6 +4862,30 @@ export default function ThreedEditor() {
     setIsShades(prev => !prev);
   }, []);
 
+  const handleZoomIn = useCallback(() => {
+    if (controlsRef.current && cameraInstanceRef.current) {
+      const camera = cameraInstanceRef.current;
+      const target = controlsRef.current.target || new THREE.Vector3(0, 0, 0);
+      const offset = new THREE.Vector3().subVectors(camera.position, target);
+      if (offset.length() > 0.6) {
+        camera.position.copy(target).addScaledVector(offset, 0.82);
+        controlsRef.current.update();
+      }
+    }
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (controlsRef.current && cameraInstanceRef.current) {
+      const camera = cameraInstanceRef.current;
+      const target = controlsRef.current.target || new THREE.Vector3(0, 0, 0);
+      const offset = new THREE.Vector3().subVectors(camera.position, target);
+      if (offset.length() < 120) {
+        camera.position.copy(target).addScaledVector(offset, 1.22);
+        controlsRef.current.update();
+      }
+    }
+  }, []);
+
   const handleManualTransformChange = (type, axis, value, isDragging = false) => {
     let numVal = parseFloat(value);
     if (isNaN(numVal)) return;
@@ -5186,16 +5227,17 @@ export default function ThreedEditor() {
       if (targetKeys.length > 0) {
         const nextCustomMap = { ...(customizedMaterialsRef.current || {}) };
         targetKeys.forEach(tKey => {
+          const prevEntry = nextCustomMap[tKey] || {};
           if (isReset || isNone) {
             nextCustomMap[tKey] = {
-              ...(nextCustomMap[tKey] || {}),
+              ...prevEntry,
               appliedTexture: null,
               maps: next.maps,
               useFactorColor: true
             };
           } else {
             nextCustomMap[tKey] = {
-              ...(nextCustomMap[tKey] || {}),
+              ...prevEntry,
               appliedTexture: newTexture,
               maps: next.maps,
               metallic: next.metallic,
@@ -5208,7 +5250,23 @@ export default function ThreedEditor() {
               useFactorColor: true
             };
           }
+          // ✅ FIX: Tag __ALL__ entries with the current mesh allowlist
+          if (tKey === '__ALL__') {
+            try {
+              const liveMeshes = [];
+              if (sceneWrapperRef.current) {
+                sceneWrapperRef.current.traverse((obj) => {
+                  if ((obj.isMesh || obj.isSkinnedMesh) && obj.uuid) {
+                    liveMeshes.push(obj.uuid);
+                    if (obj.name) liveMeshes.push(obj.name);
+                  }
+                });
+              }
+              nextCustomMap[tKey].__meshes__ = Array.from(new Set(liveMeshes));
+            } catch (_) { /* non-fatal */ }
+          }
         });
+
         customizedMaterialsRef.current = nextCustomMap;
         setCustomizedMaterials(nextCustomMap);
       }
@@ -5220,7 +5278,14 @@ export default function ThreedEditor() {
         selectedTextureId: newTextureId
       }));
 
+      // ✅ FIX: When the user clears the texture (None / revert), force a resetKey bump
+      // so GenericModel's deterministic reset path runs and restores the original GLTF map.
+      if (isReset || isNone) {
+        setResetKey(prev => prev + 1);
+      }
+
       return next;
+
     });
   }, [commitHistoryNow, buildSnapshot, getMaterialTargetKeys]);
 
@@ -5662,7 +5727,7 @@ export default function ThreedEditor() {
           {/* Full-bleed Canvas Viewport (Straight, edge-to-edge, no card borders/radii) */}
           <div className="flex-1 bg-[#1e2025] relative overflow-hidden flex flex-col w-full h-full">
 
-            {/* Top Floating Pill Toolbar & Right Dock */}
+            {/* Top Floating Pill Toolbar & Right Dock & Bottom Nav */}
             <CanvasFloatingToolbar
               cameraMode={cameraViewMode}
               onSelectCameraView={handleCameraViewChange}
@@ -5670,15 +5735,15 @@ export default function ThreedEditor() {
               onToggleWireframe={handleToggleWireframe}
               isShades={isShades}
               onToggleShades={handleToggleShades}
-              xrayMode={xrayMode}
-              onToggleXray={() => setXrayMode(!xrayMode)}
-              hasXrayActive={Boolean(xrayMode || (xrayMaterials && xrayMaterials.size > 0))}
+              navMode={navMode}
+              onSelectNavMode={setNavMode}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onResetView={handleResetView}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}
               onRedo={handleRedo}
-              targetPosition={targetPosition}
-              onResetPosition={handleResetView}
               transformMode={transformMode || "select"}
               onSelectTransformMode={(mode) => {
                 setTransformMode(mode === "select" ? null : mode);
@@ -5734,7 +5799,7 @@ export default function ThreedEditor() {
               const sunZ = -(Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001 ? 0.01 : rawY);
 
               return (
-                <div className={`flex-1 h-full w-full relative ${isPlacingHotspot ? "cursor-crosshair" : ""}`}>
+                <div className={`flex-1 h-full w-full relative ${isPlacingHotspot ? "cursor-crosshair" : navMode === "pan" ? "cursor-grab active:cursor-grabbing" : ""}`}>
                   {!isSyncing && (
                     <Canvas
                       camera={{ position: [3.5, 3.2, 5.0], fov: 45, near: 0.05, far: 1000 }}
@@ -5931,6 +5996,7 @@ export default function ThreedEditor() {
                         rotateSpeed={1.0}
                         minDistance={0.5}
                         maxDistance={100}
+                        navMode={navMode}
                         onChange={handleControlsChange}
                       />
 
@@ -6041,8 +6107,9 @@ export default function ThreedEditor() {
                   if (targetKeys.length > 0) {
                     nextCustomMap = { ...nextCustomMap };
                     targetKeys.forEach(tKey => {
+                      const prevCustom = nextCustomMap[tKey] || {};
                       nextCustomMap[tKey] = {
-                        ...(nextCustomMap[tKey] || {}),
+                        ...prevCustom,
                         color: next.color,
                         metallic: next.metallic,
                         roughness: next.roughness,
@@ -6051,22 +6118,29 @@ export default function ThreedEditor() {
                         bump: next.bump,
                         emissiveColor: next.emissiveColor,
                         emissiveIntensity: next.emissiveIntensity,
-                        useFactorColor: true
+                        useFactorColor: true,
+                        // ✅ Defensive: never let a color pick erase texture bookkeeping
+                        ...(prevCustom.maps !== undefined ? { maps: prevCustom.maps } : {}),
+                        ...(prevCustom.appliedTexture !== undefined ? { appliedTexture: prevCustom.appliedTexture } : {}),
                       };
                     });
+
                     customizedMaterialsRef.current = nextCustomMap;
                     setCustomizedMaterials(nextCustomMap);
                   }
-                  commitHistoryNow(buildSnapshot({
+                  const snapshot = buildSnapshot({
                     materialSettings: next,
                     customizedMaterials: nextCustomMap
-                  }));
+                  });
+                  // ✅ Debounce so rapid swatch clicks collapse into ONE history step
+                  commitHistoryDebounced(snapshot, 500);
                   return next;
                 });
               } else {
                 handleMaterialUIUpdate('color', colorData);
               }
             }}
+
             selectedColor={materialSettings?.color}
             onAddMaterialClick={() => setShowAddMaterialModal(true)}
             refreshTrigger={materialRefreshKey}

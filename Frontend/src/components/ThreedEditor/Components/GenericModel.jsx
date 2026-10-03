@@ -1148,24 +1148,178 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                     // Surgical replacement: Only replace maps that are provided by the new texture.
                     // This prevents clobbering existing maps (like an original diffuse map) when applying a partial gallery texture.
                     if (newMaps.map) {
+                        // ✅ FIX: Capture originalMap BEFORE first replacement so it can never
+                        // be overwritten by a subsequent gallery texture.
+                        if (!mat.userData.originalMap && mat.map && mat.map.isTexture && mat.map !== newMaps.map) {
+                            mat.userData.originalMap = mat.map;
+                        }
+                        // ✅ Also capture the original transform so we can restore UV repeat/offset/rotation later.
+                        if (mat.map && mat.map.isTexture && mat.map !== newMaps.map) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.map) {
+                                mat.userData.originalTexTransforms.map = {
+                                    repeat: mat.map.repeat ? mat.map.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.map.offset ? mat.map.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.map.rotation || 0,
+                                    center: mat.map.center ? mat.map.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.map.wrapS,
+                                    wrapT: mat.map.wrapT
+                                };
+                            }
+                        }
+
                         mat.map = newMaps.map;
                         mat.userData.appliedMap = newMaps.map;
                         mat.transparent = true;
                         mat.alphaTest = 0.05;
                     }
+
                     if (newMaps.normalMap) {
+                        // ✅ FIX: Capture originalNormalMap and its transform
+                        if (!mat.userData.originalNormalMap && mat.normalMap && mat.normalMap.isTexture && mat.normalMap !== newMaps.normalMap) {
+                            mat.userData.originalNormalMap = mat.normalMap;
+                        }
+                        if (mat.normalMap && mat.normalMap.isTexture && mat.normalMap !== newMaps.normalMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.normalMap) {
+                                mat.userData.originalTexTransforms.normalMap = {
+                                    repeat: mat.normalMap.repeat ? mat.normalMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.normalMap.offset ? mat.normalMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.normalMap.rotation || 0,
+                                    center: mat.normalMap.center ? mat.normalMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.normalMap.wrapS,
+                                    wrapT: mat.normalMap.wrapT
+                                };
+                            }
+                        }
                         mat.normalMap = newMaps.normalMap;
                     }
-                    if (newMaps.bumpMap) {
-                        mat.bumpMap = newMaps.bumpMap;
-                        if (!mat.bumpScale) mat.bumpScale = 0.05;
+
+                    if (newMaps.roughnessMap) {
+                        // ✅ FIX: Capture originalRoughnessMap and its transform
+                        if (!mat.userData.originalRoughnessMap && mat.roughnessMap && mat.roughnessMap.isTexture && mat.roughnessMap !== newMaps.roughnessMap) {
+                            mat.userData.originalRoughnessMap = mat.roughnessMap;
+                        }
+                        if (mat.roughnessMap && mat.roughnessMap.isTexture && mat.roughnessMap !== newMaps.roughnessMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.roughnessMap) {
+                                mat.userData.originalTexTransforms.roughnessMap = {
+                                    repeat: mat.roughnessMap.repeat ? mat.roughnessMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.roughnessMap.offset ? mat.roughnessMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.roughnessMap.rotation || 0,
+                                    center: mat.roughnessMap.center ? mat.roughnessMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.roughnessMap.wrapS,
+                                    wrapT: mat.roughnessMap.wrapT
+                                };
+                            }
+                        }
+                        mat.roughnessMap = newMaps.roughnessMap;
                     }
-                    if (newMaps.aoMap) mat.aoMap = newMaps.aoMap;
+
+                    if (newMaps.metalnessMap) {
+                        // ✅ FIX: Capture originalMetalnessMap and its transform
+                        if (!mat.userData.originalMetalnessMap && mat.metalnessMap && mat.metalnessMap.isTexture && mat.metalnessMap !== newMaps.metalnessMap) {
+                            mat.userData.originalMetalnessMap = mat.metalnessMap;
+                        }
+                        if (mat.metalnessMap && mat.metalnessMap.isTexture && mat.metalnessMap !== newMaps.metalnessMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.metalnessMap) {
+                                mat.userData.originalTexTransforms.metalnessMap = {
+                                    repeat: mat.metalnessMap.repeat ? mat.metalnessMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.metalnessMap.offset ? mat.metalnessMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.metalnessMap.rotation || 0,
+                                    center: mat.metalnessMap.center ? mat.metalnessMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.metalnessMap.wrapS,
+                                    wrapT: mat.metalnessMap.wrapT
+                                };
+                            }
+                        }
+                        mat.metalnessMap = newMaps.metalnessMap;
+                    }
+
+                    if (newMaps.aoMap) {
+                        // ✅ FIX: Capture originalAoMap and its transform (aoMap is NOT typically UV-transformed, but we snapshot for safety)
+                        if (!mat.userData.originalAoMap && mat.aoMap && mat.aoMap.isTexture && mat.aoMap !== newMaps.aoMap) {
+                            mat.userData.originalAoMap = mat.aoMap;
+                        }
+                        if (mat.aoMap && mat.aoMap.isTexture && mat.aoMap !== newMaps.aoMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.aoMap) {
+                                mat.userData.originalTexTransforms.aoMap = {
+                                    repeat: mat.aoMap.repeat ? mat.aoMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.aoMap.offset ? mat.aoMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.aoMap.rotation || 0,
+                                    center: mat.aoMap.center ? mat.aoMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.aoMap.wrapS,
+                                    wrapT: mat.aoMap.wrapT
+                                };
+                            }
+                        }
+                        mat.aoMap = newMaps.aoMap;
+                    }
+
                     if (newMaps.displacementMap) {
+                        // ✅ FIX: Capture originalDisplacementMap and its transform
+                        if (!mat.userData.originalDisplacementMap && mat.displacementMap && mat.displacementMap.isTexture && mat.displacementMap !== newMaps.displacementMap) {
+                            mat.userData.originalDisplacementMap = mat.displacementMap;
+                        }
+                        if (mat.displacementMap && mat.displacementMap.isTexture && mat.displacementMap !== newMaps.displacementMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.displacementMap) {
+                                mat.userData.originalTexTransforms.displacementMap = {
+                                    repeat: mat.displacementMap.repeat ? mat.displacementMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.displacementMap.offset ? mat.displacementMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.displacementMap.rotation || 0,
+                                    center: mat.displacementMap.center ? mat.displacementMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.displacementMap.wrapS,
+                                    wrapT: mat.displacementMap.wrapT
+                                };
+                            }
+                        }
                         mat.displacementMap = newMaps.displacementMap;
                         if (mat.displacementScale === undefined || mat.displacementScale > 0.02) mat.displacementScale = 0.005;
                     }
+
+                    if (newMaps.bumpMap) {
+                        // ✅ FIX: Capture originalBumpMap and its transform
+                        if (!mat.userData.originalBumpMap && mat.bumpMap && mat.bumpMap.isTexture && mat.bumpMap !== newMaps.bumpMap) {
+                            mat.userData.originalBumpMap = mat.bumpMap;
+                        }
+                        if (mat.bumpMap && mat.bumpMap.isTexture && mat.bumpMap !== newMaps.bumpMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.bumpMap) {
+                                mat.userData.originalTexTransforms.bumpMap = {
+                                    repeat: mat.bumpMap.repeat ? mat.bumpMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.bumpMap.offset ? mat.bumpMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.bumpMap.rotation || 0,
+                                    center: mat.bumpMap.center ? mat.bumpMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.bumpMap.wrapS,
+                                    wrapT: mat.bumpMap.wrapT
+                                };
+                            }
+                        }
+                        mat.bumpMap = newMaps.bumpMap;
+                        if (!mat.bumpScale) mat.bumpScale = 0.05;
+                    }
+
                     if (newMaps.alphaMap) {
+                        // ✅ FIX: Capture originalAlphaMap and its transform
+                        if (!mat.userData.originalAlphaMap && mat.alphaMap && mat.alphaMap.isTexture && mat.alphaMap !== newMaps.alphaMap) {
+                            mat.userData.originalAlphaMap = mat.alphaMap;
+                        }
+                        if (mat.alphaMap && mat.alphaMap.isTexture && mat.alphaMap !== newMaps.alphaMap) {
+                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
+                            if (!mat.userData.originalTexTransforms.alphaMap) {
+                                mat.userData.originalTexTransforms.alphaMap = {
+                                    repeat: mat.alphaMap.repeat ? mat.alphaMap.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: mat.alphaMap.offset ? mat.alphaMap.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: mat.alphaMap.rotation || 0,
+                                    center: mat.alphaMap.center ? mat.alphaMap.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: mat.alphaMap.wrapS,
+                                    wrapT: mat.alphaMap.wrapT
+                                };
+                            }
+                        }
                         mat.alphaMap = newMaps.alphaMap;
                         mat.transparent = true;
                     }
@@ -2244,6 +2398,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         const isSceneOrNull = !selMat || targetMatName === modelName || targetMatName === "Scene";
         const isFullModel = isExplicitFullModel || isSceneOrNull;
 
+        // ✅ FIX: Compute texture transforms ONCE at the top so `syncMapTex` never hits TDZ
+        const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 50;
+        const safeScale = Math.max(1, Math.min(1000, isNaN(rawScale) ? 100 : rawScale));
+        const texScaleX = 100 / safeScale;
+        const texScaleY = 100 / safeScale;
+        const texRotation = (materialSettings.rotation ?? 0) * (Math.PI / 180);
+        const texOffsetX = (materialSettings.offset?.x ?? 0) / 100;
+        const texOffsetY = (materialSettings.offset?.y ?? 0) / 100;
+
         const isResetOrUndo = resetKey !== lastApplyResetKeyRef.current;
         lastApplyResetKeyRef.current = resetKey;
 
@@ -2256,6 +2419,21 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
 
         // On reset or undo/redo: restore all mesh materials deterministically from customizedMaterials
         if (isResetOrUndo) {
+            const restoreOriginalTexTransform = (mat, propName) => {
+                const tex = mat[propName];
+                if (!tex || !tex.isTexture) return;
+                const orig = mat.userData.originalTexTransforms?.[propName];
+                if (!orig) return;
+                if (orig.repeat && tex.repeat) tex.repeat.copy(orig.repeat);
+                if (orig.offset && tex.offset) tex.offset.copy(orig.offset);
+                if (orig.rotation !== undefined) tex.rotation = orig.rotation;
+                if (orig.center && tex.center) tex.center.copy(orig.center);
+                if (orig.wrapS !== undefined) tex.wrapS = orig.wrapS;
+                if (orig.wrapT !== undefined) tex.wrapT = orig.wrapT;
+                tex.matrixAutoUpdate = true;
+                if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
+            };
+
             scene.traverse((child) => {
                 if ((!child.isMesh && !child.isSkinnedMesh) || !child.material) return;
 
@@ -2279,10 +2457,28 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                 break;
                             }
                         }
+                        // ✅ FIX: Only apply the __ALL__ fallback if this material was ACTUALLY
+                        // included in the "All Meshes" selection. Otherwise we'd wrongly
+                        // reapply the all-mesh texture to materials that were never touched.
                         if (!customSetting && customizedMaterials['__ALL__']) {
-                            customSetting = customizedMaterials['__ALL__'];
+                            const allEntry = customizedMaterials['__ALL__'];
+                            // If the entry carries an explicit mesh allowlist, respect it.
+                            // If it does NOT carry one, it means the __ALL__ was written by an older
+                            // build OR the user explicitly selected "All Meshes" and we should apply it.
+                            const allowList = Array.isArray(allEntry.__meshes__) ? allEntry.__meshes__ : null;
+                            if (!allowList) {
+                                customSetting = allEntry;
+                            } else {
+                                const inList =
+                                    allowList.includes(child.uuid) ||
+                                    allowList.includes(child.name) ||
+                                    allowList.includes(m.name) ||
+                                    allowList.includes(m.uuid);
+                                if (inList) customSetting = allEntry;
+                            }
                         }
                     }
+
 
                     if (customSetting) {
                         // Apply custom setting
@@ -2350,31 +2546,34 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                             customSetting.appliedTexture;
 
                         if (hasCustomUV) {
-                            const rawScale = customSetting.scale !== undefined ? Number(customSetting.scale) : 50;
-                            const safeScale = Math.max(1, Math.min(1000, isNaN(rawScale) ? 100 : rawScale));
-                            const texScaleX = 100 / safeScale;
-                            const texScaleY = 100 / safeScale;
-                            const texRotation = (customSetting.rotation ?? 0) * (Math.PI / 180);
-                            const texOffsetX = (customSetting.offset?.x ?? 0) / 100;
-                            const texOffsetY = (customSetting.offset?.y ?? 0) / 100;
+                            const cScale = customSetting.scale !== undefined ? Number(customSetting.scale) : 50;
+                            const cSafeScale = Math.max(1, Math.min(1000, isNaN(cScale) ? 100 : cScale));
+                            const cTexScaleX = 100 / cSafeScale;
+                            const cTexScaleY = 100 / cSafeScale;
+                            const cTexRotation = (customSetting.rotation ?? 0) * (Math.PI / 180);
+                            const cTexOffsetX = (customSetting.offset?.x ?? 0) / 100;
+                            const cTexOffsetY = (customSetting.offset?.y ?? 0) / 100;
 
-                            const surfaceTextures = [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap];
+                            const surfaceTextures = [
+                                m.map, m.normalMap, m.roughnessMap, m.metalnessMap,
+                                m.displacementMap, m.bumpMap, m.alphaMap, m.emissiveMap
+                            ];
                             surfaceTextures.forEach(tex => {
                                 if (tex && tex.isTexture && tex !== m.aoMap && tex !== m.lightMap) {
                                     if (tex.wrapS !== THREE.RepeatWrapping || tex.wrapT !== THREE.RepeatWrapping) {
                                         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
                                     }
-                                    if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(texScaleX, texScaleY);
-                                    if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(texOffsetX, texOffsetY);
-                                    if (tex.rotation !== undefined) tex.rotation = texRotation;
+                                    if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(cTexScaleX, cTexScaleY);
+                                    if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(cTexOffsetX, cTexOffsetY);
+                                    if (tex.rotation !== undefined) tex.rotation = cTexRotation;
                                     if (tex.center && typeof tex.center.set === 'function') {
-                                        tex.center.set(texRotation !== 0 ? 0.5 : 0, texRotation !== 0 ? 0.5 : 0);
+                                        tex.center.set(cTexRotation !== 0 ? 0.5 : 0, cTexRotation !== 0 ? 0.5 : 0);
                                     }
                                     tex.matrixAutoUpdate = true;
                                     if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
                                 }
                             });
-                            m.userData.__textureScale = safeScale;
+                            m.userData.__textureScale = cSafeScale;
                         } else {
                             // Preserve / restore original texture transforms
                             const texProps = [
@@ -2448,6 +2647,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                                         if (mapProp === 'roughnessMap' && m.userData.originalRoughnessMap) m.roughnessMap = m.userData.originalRoughnessMap;
                                         if (mapProp === 'metalnessMap' && m.userData.originalMetalnessMap) m.metalnessMap = m.userData.originalMetalnessMap;
                                         if (mapProp === 'aoMap' && m.userData.originalAoMap) m.aoMap = m.userData.originalAoMap;
+                                        // ✅ FIX: Reset the restored map's UV transform to its original snapshot
+                                        restoreOriginalTexTransform(m, mapProp);
                                         m.needsUpdate = true;
                                     }
                                 }
@@ -2475,6 +2676,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         if (m.userData.originalEmissiveMap?.isTexture) m.emissiveMap = m.userData.originalEmissiveMap;
                         if (m.userData.originalBumpMap?.isTexture) m.bumpMap = m.userData.originalBumpMap;
                         if (m.userData.originalDisplacementMap?.isTexture) m.displacementMap = m.userData.originalDisplacementMap;
+
+                        restoreOriginalTexTransform(m, 'map');
+                        restoreOriginalTexTransform(m, 'normalMap');
+                        restoreOriginalTexTransform(m, 'roughnessMap');
+                        restoreOriginalTexTransform(m, 'metalnessMap');
+                        restoreOriginalTexTransform(m, 'aoMap');
+                        restoreOriginalTexTransform(m, 'displacementMap');
+                        restoreOriginalTexTransform(m, 'bumpMap');
+                        restoreOriginalTexTransform(m, 'alphaMap');
+                        restoreOriginalTexTransform(m, 'emissiveMap');
 
                         m.userData.appliedTexture = null;
                         m.userData.appliedTextureId = null;
@@ -2550,14 +2761,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
         const color = materialSettings.color;
         const emissiveColor = materialSettings.emissiveColor || '#000000';
         const emissiveIntensity = (materialSettings.emissiveIntensity ?? 0) / 100;
-
-        const rawScale = materialSettings.scale !== undefined ? Number(materialSettings.scale) : 50;
-        const safeScale = Math.max(1, Math.min(1000, isNaN(rawScale) ? 100 : rawScale));
-        const texScaleX = 100 / safeScale;
-        const texScaleY = 100 / safeScale;
-        const texRotation = (materialSettings.rotation ?? 0) * (Math.PI / 180);
-        const texOffsetX = (materialSettings.offset?.x ?? 0) / 100;
-        const texOffsetY = (materialSettings.offset?.y ?? 0) / 100;
 
         const galleryTexture = materialSettings.appliedTexture;
         const isGalleryTexture = !!galleryTexture;
@@ -2799,17 +3002,43 @@ const GenericModel = React.memo(React.forwardRef(({ scene, animations, wireframe
                         }
 
                         // Restore original or applied map if it exists, and user hasn't explicitly deleted it
-                        if (m.userData.appliedMap?.isTexture && !m.map && !m.userData.is_map_removed) {
-                            m.map = m.userData.appliedMap;
-                            m.needsUpdate = true;
-                        } else if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap?.isTexture && !m.userData.is_map_removed) {
-                            m.map = m.userData.originalMap;
-                            m.needsUpdate = true;
+                        const stateAppliedTextureId = materialSettings.appliedTexture?.id
+                            || materialSettings.appliedTexture?._id
+                            || null;
+                        const stateWantsNoTexture =
+                            stateAppliedTextureId === null ||
+                            stateAppliedTextureId === 'none' ||
+                            stateAppliedTextureId === undefined;
+
+                        if (!stateWantsNoTexture) {
+                            // Normal case: restore previously-applied or original map if map is empty
+                            if (m.userData.appliedMap?.isTexture && !m.map && !m.userData.is_map_removed) {
+                                m.map = m.userData.appliedMap;
+                                m.needsUpdate = true;
+                            } else if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap?.isTexture && !m.userData.is_map_removed) {
+                                m.map = m.userData.originalMap;
+                                m.needsUpdate = true;
+                            }
+                            if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap?.isTexture && !m.userData.is_alphaMap_removed) {
+                                m.alphaMap = m.userData.originalAlphaMap;
+                                m.needsUpdate = true;
+                            }
+                        } else {
+                            // State explicitly wants NO texture → force the original GLTF map back
+                            // (or leave null if there was never an original map) and clear applied metadata.
+                            if (!m.map && m.userData.originalMap?.isTexture) {
+                                m.map = m.userData.originalMap;
+                                m.needsUpdate = true;
+                            }
+                            if (!m.alphaMap && m.userData.originalAlphaMap?.isTexture) {
+                                m.alphaMap = m.userData.originalAlphaMap;
+                                m.needsUpdate = true;
+                            }
+                            m.userData.appliedMap = null;
+                            m.userData.appliedTexture = null;
+                            m.userData.appliedTextureId = null;
                         }
-                        if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap?.isTexture && !m.userData.is_alphaMap_removed) {
-                            m.alphaMap = m.userData.originalAlphaMap;
-                            m.needsUpdate = true;
-                        }
+
 
                         if (!m.userData.originalColor && !materialSettings.useFactorColor) {
                             m.userData.originalColor = m.color.clone();

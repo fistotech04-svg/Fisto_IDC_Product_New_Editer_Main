@@ -16,6 +16,7 @@ const SmoothOrbitControls = React.forwardRef(({
   minDistance = 1.4,
   maxDistance = 25,
   sceneWrapperRef,
+  navMode = "orbit",
   onChange,
   onStart,
   onEnd,
@@ -34,7 +35,6 @@ const SmoothOrbitControls = React.forwardRef(({
   const lastPointerRef = useRef({ x: 0, y: 0, time: 0 });
   const recentDeltasRef = useRef([]);
 
-
   // 1. Pointer Event Handlers for Velocity Tracking
   useEffect(() => {
     if (!domElement) return;
@@ -44,6 +44,9 @@ const SmoothOrbitControls = React.forwardRef(({
       isCoastingRef.current = false;
       velocityRef.current = { x: 0, y: 0 };
       recentDeltasRef.current = [];
+
+      // If pan mode is active, do not track rotational momentum
+      if (navMode === "pan") return;
 
       // Only track left-click (rotate) or single touch
       if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -181,6 +184,11 @@ const SmoothOrbitControls = React.forwardRef(({
       rotateSpeed={rotateSpeed}
       minDistance={minDistance}
       maxDistance={maxDistance}
+      mouseButtons={{
+        LEFT: navMode === "pan" ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: navMode === "pan" ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN
+      }}
       onChange={onChange}
       onStart={onStart}
       onEnd={onEnd}

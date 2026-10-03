@@ -37,7 +37,7 @@ export default function LeftSidebar({
     {
       id: "model",
       label: "3D Model",
-      icon: "solar:box-minimalistic-bold-duotone",
+      icon: "f7:cube",
       lucideIcon: "lucide:box"
     },
     {
@@ -49,33 +49,34 @@ export default function LeftSidebar({
     {
       id: "materials",
       label: "Materials",
-      icon: "solar:pie-chart-2-bold-duotone",
+      icon: "icon-park-outline:material-two",
       lucideIcon: "lucide:circle-dot"
     },
     {
       id: "lighting",
       label: "Lightning",
-      icon: "solar:sun-2-bold-duotone",
+      icon: "ant-design:sun-outlined",
       lucideIcon: "lucide:sun-medium"
     },
     {
       id: "camera",
       label: "Camera",
-      icon: "solar:camera-bold-duotone",
+      icon: "ant-design:camera-outlined",
       lucideIcon: "lucide:camera"
-    },
-    {
-      id: "animation",
-      label: "Animation",
-      icon: "solar:play-circle-bold-duotone",
-      lucideIcon: "lucide:disc"
     },
     {
       id: "hotspots",
       label: "Hotspots",
-      icon: "solar:map-point-wave-bold-duotone",
+      icon: "material-symbols:ads-click-rounded",
       lucideIcon: "lucide:map-pin"
-    }
+    },
+    {
+      id: "animation",
+      label: "Animation",
+      icon: "ic:outline-slow-motion-video",
+      lucideIcon: "lucide:disc"
+    },
+    
   ];
 
   return (
@@ -83,8 +84,8 @@ export default function LeftSidebar({
       {/* Top Project Header (Straight, no card view) */}
       <div className="pb-[0.85vw] mb-[0.85vw] border-b border-gray-100 flex items-center justify-between">
         <div className="flex items-center gap-[0.6vw] min-w-0 flex-1">
-          <div className="w-[2.2vw] h-[2.2vw] rounded-[0.45vw] bg-[#fef2f2] border border-[#fee2e2] text-[#ea543a] flex items-center justify-center shrink-0">
-            <Icon icon="solar:document-text-bold-duotone" className="w-[1.2vw] h-[1.2vw]" />
+          <div className="w-[2.2vw] h-[2.2vw] rounded-[0.45vw] text-[#ea543a] flex items-center justify-center shrink-0">
+            <Icon icon="basil:document-outline" className="w-[1.2vw] h-[1.2vw]" />
           </div>
           <div className="min-w-0 flex-1">
             {isEditing ? (
@@ -101,7 +102,7 @@ export default function LeftSidebar({
               <h3
                 onClick={startEdit}
                 title={modelName || "Flipibook Name"}
-                className="text-[0.82vw] font-bold text-gray-900 truncate cursor-pointer hover:text-[#ea543a] transition-colors leading-tight"
+                className="text-[0.8vw] font-medium text-gray-900 cursor-pointer hover:text-[#ea543a] transition-colors leading-tight"
               >
                 {modelName || "Flipibook Name"}
               </h3>
@@ -130,14 +131,14 @@ export default function LeftSidebar({
               onClick={() => onSelectTab && onSelectTab(item.id)}
               className={`w-full flex items-center gap-[0.75vw] px-[0.9vw] py-[0.7vw] rounded-[0.6vw] text-left transition-all duration-200 cursor-pointer ${
                 isActive
-                  ? "bg-[#FDEEED] text-[#222] font-bold shadow-2xs"
+                  ? "bg-[#EC5137] text-[#ffffff] font-medium shadow-2xs"
                   : "text-gray-700 hover:bg-gray-100/70 hover:text-gray-900 font-semibold"
               }`}
             >
               <Icon
                 icon={item.icon || item.lucideIcon}
                 className={`w-[1.25vw] h-[1.25vw] shrink-0 transition-colors ${
-                  isActive ? "text-[#ea543a]" : "text-gray-700"
+                  isActive ? "text-[#ffffff]" : "text-gray-700"
                 }`}
               />
               <span className="text-[0.85vw] tracking-tight">{item.label}</span>
