@@ -41,12 +41,6 @@ export default function LeftSidebar({
       lucideIcon: "lucide:box"
     },
     {
-      id: "textures",
-      label: "Textures",
-      icon: "solar:layers-minimalistic-bold-duotone",
-      lucideIcon: "lucide:layers"
-    },
-    {
       id: "materials",
       label: "Materials",
       icon: "icon-park-outline:material-two",
@@ -76,7 +70,6 @@ export default function LeftSidebar({
       icon: "ic:outline-slow-motion-video",
       lucideIcon: "lucide:disc"
     },
-    
   ];
 
   return (

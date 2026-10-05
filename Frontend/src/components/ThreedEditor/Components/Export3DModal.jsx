@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { View, OrbitControls, Environment, PerspectiveCamera, ContactShadows, Html, Center } from "@react-three/drei";
 import RenderModel from "./ModelLoaders";
 import { GlobalLoader } from "./GlobalLoader";
+import { builtInHdris } from "../../../data/hdriData";
 const ModelThumbnail = React.memo(({ 
     materialName, 
     models, 
@@ -103,8 +104,18 @@ const ModelThumbnail = React.memo(({
 
 
                   <Environment
-                      files={materialSettings?.maps?.envMap || null}
-                      preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'studio')}
+                      files={
+                          materialSettings?.environment?.startsWith('builtin_')
+                              ? (builtInHdris.find(h => `builtin_${h.id}` === materialSettings?.environment || h.aliases?.some(a => `builtin_${a}` === materialSettings?.environment))?.file || null)
+                              : (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                                  ? (materialSettings?.customEnvMap || materialSettings?.maps?.envMap || null)
+                                  : null
+                      }
+                      preset={
+                          (materialSettings?.environment?.startsWith('builtin_') || materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                              ? null
+                              : (['apartment', 'city', 'dawn', 'forest', 'lobby', 'night', 'park', 'studio', 'sunset', 'warehouse'].includes(materialSettings?.environment) ? materialSettings.environment : 'studio')
+                      }
                       background={false}
                       blur={0.5}
                       environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
@@ -541,14 +552,24 @@ export default function Export3DModal({
                                                  />
                                              ))}
                                          </group>
-                                         <Environment
-                                             files={materialSettings?.maps?.envMap || null}
-                                             preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'studio')}
-                                             background={false}
-                                             blur={0.5}
-                                             environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
-                                             rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
-                                         />
+                                          <Environment
+                                              files={
+                                                  materialSettings?.environment?.startsWith('builtin_')
+                                                      ? (builtInHdris.find(h => `builtin_${h.id}` === materialSettings?.environment || h.aliases?.some(a => `builtin_${a}` === materialSettings?.environment))?.file || null)
+                                                      : (materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                                                          ? (materialSettings?.customEnvMap || materialSettings?.maps?.envMap || null)
+                                                          : null
+                                              }
+                                              preset={
+                                                  (materialSettings?.environment?.startsWith('builtin_') || materialSettings?.environment?.startsWith('custom_') || (!materialSettings?.environment && (materialSettings?.customEnvMap || materialSettings?.maps?.envMap)))
+                                                      ? null
+                                                      : (['apartment', 'city', 'dawn', 'forest', 'lobby', 'night', 'park', 'studio', 'sunset', 'warehouse'].includes(materialSettings?.environment) ? materialSettings.environment : 'studio')
+                                              }
+                                              background={false}
+                                              blur={0.5}
+                                              environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                                              rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
+                                          />
                                          <OrbitControls 
                                              enableZoom={false} 
                                              enablePan={false}

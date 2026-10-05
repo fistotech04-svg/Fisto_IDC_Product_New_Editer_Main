@@ -76,9 +76,8 @@ export default function CanvasFloatingToolbar({
                     setIsViewMenuOpen(false);
                     onSelectCameraView && onSelectCameraView(opt.id);
                   }}
-                  className={`w-full text-left px-[0.75vw] py-[0.4vw] text-[0.72vw] font-medium hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between ${
-                    cameraMode.toLowerCase().includes(opt.id) ? "text-[#ea543a]" : "text-gray-200"
-                  }`}
+                  className={`w-full text-left px-[0.75vw] py-[0.4vw] text-[0.72vw] font-medium hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between ${cameraMode.toLowerCase().includes(opt.id) ? "text-[#ea543a]" : "text-gray-200"
+                    }`}
                 >
                   <span>{opt.label}</span>
                   {cameraMode.toLowerCase().includes(opt.id) && (
@@ -95,11 +94,10 @@ export default function CanvasFloatingToolbar({
           {/* Wireframe Button */}
           <button
             onClick={onToggleWireframe}
-            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${
-              isWireframe
+            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${isWireframe
                 ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
                 : "text-gray-300 hover:text-white hover:bg-white/10"
-            }`}
+              }`}
           >
             <Icon icon="ph:polygon-light" className="w-[0.95vw] h-[0.95vw]" />
             <span>Wireframe</span>
@@ -108,11 +106,10 @@ export default function CanvasFloatingToolbar({
           {/* Shades Button */}
           <button
             onClick={onToggleShades}
-            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${
-              isShades
+            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${isShades
                 ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
                 : "text-gray-300 hover:text-white hover:bg-white/10"
-            }`}
+              }`}
           >
             <Icon icon="carbon:circle-solid" className="w-[0.85vw] h-[0.85vw]" />
             <span>Shades</span>
@@ -126,11 +123,10 @@ export default function CanvasFloatingToolbar({
               onClick={onUndo}
               disabled={!canUndo}
               title="Undo (Ctrl+Z)"
-              className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${
-                canUndo
+              className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${canUndo
                   ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
                   : "text-gray-600 cursor-not-allowed opacity-40"
-              }`}
+                }`}
             >
               <Icon icon="lucide:undo-dot" className="w-[0.95vw] h-[0.95vw]" />
             </button>
@@ -138,11 +134,10 @@ export default function CanvasFloatingToolbar({
               onClick={onRedo}
               disabled={!canRedo}
               title="Redo (Ctrl+Y)"
-              className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${
-                canRedo
+              className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${canRedo
                   ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
                   : "text-gray-600 cursor-not-allowed opacity-40"
-              }`}
+                }`}
             >
               <Icon icon="lucide:redo-dot" className="w-[0.95vw] h-[0.95vw]" />
             </button>
@@ -160,11 +155,10 @@ export default function CanvasFloatingToolbar({
                 key={tool.id}
                 onClick={() => onSelectTransformMode && onSelectTransformMode(tool.id)}
                 title={tool.label}
-                className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex flex-col items-center justify-center transition-all cursor-pointer ${
-                  isActive
+                className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex flex-col items-center justify-center transition-all cursor-pointer ${isActive
                     ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
                     : "text-gray-300 hover:text-white hover:bg-white/10"
-                }`}
+                  }`}
               >
                 <Icon icon={tool.icon} className="w-[1.05vw] h-[1.05vw]" />
                 <span className="text-[0.48vw] font-medium leading-none mt-[0.18vw]">{tool.label}</span>
@@ -181,16 +175,14 @@ export default function CanvasFloatingToolbar({
           <button
             type="button"
             onClick={() => onSelectNavMode && onSelectNavMode("pan")}
-            className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${
-              navMode === "pan" ? "text-white" : "text-gray-300 hover:text-white"
-            }`}
+            className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${navMode === "pan" ? "text-white" : "text-gray-300 hover:text-white"
+              }`}
             title="Hand / Pan View"
           >
             <Icon
               icon="famicons:hand-right-outline"
-              className={`w-[1.15vw] h-[1.15vw] transition-transform group-hover:scale-110 ${
-                navMode === "pan" ? "text-[#ea543a]" : "text-gray-200"
-              }`}
+              className={`w-[1.15vw] h-[1.15vw] transition-transform group-hover:scale-110 ${navMode === "pan" ? "text-[#ea543a]" : "text-gray-200"
+                }`}
             />
             <span className="text-[0.62vw] font-normal mt-[0.2vw]">Hand</span>
           </button>
