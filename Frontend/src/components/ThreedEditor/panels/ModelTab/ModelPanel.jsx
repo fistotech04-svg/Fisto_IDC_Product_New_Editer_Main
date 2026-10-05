@@ -1,8 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { AxisInput } from "../common/PanelInputs";
+import { resolveUploadsPath } from "../../../../utils/supabaseUtils";
+import { textureData } from "../../../../data/textureData";
+import ColorPicker from "../../ColorPicker";
+import { AxisInput, SliderRow, DualAxisInput } from "../common/PanelInputs";
 
 export function ModelPanel({
+  // Position & View transforms
   autoRotate,
   setAutoRotate,
   autoRotateSpeed = 1.0,
@@ -16,9 +20,34 @@ export function ModelPanel({
   showAxis = true,
   setShowAxis,
   transformValues,
-  onManualTransformChange
+  onManualTransformChange,
+  // Material & Texture settings
+  materialSettings,
+  onUpdateMaterialSetting,
+  selectedTextureId,
+  onOpenMaterialDrawer,
+  selectedMaterial
 }) {
   const [isUniformScale, setIsUniformScale] = useState(true);
+  const [colorMode, setColorMode] = useState("HEX");
+  const [isColorModeOpen, setIsColorModeOpen] = useState(false);
+  const [isTileLinked, setIsTileLinked] = useState(true);
+  const [isOffsetLinked, setIsOffsetLinked] = useState(true);
+  const [isScaleLinked, setIsScaleLinked] = useState(true);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const colorPickerContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (colorPickerContainerRef.current && !colorPickerContainerRef.current.contains(e.target)) {
+        setIsColorPickerOpen(false);
+      }
+    };
+    if (isColorPickerOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isColorPickerOpen]);
 
   const radToDeg = (rad) => {
     const r = Number(rad) || 0;
@@ -35,9 +64,386 @@ export function ModelPanel({
     }
   };
 
+  // Resolve thumbnail / sphere preview
+  const activeMaterialPreview = (() => {
+    if (materialSettings?.appliedTexture?.preview) {
+      return resolveUploadsPath(materialSettings.appliedTexture.preview);
+    }
+    if (materialSettings?.appliedTexture?.thumb) {
+      return resolveUploadsPath(materialSettings.appliedTexture.thumb);
+    }
+    const texName = materialSettings?.materialName;
+    if (texName && textureData) {
+      const found = textureData.find(t => t.name?.toLowerCase() === texName.toLowerCase() || t.id?.toLowerCase() === texName.toLowerCase());
+      if (found?.preview) {
+        return resolveUploadsPath(found.preview);
+      }
+    }
+    if (selectedTextureId && textureData) {
+      const found = textureData.find(t => t.id === selectedTextureId);
+      if (found?.preview) {
+        return resolveUploadsPath(found.preview);
+      }
+    }
+    return null;
+  })();
+
+  const materialDisplayName =
+    materialSettings?.materialName ||
+    (typeof selectedMaterial === "string"
+      ? selectedMaterial
+      : selectedMaterial?.name || selectedMaterial?.material || "Sliver Material");
+
   return (
-    <div className="flex flex-col gap-[1.2vw]">
-      {/* ── 1. VIEW SECTION ── */}
+    <div className="flex flex-col gap-[1.3vw]">
+      {/* ── 1. POSITION SECTION ── */}
+      <div className="flex flex-col gap-[0.75vw]">
+        <div className="flex items-center gap-[0.6vw]">
+          <span className="text-[0.82vw] font-bold text-gray-900">Position</span>
+          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+        </div>
+
+        {/* Move */}
+        <div className="flex items-center justify-between gap-[0.4vw]">
+          <span className="text-[0.75vw] font-medium text-gray-800 w-[3.8vw] shrink-0">Move</span>
+          <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
+            <AxisInput
+              axis="X"
+              value={transformValues?.position?.x ?? 0}
+              onChange={(v) => onManualTransformChange && onManualTransformChange("position", "x", v)}
+              step={0.1}
+            />
+            <AxisInput
+              axis="Y"
+              value={transformValues?.position?.y ?? 0}
+              onChange={(v) => onManualTransformChange && onManualTransformChange("position", "y", v)}
+              step={0.1}
+            />
+            <AxisInput
+              axis="Z"
+              value={transformValues?.position?.z ?? 0}
+              onChange={(v) => onManualTransformChange && onManualTransformChange("position", "z", v)}
+              step={0.1}
+            />
+          </div>
+        </div>
+
+        {/* Rotate */}
+        <div className="flex items-center justify-between gap-[0.4vw]">
+          <span className="text-[0.75vw] font-medium text-gray-800 w-[3.8vw] shrink-0">Rotate</span>
+          <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
+            <AxisInput
+              axis="X"
+              value={radToDeg(transformValues?.rotation?.x)}
+              onChange={(v) => onManualTransformChange && onManualTransformChange("rotation", "x", v)}
+              step={1}
+            />
+            <AxisInput
+              axis="Y"
+              value={radToDeg(transformValues?.rotation?.y)}
+              onChange={(v) => onManualTransformChange && onManualTransformChange("rotation", "y", v)}
+              step={1}
+            />
+            <AxisInput
+              axis="Z"
+              value={radToDeg(transformValues?.rotation?.z)}
+              onChange={(v) => onManualTransformChange && onManualTransformChange("rotation", "z", v)}
+              step={1}
+            />
+          </div>
+        </div>
+
+        {/* Scale */}
+        <div className="flex items-center justify-between gap-[0.4vw]">
+          <div className="flex items-center gap-[0.2vw] w-[3.8vw] shrink-0">
+            <span className="text-[0.75vw] font-medium text-gray-800">Scale</span>
+            <button
+              type="button"
+              onClick={() => setIsUniformScale(!isUniformScale)}
+              className={`p-[0.1vw] rounded transition-colors cursor-pointer ${
+                isUniformScale ? "text-[#ea543a]" : "text-gray-400 hover:text-gray-600"
+              }`}
+              title={isUniformScale ? "All axes linked" : "Individual axes"}
+            >
+              <Icon icon={isUniformScale ? "solar:link-bold" : "solar:link-broken-linear"} className="w-[0.8vw] h-[0.8vw]" />
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
+            <AxisInput
+              axis="X"
+              value={transformValues?.scale?.x ?? 1}
+              onChange={(v) => handleScaleChange("x", v)}
+              step={0.05}
+              min={0.01}
+            />
+            <AxisInput
+              axis="Y"
+              value={transformValues?.scale?.y ?? 1}
+              onChange={(v) => handleScaleChange("y", v)}
+              step={0.05}
+              min={0.01}
+            />
+            <AxisInput
+              axis="Z"
+              value={transformValues?.scale?.z ?? 1}
+              onChange={(v) => handleScaleChange("z", v)}
+              step={0.05}
+              min={0.01}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. MATERIAL SECTION ── */}
+      <div className="flex flex-col gap-[0.75vw]">
+        <div className="flex items-center gap-[0.6vw]">
+          <span className="text-[0.82vw] font-bold text-gray-900">Material</span>
+          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+        </div>
+
+        {/* Material Sphere / Thumbnail + Title + Change Material Button */}
+        <div className="flex items-center gap-[0.75vw]">
+          <button
+            type="button"
+            onClick={() => onOpenMaterialDrawer && onOpenMaterialDrawer()}
+            className="w-[3.6vw] h-[3.6vw] rounded-[0.6vw] p-[0.2vw] bg-[#f3f4f6] border border-gray-200 flex items-center justify-center shadow-2xs hover:border-[#ea543a] hover:ring-2 hover:ring-[#ea543a]/20 hover:scale-105 transition-all duration-200 shrink-0 cursor-pointer overflow-hidden"
+            title="Click to Change Material"
+          >
+            {activeMaterialPreview ? (
+              <img
+                src={activeMaterialPreview}
+                alt="Material"
+                className="w-full h-full object-cover rounded-full shadow-inner"
+              />
+            ) : (
+              <div
+                className="w-full h-full rounded-full shadow-inner"
+                style={{
+                  background: `radial-gradient(circle at 32% 28%, #ffffff 0%, ${materialSettings?.color || "#c0c0c0"} 45%, #1a1a1a 100%)`,
+                  boxShadow: "inset -2px -4px 6px rgba(0,0,0,0.45), 0 3px 6px rgba(0,0,0,0.15)"
+                }}
+              />
+            )}
+          </button>
+
+          <div className="flex flex-col gap-[0.35vw] flex-1 min-w-0">
+            <span className="text-[0.85vw] font-bold text-gray-800 truncate">
+              {materialDisplayName}
+            </span>
+            <button
+              type="button"
+              onClick={() => onOpenMaterialDrawer && onOpenMaterialDrawer()}
+              className="w-fit px-[0.7vw] py-[0.25vw] bg-white hover:bg-gray-50 border border-gray-200 rounded-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-2xs cursor-pointer"
+            >
+              Change Material
+            </button>
+          </div>
+        </div>
+
+        {/* Alpha Factor */}
+        <div className="flex items-center justify-between gap-[0.6vw] pt-[0.2vw]">
+          <span className="text-[0.75vw] font-medium text-gray-700 w-[6vw] shrink-0">
+            Alpha Factor :
+          </span>
+          <div className="flex-1 relative flex items-center">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={Math.round(Number(materialSettings?.alpha ?? 100))}
+              onChange={(e) => onUpdateMaterialSetting && onUpdateMaterialSetting("alpha", Number(e.target.value))}
+              className="w-full h-[0.22vw] bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#ea543a]"
+            />
+          </div>
+          <span className="text-[0.72vw] font-semibold text-gray-700 bg-gray-100 px-[0.45vw] py-[0.12vw] rounded min-w-[2.3vw] text-center">
+            {Math.round(Number(materialSettings?.alpha ?? 100))}%
+          </span>
+        </div>
+
+        {/* Base Color swatch + HEX input + Custom ColorPicker */}
+        <div className="flex flex-col gap-[0.35vw] pt-[0.1vw] relative" ref={colorPickerContainerRef}>
+          <span className="text-[0.75vw] font-medium text-gray-700">Base</span>
+          <div className="flex items-center gap-[0.4vw]">
+            <button
+              type="button"
+              onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+              className="w-[3.6vw] h-[1.7vw] rounded-[0.4vw] border border-gray-200 cursor-pointer shadow-2xs shrink-0 block relative overflow-hidden transition-transform active:scale-95 hover:border-gray-300"
+              style={{ backgroundColor: materialSettings?.color || "#EC5137" }}
+              title="Click to open Color Picker"
+            />
+
+            <div className="flex-1 flex items-center justify-between bg-white border border-gray-200 rounded-[0.4vw] px-[0.45vw] py-[0.2vw] focus-within:border-[#ea543a]">
+              <input
+                type="text"
+                value={(materialSettings?.color || "#EC5137").toUpperCase()}
+                onChange={(e) => onUpdateMaterialSetting && onUpdateMaterialSetting("color", e.target.value)}
+                className="w-[4.5vw] text-[0.72vw] font-medium text-gray-800 bg-transparent outline-none uppercase"
+              />
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={Math.round(Number(materialSettings?.colorIntensity ?? materialSettings?.colorOpacity ?? 100))}
+                  onChange={(e) => {
+                    const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                    onUpdateMaterialSetting && onUpdateMaterialSetting("colorIntensity", val);
+                  }}
+                  className="w-[2vw] text-right text-[0.68vw] text-gray-700 font-semibold bg-transparent outline-none p-0"
+                />
+                <span className="text-[0.68vw] text-gray-400 font-medium ml-[0.1vw]">%</span>
+              </div>
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsColorModeOpen(!isColorModeOpen)}
+                className="flex items-center gap-[0.2vw] px-[0.5vw] py-[0.28vw] bg-white border border-gray-200 rounded-[0.4vw] text-[0.68vw] font-semibold text-gray-700 hover:border-gray-300 transition-colors cursor-pointer"
+              >
+                <span>{colorMode}</span>
+                <Icon icon="heroicons:chevron-down-20-solid" className="w-[0.7vw] h-[0.7vw] text-gray-400" />
+              </button>
+              {isColorModeOpen && (
+                <div className="absolute right-0 top-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.2vw] min-w-[4vw]">
+                  {["HEX", "RGB", "HSL"].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setColorMode(m);
+                        setIsColorModeOpen(false);
+                      }}
+                      className={`w-full text-left px-[0.5vw] py-[0.2vw] text-[0.68vw] hover:bg-gray-50 transition-colors cursor-pointer ${
+                        colorMode === m ? "font-bold text-[#ea543a]" : "text-gray-700"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Floating Custom ColorPicker Popover */}
+          {isColorPickerOpen && (
+            <div className="absolute left-0 top-full mt-[0.4vw] z-[120] shadow-2xl rounded-xl">
+              <ColorPicker
+                color={materialSettings?.color || "#EC5137"}
+                onChange={(newColor) => {
+                  onUpdateMaterialSetting && onUpdateMaterialSetting("color", newColor);
+                }}
+                opacity={Math.round(Number(materialSettings?.colorIntensity ?? materialSettings?.colorOpacity ?? 100))}
+                onOpacityChange={(newOpacity) => {
+                  onUpdateMaterialSetting && onUpdateMaterialSetting("colorIntensity", newOpacity);
+                }}
+                onClose={() => setIsColorPickerOpen(false)}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Sliders: Normal, Metallic, Roughness, Bump, A/O */}
+        <div className="flex flex-col gap-[0.7vw] pt-[0.2vw]">
+          <SliderRow
+            label="Normal"
+            value={materialSettings?.normal ?? 50}
+            onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("normal", v)}
+          />
+          <SliderRow
+            label="Metallic"
+            value={materialSettings?.metallic ?? 50}
+            onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("metallic", v)}
+          />
+          <SliderRow
+            label="Roughness"
+            value={materialSettings?.roughness ?? 50}
+            onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("roughness", v)}
+          />
+          <SliderRow
+            label="Bump"
+            value={materialSettings?.bump ?? 50}
+            onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("bump", v)}
+          />
+          <SliderRow
+            label="A/O"
+            value={materialSettings?.ao ?? 50}
+            onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("ao", v)}
+          />
+        </div>
+      </div>
+
+      {/* ── 3. TEXTURE PLACEMENT SECTION ── */}
+      <div className="flex flex-col gap-[0.75vw]">
+        <div className="flex items-center gap-[0.6vw]">
+          <span className="text-[0.82vw] font-bold text-gray-900">Texture Placement</span>
+          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+        </div>
+
+        <div className="flex flex-col gap-[0.6vw]">
+          {/* Tile */}
+          <DualAxisInput
+            label="Tile"
+            xVal={materialSettings?.tile?.x ?? 210}
+            yVal={materialSettings?.tile?.y ?? 210}
+            isLinked={isTileLinked}
+            onToggleLink={() => setIsTileLinked(!isTileLinked)}
+            onChangeX={(v) => {
+              const next = { ...(materialSettings?.tile || { x: 210, y: 210 }), x: v };
+              onUpdateMaterialSetting && onUpdateMaterialSetting("tile", next);
+            }}
+            onChangeY={(v) => {
+              const next = { ...(materialSettings?.tile || { x: 210, y: 210 }), y: v };
+              onUpdateMaterialSetting && onUpdateMaterialSetting("tile", next);
+            }}
+          />
+
+          {/* Offset */}
+          <DualAxisInput
+            label="Offset"
+            xVal={materialSettings?.offset?.x ?? 210}
+            yVal={materialSettings?.offset?.y ?? 210}
+            isLinked={isOffsetLinked}
+            onToggleLink={() => setIsOffsetLinked(!isOffsetLinked)}
+            onChangeX={(v) => {
+              const next = { ...(materialSettings?.offset || { x: 210, y: 210 }), x: v };
+              onUpdateMaterialSetting && onUpdateMaterialSetting("offset", next);
+            }}
+            onChangeY={(v) => {
+              const next = { ...(materialSettings?.offset || { x: 210, y: 210 }), y: v };
+              onUpdateMaterialSetting && onUpdateMaterialSetting("offset", next);
+            }}
+          />
+
+          {/* Scale */}
+          <DualAxisInput
+            label="Scale"
+            xVal={materialSettings?.textureScale?.x ?? (typeof materialSettings?.scale === 'number' ? materialSettings.scale : 210)}
+            yVal={materialSettings?.textureScale?.y ?? (typeof materialSettings?.scale === 'number' ? materialSettings.scale : 210)}
+            isLinked={isScaleLinked}
+            onToggleLink={() => setIsScaleLinked(!isScaleLinked)}
+            onChangeX={(v) => {
+              const next = { ...(materialSettings?.textureScale || { x: 210, y: 210 }), x: v };
+              onUpdateMaterialSetting && onUpdateMaterialSetting("textureScale", next);
+              onUpdateMaterialSetting && onUpdateMaterialSetting("scale", v);
+            }}
+            onChangeY={(v) => {
+              const next = { ...(materialSettings?.textureScale || { x: 210, y: 210 }), y: v };
+              onUpdateMaterialSetting && onUpdateMaterialSetting("textureScale", next);
+            }}
+          />
+
+          {/* Rotate Slider */}
+          <SliderRow
+            label="Rotate"
+            value={materialSettings?.rotation ?? 50}
+            onChange={(v) => onUpdateMaterialSetting && onUpdateMaterialSetting("rotation", v)}
+          />
+        </div>
+      </div>
+
+      {/* ── 4. VIEW SECTION ── */}
       <div className="flex flex-col gap-[0.75vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.82vw] font-bold text-gray-900">View</span>
@@ -46,7 +452,7 @@ export function ModelPanel({
 
         {/* Auto Rotate Toggle */}
         <div className="flex items-center justify-between py-[0.1vw]">
-          <span className="text-[0.78vw] font-bold text-gray-800">Auto Rotate</span>
+          <span className="text-[0.78vw] font-medium text-gray-800">Auto Rotate</span>
           <button
             type="button"
             onClick={() => setAutoRotate && setAutoRotate(!autoRotate)}
@@ -83,54 +489,9 @@ export function ModelPanel({
           </div>
         </div>
 
-        {/* Rotate Axis */}
-        <div className="flex items-center justify-between pt-[0.2vw]">
-          <span className="text-[0.78vw] font-bold text-gray-800">Rotate Axis</span>
-          <div className="flex items-center gap-[0.4vw]">
-            {["X", "Y", "Z"].map((axis) => {
-              const isSelected = (autoRotateAxis || "X") === axis;
-              return (
-                <button
-                  key={axis}
-                  type="button"
-                  onClick={() => setAutoRotateAxis && setAutoRotateAxis(axis)}
-                  className={`w-[2.6vw] py-[0.25vw] text-[0.75vw] font-bold rounded-[0.4vw] border transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-[#ea543a] text-white border-[#ea543a] shadow-sm"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {axis}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Rotate Range */}
-        <div className="flex flex-col gap-[0.2vw]">
-          <div className="flex items-center justify-between">
-            <span className="text-[0.72vw] font-medium text-gray-500">Rotate Range</span>
-            <span className="text-[0.68vw] font-semibold text-gray-700 bg-gray-100 px-[0.4vw] py-[0.1vw] rounded">
-              {autoRotateRange || 360}°
-            </span>
-          </div>
-          <div className="relative flex items-center w-full">
-            <input
-              type="range"
-              min="45"
-              max="360"
-              step="15"
-              value={autoRotateRange || 360}
-              onChange={(e) => setAutoRotateRange && setAutoRotateRange(parseInt(e.target.value))}
-              className="w-full h-[0.25vw] bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#ea543a]"
-            />
-          </div>
-        </div>
-
         {/* Show Grid Lines */}
         <div className="flex items-center justify-between py-[0.1vw]">
-          <span className="text-[0.78vw] font-bold text-gray-800">Show Grid Lines</span>
+          <span className="text-[0.78vw] font-medium text-gray-800">Show Grid Lines</span>
           <button
             type="button"
             onClick={() => setShowGridLines && setShowGridLines(!showGridLines)}
@@ -148,7 +509,7 @@ export function ModelPanel({
 
         {/* Show Axis */}
         <div className="flex items-center justify-between py-[0.1vw]">
-          <span className="text-[0.78vw] font-bold text-gray-800">Show Axis</span>
+          <span className="text-[0.78vw] font-medium text-gray-800">Show Axis</span>
           <button
             type="button"
             onClick={() => setShowAxis && setShowAxis(!showAxis)}
@@ -162,104 +523,6 @@ export function ModelPanel({
               }`}
             />
           </button>
-        </div>
-      </div>
-
-      {/* ── 2. POSITION SECTION ── */}
-      <div className="flex flex-col gap-[0.75vw]">
-        <div className="flex items-center gap-[0.6vw]">
-          <span className="text-[0.82vw] font-bold text-gray-900">Position</span>
-          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
-        </div>
-
-        {/* Move */}
-        <div className="flex items-center justify-between">
-          <span className="text-[0.78vw] font-bold text-gray-800 w-[4.5vw]">Move</span>
-          <div className="grid grid-cols-3 gap-[0.4vw] flex-1">
-            <AxisInput
-              axis="X"
-              value={transformValues?.position?.x ?? 0}
-              onChange={(v) => onManualTransformChange && onManualTransformChange("position", "x", v)}
-              step={0.1}
-            />
-            <AxisInput
-              axis="Y"
-              value={transformValues?.position?.y ?? 0}
-              onChange={(v) => onManualTransformChange && onManualTransformChange("position", "y", v)}
-              step={0.1}
-            />
-            <AxisInput
-              axis="Z"
-              value={transformValues?.position?.z ?? 0}
-              onChange={(v) => onManualTransformChange && onManualTransformChange("position", "z", v)}
-              step={0.1}
-            />
-          </div>
-        </div>
-
-        {/* Rotate */}
-        <div className="flex items-center justify-between">
-          <span className="text-[0.78vw] font-bold text-gray-800 w-[4.5vw]">Rotate</span>
-          <div className="grid grid-cols-3 gap-[0.4vw] flex-1">
-            <AxisInput
-              axis="X"
-              value={radToDeg(transformValues?.rotation?.x)}
-              onChange={(v) => onManualTransformChange && onManualTransformChange("rotation", "x", v)}
-              step={1}
-            />
-            <AxisInput
-              axis="Y"
-              value={radToDeg(transformValues?.rotation?.y)}
-              onChange={(v) => onManualTransformChange && onManualTransformChange("rotation", "y", v)}
-              step={1}
-            />
-            <AxisInput
-              axis="Z"
-              value={radToDeg(transformValues?.rotation?.z)}
-              onChange={(v) => onManualTransformChange && onManualTransformChange("rotation", "z", v)}
-              step={1}
-            />
-          </div>
-        </div>
-
-        {/* Scale */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-[0.2vw] w-[4.5vw]">
-            <span className="text-[0.78vw] font-bold text-gray-800">Scale</span>
-            <button
-              type="button"
-              onClick={() => setIsUniformScale(!isUniformScale)}
-              className={`p-[0.15vw] rounded transition-colors cursor-pointer ${
-                isUniformScale ? "text-[#ea543a]" : "text-gray-400 hover:text-gray-600"
-              }`}
-              title={isUniformScale ? "All axes linked" : "Individual axes"}
-            >
-              <Icon icon={isUniformScale ? "solar:link-bold" : "solar:link-broken-linear"} className="w-[0.85vw] h-[0.85vw]" />
-            </button>
-          </div>
-          <div className="grid grid-cols-3 gap-[0.4vw] flex-1">
-            <AxisInput
-              axis="X"
-              value={transformValues?.scale?.x ?? 1}
-              onChange={(v) => handleScaleChange("x", v)}
-              step={0.05}
-              min={0.01}
-            />
-            <AxisInput
-              axis="Y"
-              value={transformValues?.scale?.y ?? 1}
-              onChange={(v) => handleScaleChange("y", v)}
-              step={0.05}
-              min={0.01}
-            />
-            <AxisInput
-              axis="Z"
-              value={transformValues?.scale?.z ?? 1}
-              onChange={(v) => handleScaleChange("z", v)}
-              step={0.05}
-              min={0.01}
-            />
-          </div>
         </div>
       </div>
     </div>

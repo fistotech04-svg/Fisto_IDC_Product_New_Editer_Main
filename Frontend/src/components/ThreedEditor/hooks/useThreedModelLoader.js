@@ -98,12 +98,6 @@ export function useThreedModelLoader({
 
       setModelStats({ fileSize: `${converted.sizeInMB} MB` });
 
-      if (models.length > 0) {
-        models.forEach(m => {
-          if (m.url && m.url.startsWith('blob:')) URL.revokeObjectURL(m.url);
-        });
-      }
-
       const newModel = {
         id: modelId,
         url: converted.url,
@@ -112,58 +106,30 @@ export function useThreedModelLoader({
         name: converted.name
       };
 
-      const nextModels = [newModel];
+      const nextModels = [...models, newModel];
       setModels(nextModels);
 
       setModelUrl(converted.url);
       setModelFile(converted.file);
       setModelType(converted.type || 'glb');
-      const nextModelName = newModel.name;
-      setModelName(nextModelName);
+      const nextModelName = models.length === 0 ? newModel.name : modelName;
+      if (models.length === 0) {
+        setModelName(nextModelName);
+      }
 
-      setModelMaterialLists({});
-      setModelStatsMap({});
-      setSelectedMaterial({ name: nextModelName, parentGroup: nextModelName });
-      setHiddenMaterials(new Set());
-      setDeletedMaterials(new Set());
-
-      const nextMaterialSettings = {
-        alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
-        specular: 50, reflection: 10, shadow: 50, softness: 50, ao: 100, environment: 'studio',
-        worldOpacity: 0, worldBlur: 0,
-        color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
-        maps: {},
-        emissiveIntensity: 0,
-        emissiveColor: '#ffffff',
-        lightPosition: { x: 10, y: 10, z: 10 }
-      };
-      setMaterialSettings(nextMaterialSettings);
-
-      setHotspots([]);
-      setActiveHotspotId(null);
-      setEditingHotspot(null);
-      setShowHotspotModal(false);
-      setIsPlacingHotspot(false);
-      if (isPlacingHotspotRef) isPlacingHotspotRef.current = false;
-      setRightPanelMode('edit');
+      setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
 
       setThreedState(prev => ({
         ...prev,
         models: nextModels,
-        modelUrl: converted.url,
-        modelName: nextModelName,
-        hotspots: []
+        modelUrl: models.length === 0 ? converted.url : prev.modelUrl,
+        modelName: nextModelName
       }));
 
       commitHistoryNow(buildSnapshot({
         models: nextModels,
         modelName: nextModelName,
-        materialSettings: nextMaterialSettings,
-        hiddenMaterials: [],
-        deletedMaterials: [],
-        selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
-        modelMaterialLists: {},
-        hotspots: []
+        selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
       }));
 
       setIsSidebarCollapsed(false);
@@ -190,7 +156,7 @@ export function useThreedModelLoader({
         toast.error(errMsg);
       }
     }
-  }, [models, setFormatErrorModal, startModelLoading, setModelStats, setModels, setModelUrl, setModelFile, setModelType, setModelName, setModelMaterialLists, setModelStatsMap, setSelectedMaterial, setHiddenMaterials, setDeletedMaterials, setMaterialSettings, setHotspots, setActiveHotspotId, setEditingHotspot, setShowHotspotModal, setIsPlacingHotspot, isPlacingHotspotRef, setRightPanelMode, setThreedState, commitHistoryNow, buildSnapshot, setIsSidebarCollapsed, startMountingBridgeTicker, loadingProgressRef, clearAllLoadingTimers, setManualLoading, setLoadingProgress, setLoadingText, setLoadingModelInfo, pendingModelIdRef, isCompletingRef, toast]);
+  }, [models, modelName, setFormatErrorModal, startModelLoading, setModelStats, setModels, setModelUrl, setModelFile, setModelType, setModelName, setSelectedMaterial, setThreedState, commitHistoryNow, buildSnapshot, setIsSidebarCollapsed, startMountingBridgeTicker, loadingProgressRef, clearAllLoadingTimers, setManualLoading, setLoadingProgress, setLoadingText, setLoadingModelInfo, pendingModelIdRef, isCompletingRef, toast]);
 
   const handleSelectGalleryModel = useCallback(async (model) => {
     if (!model) return;
@@ -221,12 +187,6 @@ export function useThreedModelLoader({
       }
     }
 
-    if (models.length > 0) {
-      models.forEach(m => {
-        if (m.url && m.url.startsWith('blob:')) URL.revokeObjectURL(m.url);
-      });
-    }
-
     const newModel = {
       id: modelId,
       modelId: model.modelId || modelId,
@@ -237,55 +197,35 @@ export function useThreedModelLoader({
       hotspots: modelHotspots
     };
 
-    const nextModels = [newModel];
+    const nextModels = [...models, newModel];
     setModels(nextModels);
 
     setModelUrl(fullUrl);
     setModelFile(null);
     setModelType(newModel.type);
-    const nextModelName = newModel.name;
-    setModelName(nextModelName);
+    const nextModelName = models.length === 0 ? newModel.name : modelName;
+    if (models.length === 0) {
+      setModelName(nextModelName);
+    }
 
-    setModelMaterialLists({});
-    setModelStatsMap({});
-    setSelectedMaterial({ name: nextModelName, parentGroup: nextModelName });
-    setHiddenMaterials(new Set());
-    setDeletedMaterials(new Set());
+    setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
     setModelStats({ fileSize: model.size || "0 MB" });
 
-    const nextMaterialSettings = {
-      alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
-      specular: 50, reflection: 10, shadow: 50, softness: 50, ao: 100, environment: 'studio',
-      worldOpacity: 0, worldBlur: 0,
-      color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
-      lightPosition: { x: 10, y: 10, z: 10 }
-    };
-    setMaterialSettings(nextMaterialSettings);
-
-    setHotspots(modelHotspots);
-    setActiveHotspotId(null);
-    setEditingHotspot(null);
-    setShowHotspotModal(false);
-    setIsPlacingHotspot(false);
-    if (isPlacingHotspotRef) isPlacingHotspotRef.current = false;
+    if (modelHotspots && modelHotspots.length > 0) {
+      setHotspots(prev => [...prev, ...modelHotspots]);
+    }
 
     setThreedState(prev => ({
       ...prev,
       models: nextModels,
-      modelUrl: fullUrl,
-      modelName: nextModelName,
-      hotspots: modelHotspots
+      modelUrl: models.length === 0 ? fullUrl : prev.modelUrl,
+      modelName: nextModelName
     }));
 
     commitHistoryNow(buildSnapshot({
       models: nextModels,
       modelName: nextModelName,
-      materialSettings: nextMaterialSettings,
-      hiddenMaterials: [],
-      deletedMaterials: [],
-      selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
-      modelMaterialLists: {},
-      hotspots: modelHotspots
+      selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
     }));
 
     setIsSidebarCollapsed(false);
@@ -294,7 +234,7 @@ export function useThreedModelLoader({
     if (model.modelId && navigate) {
       navigate(`/editor/threed_editor/${model.modelId}`);
     }
-  }, [backendUrl, models, startModelLoading, setModels, setModelUrl, setModelFile, setModelType, setModelName, setModelMaterialLists, setModelStatsMap, setSelectedMaterial, setHiddenMaterials, setDeletedMaterials, setModelStats, setMaterialSettings, setHotspots, setActiveHotspotId, setEditingHotspot, setShowHotspotModal, setIsPlacingHotspot, isPlacingHotspotRef, setThreedState, commitHistoryNow, buildSnapshot, setIsSidebarCollapsed, startMountingBridgeTicker, loadingProgressRef, navigate]);
+  }, [backendUrl, models, modelName, startModelLoading, setModels, setModelUrl, setModelFile, setModelType, setModelName, setSelectedMaterial, setModelStats, setHotspots, setThreedState, commitHistoryNow, buildSnapshot, setIsSidebarCollapsed, startMountingBridgeTicker, loadingProgressRef, navigate]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();

@@ -54,89 +54,31 @@ export default function CanvasFloatingToolbar({
 
   return (
     <>
-      {/* ─── TOP CENTER FLOATING TOOLBAR ─── */}
-      <div className="absolute top-[1.2vw] left-1/2 -translate-x-1/2 z-30 pointer-events-auto select-none flex items-center gap-[0.6vw]">
-        {/* Perspective Dropdown Capsule */}
-        <div className="relative" ref={viewMenuRef}>
-          <button
-            onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
-            className="flex items-center gap-[0.45vw] bg-[#181b20]/90 backdrop-blur-md px-[0.75vw] py-[0.4vw] rounded-[0.55vw] border border-white/10 shadow-xl text-gray-200 hover:text-white hover:bg-[#23272e]/90 transition-colors cursor-pointer"
-          >
-            <Icon icon="ant-design:camera-outlined" className="w-[1vw] h-[1vw] text-gray-300" />
-            <span className="font-medium text-[0.75vw]">{cameraMode}</span>
-            <Icon icon="heroicons:chevron-down-20-solid" className={`w-[0.8vw] h-[0.8vw] transition-transform duration-200 ${isViewMenuOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {isViewMenuOpen && (
-            <div className="absolute top-full left-0 mt-[0.4vw] w-[9.5vw] bg-[#1a1d22]/95 backdrop-blur-lg border border-white/15 rounded-[0.6vw] shadow-2xl py-[0.3vw] z-50 text-white animate-in fade-in zoom-in-95 duration-150">
-              {cameraOptions.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    setIsViewMenuOpen(false);
-                    onSelectCameraView && onSelectCameraView(opt.id);
-                  }}
-                  className={`w-full text-left px-[0.75vw] py-[0.4vw] text-[0.72vw] font-medium hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between ${cameraMode.toLowerCase().includes(opt.id) ? "text-[#ea543a]" : "text-gray-200"
-                    }`}
-                >
-                  <span>{opt.label}</span>
-                  {cameraMode.toLowerCase().includes(opt.id) && (
-                    <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-[#ea543a]" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Wireframe & Shades Capsule */}
-        <div className="flex items-center gap-[0.3vw] bg-[#181b20]/90 backdrop-blur-md p-[0.25vw] rounded-[0.55vw] border border-white/10 shadow-xl">
-          {/* Wireframe Button */}
-          <button
-            onClick={onToggleWireframe}
-            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${isWireframe
-                ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
-                : "text-gray-300 hover:text-white hover:bg-white/10"
-              }`}
-          >
-            <Icon icon="ph:polygon-light" className="w-[0.95vw] h-[0.95vw]" />
-            <span>Wireframe</span>
-          </button>
-
-          {/* Shades Button */}
-          <button
-            onClick={onToggleShades}
-            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${isShades
-                ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
-                : "text-gray-300 hover:text-white hover:bg-white/10"
-              }`}
-          >
-            <Icon icon="carbon:circle-solid" className="w-[0.85vw] h-[0.85vw]" />
-            <span>Shades</span>
-          </button>
-        </div>
-
-        {/* Optional Undo / Redo controls if provided */}
+      {/* ─── TOP LEFT: UNDO / REDO ─── */}
+      <div className="absolute top-[1.2vw] left-[1.2vw] z-30 pointer-events-auto select-none flex items-center gap-[0.6vw]">
+        {/* Undo / Redo controls */}
         {(onUndo || onRedo) && (
           <div className="flex items-center gap-[0.2vw] bg-[#181b20]/90 backdrop-blur-md p-[0.25vw] rounded-[0.55vw] border border-white/10 shadow-xl">
             <button
+              type="button"
               onClick={onUndo}
               disabled={!canUndo}
               title="Undo (Ctrl+Z)"
               className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${canUndo
-                  ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
-                  : "text-gray-600 cursor-not-allowed opacity-40"
+                ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
+                : "text-gray-600 cursor-not-allowed opacity-40"
                 }`}
             >
               <Icon icon="lucide:undo-dot" className="w-[0.95vw] h-[0.95vw]" />
             </button>
             <button
+              type="button"
               onClick={onRedo}
               disabled={!canRedo}
               title="Redo (Ctrl+Y)"
               className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] flex items-center justify-center transition-colors ${canRedo
-                  ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
-                  : "text-gray-600 cursor-not-allowed opacity-40"
+                ? "text-gray-200 hover:text-white hover:bg-white/10 cursor-pointer"
+                : "text-gray-600 cursor-not-allowed opacity-40"
                 }`}
             >
               <Icon icon="lucide:redo-dot" className="w-[0.95vw] h-[0.95vw]" />
@@ -145,8 +87,49 @@ export default function CanvasFloatingToolbar({
         )}
       </div>
 
+      {/* ─── TOP RIGHT: WIREFRAME & SHADING MUTUAL TOGGLE ─── */}
+      <div className="absolute top-[1.2vw] right-[1.2vw] z-30 pointer-events-auto select-none">
+        <div className="flex items-center gap-[0.25vw] bg-[#181b20]/90 backdrop-blur-md p-[0.25vw] rounded-[0.55vw] border border-white/10 shadow-xl">
+          {/* Wireframe Button (Mutually exclusive with Shades) */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!isWireframe) {
+                onToggleWireframe && onToggleWireframe();
+              }
+            }}
+            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${isWireframe
+              ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
+              : "text-gray-300 hover:text-white hover:bg-white/10"
+              }`}
+          >
+            <Icon icon="ph:polygon-light" className="w-[0.95vw] h-[0.95vw]" />
+            <span>Wireframe</span>
+          </button>
+
+          {/* Shades Button (Mutually exclusive with Wireframe) */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isWireframe) {
+                onToggleWireframe && onToggleWireframe();
+              } else if (!isShades) {
+                onToggleShades && onToggleShades();
+              }
+            }}
+            className={`flex items-center gap-[0.4vw] px-[0.75vw] py-[0.35vw] rounded-[0.45vw] text-[0.72vw] font-medium transition-all cursor-pointer ${!isWireframe && isShades
+              ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
+              : "text-gray-300 hover:text-white hover:bg-white/10"
+              }`}
+          >
+            <Icon icon="carbon:circle-solid" className="w-[0.85vw] h-[0.85vw]" />
+            <span>Shades</span>
+          </button>
+        </div>
+      </div>
+
       {/* ─── RIGHT FLOATING TRANSFORM DOCK ─── */}
-      <div className="absolute right-[1.2vw] top-1/2 -translate-y-1/2 z-30 pointer-events-auto select-none">
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-30 pointer-events-auto select-none">
         <div className="bg-[#181b20]/90 backdrop-blur-md p-[0.35vw] rounded-[0.7vw] border border-white/10 shadow-2xl flex flex-col items-center gap-[0.35vw]">
           {transformTools.map((tool) => {
             const isActive = transformMode === tool.id;
@@ -156,8 +139,8 @@ export default function CanvasFloatingToolbar({
                 onClick={() => onSelectTransformMode && onSelectTransformMode(tool.id)}
                 title={tool.label}
                 className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex flex-col items-center justify-center transition-all cursor-pointer ${isActive
-                    ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
-                    : "text-gray-300 hover:text-white hover:bg-white/10"
+                  ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
                   }`}
               >
                 <Icon icon={tool.icon} className="w-[1.05vw] h-[1.05vw]" />

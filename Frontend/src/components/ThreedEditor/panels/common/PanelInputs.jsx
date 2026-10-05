@@ -29,7 +29,7 @@ export function SliderRow({ label, value = 50, onChange }) {
   );
 }
 
-export function AxisInput({ axis, value = 0, onChange, step = 0.1, min, max }) {
+export function AxisInput({ axis, value = 0, onChange, step = 0.1, min, max, className = "" }) {
   const [isFocused, setIsFocused] = useState(false);
   const [textVal, setTextVal] = useState(() => {
     const num = Number(value) || 0;
@@ -123,13 +123,15 @@ export function AxisInput({ axis, value = 0, onChange, step = 0.1, min, max }) {
   };
 
   return (
-    <div className={`flex items-center bg-gray-50 border rounded-[0.45vw] px-[0.4vw] py-[0.3vw] transition-colors ${
-      isFocused ? "border-[#ea543a] ring-1 ring-[#ea543a]/20 bg-white" : "border-gray-200 hover:border-gray-300"
-    }`}>
+    <div
+      className={`flex items-center bg-[#f4f5f7] rounded-[0.45vw] px-[0.4vw] py-[0.3vw] transition-all min-w-0 ${
+        isFocused ? "ring-1 ring-[#ea543a] bg-white border border-[#ea543a]" : "hover:bg-[#ebedf1]"
+      } ${className}`}
+    >
       <span
         onPointerDown={handleLabelPointerDown}
         title="Drag horizontally to scrub value"
-        className="text-[0.7vw] font-bold text-gray-400 hover:text-[#ea543a] w-[1vw] text-center cursor-ew-resize select-none shrink-0"
+        className="text-[0.68vw] font-semibold text-gray-400 hover:text-[#ea543a] w-[0.85vw] text-center cursor-ew-resize select-none shrink-0"
       >
         {axis}
       </span>
@@ -141,7 +143,7 @@ export function AxisInput({ axis, value = 0, onChange, step = 0.1, min, max }) {
         onChange={handleChange}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        className="w-full text-center text-[0.75vw] font-semibold text-gray-800 bg-transparent outline-none"
+        className="w-full text-right text-[0.74vw] font-medium text-gray-900 bg-transparent outline-none pl-[0.1vw] pr-[0.1vw] min-w-0"
       />
     </div>
   );
@@ -154,48 +156,51 @@ export function DualAxisInput({
   onChangeX,
   onChangeY,
   isLinked = true,
-  onToggleLink
+  onToggleLink,
+  step = 1,
+  min,
+  max
 }) {
   return (
     <div className="flex items-center justify-between gap-[0.4vw]">
-      <span className="text-[0.75vw] font-medium text-gray-700 w-[3.5vw] shrink-0">
+      <span className="text-[0.75vw] font-medium text-gray-800 w-[3.5vw] shrink-0">
         {label}
       </span>
-      <div className="flex-1 flex items-center gap-[0.35vw]">
-        <div className="flex-1 flex items-center bg-[#f4f5f7] rounded-[0.4vw] px-[0.45vw] py-[0.28vw]">
-          <span className="text-[0.7vw] font-semibold text-gray-500 mr-[0.4vw]">X</span>
-          <input
-            type="number"
-            value={Math.round(xVal)}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value) || 0;
+      <div className="flex-1 flex items-center gap-[0.4vw]">
+        <div className="flex-1">
+          <AxisInput
+            axis="X"
+            value={xVal}
+            onChange={(v) => {
               onChangeX && onChangeX(v);
               if (isLinked && onChangeY) onChangeY(v);
             }}
-            className="w-full text-right text-[0.75vw] font-medium text-gray-800 bg-transparent outline-none"
+            step={step}
+            min={min}
+            max={max}
           />
         </div>
         <button
           type="button"
           onClick={onToggleLink}
-          className={`p-[0.2vw] transition-colors cursor-pointer ${
-            isLinked ? "text-gray-700 hover:text-gray-900" : "text-gray-300 hover:text-gray-500"
+          className={`p-[0.2vw] transition-transform hover:scale-110 active:scale-95 cursor-pointer shrink-0 ${
+            isLinked ? "text-gray-700" : "text-gray-300 hover:text-gray-500"
           }`}
           title={isLinked ? "Linked proportions" : "Unlinked proportions"}
         >
-          <Icon icon={isLinked ? "solar:link-bold" : "solar:link-broken-linear"} className="w-[0.85vw] h-[0.85vw]" />
+          <Icon icon={isLinked ? "solar:link-bold" : "solar:link-broken-linear"} className="w-[0.9vw] h-[0.9vw]" />
         </button>
-        <div className="flex-1 flex items-center bg-[#f4f5f7] rounded-[0.4vw] px-[0.45vw] py-[0.28vw]">
-          <span className="text-[0.7vw] font-semibold text-gray-500 mr-[0.4vw]">Y</span>
-          <input
-            type="number"
-            value={Math.round(yVal)}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value) || 0;
+        <div className="flex-1">
+          <AxisInput
+            axis="Y"
+            value={yVal}
+            onChange={(v) => {
               onChangeY && onChangeY(v);
               if (isLinked && onChangeX) onChangeX(v);
             }}
-            className="w-full text-right text-[0.75vw] font-medium text-gray-800 bg-transparent outline-none"
+            step={step}
+            min={min}
+            max={max}
           />
         </div>
       </div>

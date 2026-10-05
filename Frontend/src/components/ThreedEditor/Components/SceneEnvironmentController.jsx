@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+﻿import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
@@ -55,7 +55,7 @@ export function safelyRestoreSkeletonBindPose(skeleton) {
 
 // Controller to ensure environment lighting, background opacity (mingled with gray color), blur, and rotation
 // update in real-time across every frame so drei re-renders cannot override user settings.
-export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBlur = 0, reflection = 50, isCapturing = false }) {
+export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBlur = 0, reflection = 50, isCapturing = false, customBgColor = null }) {
   const { scene } = useThree();
   const rotRef = useRef(0);
 
@@ -88,6 +88,13 @@ export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, 
 
     if (isCapturing) {
       if (scene.background) scene.background = null;
+      return;
+    }
+
+    if (customBgColor) {
+      if (!scene.background || !scene.background.isColor || scene.background.getHexString() !== new THREE.Color(customBgColor).getHexString()) {
+        scene.background = new THREE.Color(customBgColor);
+      }
       return;
     }
 
@@ -128,8 +135,15 @@ export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, 
   return null;
 }
 
-// DirectionalSunLight ensures shadow updates dynamically with smooth, responsive softness
-export function DirectionalSunLight({ position, specular = 50, softness = 50 }) {
+// DirectionalSunLight ensures shadow updates dynamically with smooth, responsive softness and color/intensity
+export function DirectionalSunLight({
+  position,
+  specular = 50,
+  softness = 50,
+  color = "#ffffff",
+  intensity = 100,
+  shadowDensity = 100
+}) {
   const lightRef = useRef();
   const targetRef = useRef();
 
@@ -156,14 +170,19 @@ export function DirectionalSunLight({ position, specular = 50, softness = 50 }) 
     }
   });
 
+  const baseMultiplier = (intensity ?? 100) / 100;
+  const specFactor = 1.8 + ((specular ?? 50) / 100) * 0.8;
+  const computedIntensity = specFactor * baseMultiplier;
+
   return (
     <>
       <object3D ref={targetRef} position={[0, 0, 0]} />
       <directionalLight
         ref={lightRef}
         position={position}
-        intensity={1.8 + ((specular ?? 50) / 100) * 0.8}
-        castShadow
+        color={color || "#ffffff"}
+        intensity={computedIntensity}
+        castShadow={(shadowDensity ?? 100) > 0}
         shadow-bias={-0.0002}
         shadow-normalBias={0.03}
         shadow-radius={shadowSoftRadius}

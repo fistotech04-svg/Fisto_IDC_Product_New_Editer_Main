@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
@@ -13,6 +13,7 @@ import LeftSidebar from "./LeftSidebar";
 import MaterialSelectorDrawer from "./Components/MaterialSelectorDrawer";
 import CanvasFloatingToolbar from "./CanvasFloatingToolbar";
 import BottomGalleryTray from "./BottomGalleryTray";
+import CameraBottomTray from "./Components/CameraBottomTray";
 import { GlobalLoader } from "./Components/GlobalLoader";
 import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
@@ -33,6 +34,7 @@ import { getFromDB } from "../../utils/dbUtils";
 import { useToast } from "../../components/CustomToast";
 import { executeExport3D, captureCameraSnapshot } from "./utils/threedExportHandlers";
 import { executeSave3D } from "./utils/threedSaveHandlers";
+import { checkFbxLegacyVersion, convertModelFileIfNeeded } from "./utils/modelConversionUtils";
 import { useThreedCameraControls } from "./hooks/useThreedCameraControls";
 import { useThreedHotspots } from "./hooks/useThreedHotspots";
 import { useThreedMaterialTree } from "./hooks/useThreedMaterialTree";
@@ -84,7 +86,7 @@ export default function ThreedEditor() {
   const [modelType, setModelType] = useState(models.length > 0 ? models[0].type : "glb");
   const [autoRotate, setAutoRotate] = useState(false);
   const [autoRotateSpeed, setAutoRotateSpeed] = useState(1.0);
-  const [autoRotateAxis, setAutoRotateAxis] = useState("X");
+  const [autoRotateAxis, setAutoRotateAxis] = useState("Y");
   const [autoRotateRange, setAutoRotateRange] = useState(360);
   const [showGridLines, setShowGridLines] = useState(true);
   const [showAxis, setShowAxis] = useState(true);
@@ -352,9 +354,28 @@ export default function ThreedEditor() {
   const lastUpdateRef = useRef(0);
 
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0 });
+  const [cameraCoordinates, setCameraCoordinates] = useState({ x: 0, y: 0, z: 0 });
+  const [cameraBgType, setCameraBgType] = useState("transparent");
+  const [cameraBgColor, setCameraBgColor] = useState("#F3F3F3");
+  const [cameraBgOpacity, setCameraBgOpacity] = useState(100);
+  const [selectedFrameId, setSelectedFrameId] = useState("frame_2_1_a");
+  const [savedCameraAngles, setSavedCameraAngles] = useState([
+    { id: 'snap_1', title: 'Top Angle', dataUrl: null },
+    { id: 'snap_2', title: 'Top Angle', dataUrl: null },
+    { id: 'snap_3', title: 'Top Angle', dataUrl: null },
+    { id: 'snap_4', title: 'Top Angle', dataUrl: null },
+  ]);
 
   const handleControlsChange = useCallback((e) => {
     const target = e?.target?.target;
+    const cam = e?.target?.object || cameraInstanceRef.current;
+    if (cam) {
+      setCameraCoordinates({
+        x: parseFloat(cam.position.x.toFixed(2)),
+        y: parseFloat(cam.position.y.toFixed(2)),
+        z: parseFloat(cam.position.z.toFixed(2))
+      });
+    }
     if (!target) return;
     const now = Date.now();
     if (now - lastUpdateRef.current > 50) {
@@ -1622,7 +1643,14 @@ export default function ThreedEditor() {
         commitHistoryNow(snapshot);
       }
     } else {
-      const prev = rootTransformRef.current || defaultTransform;
+      const activeModel = models.find(m =>
+        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+        (selectedMaterial?.name && m.name === selectedMaterial.name)
+      ) || models[0];
+
+      const prev = (activeModel && activeModel.transform) || rootTransformRef.current || defaultTransform;
       const next = {
         position: { ...(prev.position || { x: 0, y: 0, z: 0 }) },
         rotation: { ...(prev.rotation || { x: 0, y: 0, z: 0 }) },
@@ -1638,11 +1666,20 @@ export default function ThreedEditor() {
         };
       }
 
+      const nextModels = models.map(m => {
+        if (activeModel && m.id === activeModel.id) {
+          return { ...m, transform: next };
+        }
+        return m;
+      });
+
+      setModels(nextModels);
       rootTransformRef.current = next;
       setRootTransform(next);
       setTransformValues(next);
 
       const snapshot = buildSnapshot({
+        models: nextModels,
         transformValues: next,
         rootTransform: next,
         meshTransforms: meshTransformsRef.current
@@ -1721,9 +1758,16 @@ export default function ThreedEditor() {
       setTransformValues(next);
       commitHistoryNow(buildSnapshot({ transformValues: next, meshTransforms: nextMeshTransforms, rootTransform: rootTransformRef.current }));
     } else {
+      const activeModel = models.find(m =>
+        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+        (selectedMaterial?.name && m.name === selectedMaterial.name)
+      ) || models[0];
+
       const defaults = originalTransformRef.current || defaultTransform;
       const getXYZ = (obj) => ({ x: obj.x, y: obj.y, z: obj.z });
-      const curRoot = rootTransformRef.current || defaultTransform;
+      const curRoot = (activeModel && activeModel.transform) || rootTransformRef.current || defaultTransform;
       const next = {
         position: { ...curRoot.position },
         rotation: { ...curRoot.rotation },
@@ -1742,10 +1786,23 @@ export default function ThreedEditor() {
         next.scale = getXYZ(defaults.scale);
       }
 
+      const nextModels = models.map(m => {
+        if (activeModel && m.id === activeModel.id) {
+          return { ...m, transform: next };
+        }
+        return m;
+      });
+
+      setModels(nextModels);
       rootTransformRef.current = next;
       setRootTransform(next);
       setTransformValues(next);
-      commitHistoryNow(buildSnapshot({ transformValues: next, rootTransform: next, meshTransforms: meshTransformsRef.current }));
+      commitHistoryNow(buildSnapshot({
+        models: nextModels,
+        transformValues: next,
+        rootTransform: next,
+        meshTransforms: meshTransformsRef.current
+      }));
     }
   };
 
@@ -1766,7 +1823,7 @@ export default function ThreedEditor() {
     }
     try {
       let nextTransforms = { ...meshTransformsRef.current };
-      if (finalMeshTransforms && typeof finalMeshTransforms === 'object') {
+      if (finalMeshTransforms && typeof finalMeshTransforms === 'object' && Object.keys(finalMeshTransforms).length > 0) {
         nextTransforms = {
           ...nextTransforms,
           ...finalMeshTransforms
@@ -1775,6 +1832,7 @@ export default function ThreedEditor() {
         setMeshTransformsState(nextTransforms);
       }
       commitHistoryNow(buildSnapshot({
+        models: modelsRef.current,
         meshTransforms: nextTransforms,
         rootTransform: rootTransformRef.current,
         transformValues: stateRef.current.transformValues
@@ -2192,9 +2250,16 @@ export default function ThreedEditor() {
 
   useEffect(() => {
     if (isRestoringHistoryRef.current) return;
-    const isModelLevel = !selectedMaterial || !selectedMaterial.name || selectedMaterial.name === modelName || selectedMaterial.name === 'Scene' || selectedMaterial.isAll;
+    const isModelLevel = !selectedMaterial || !selectedMaterial.name || selectedMaterial.isModel || selectedMaterial.name === modelName || selectedMaterial.name === 'Scene' || selectedMaterial.isAll;
     if (isModelLevel) {
-      setTransformValues(rootTransformRef.current || defaultTransform);
+      const activeModel = models.find(m =>
+        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+        (selectedMaterial?.name && m.name === selectedMaterial.name)
+      );
+      const activeTransform = activeModel?.transform || rootTransformRef.current || defaultTransform;
+      setTransformValues(activeTransform);
     } else {
       const lookupKeys = [
         selectedMaterial.uuid,
@@ -2220,7 +2285,7 @@ export default function ThreedEditor() {
         });
       }
     }
-  }, [selectedMaterial, modelName, defaultTransform, setTransformValues]);
+  }, [selectedMaterial, modelName, models, defaultTransform, setTransformValues]);
 
   const handleTransformChange = useCallback((t) => {
     if (t.original) {
@@ -2236,6 +2301,25 @@ export default function ThreedEditor() {
     };
 
     if (t.isModelLevel) {
+      const targetModelId = t.modelId || selectedMaterial?.id || selectedMaterial?.modelId;
+      const targetModelName = t.modelName || selectedMaterial?.parentGroup || selectedMaterial?.name;
+
+      let found = false;
+      const updatedModels = (modelsRef.current || models).map(m => {
+        if ((targetModelId && m.id === targetModelId) || (targetModelName && m.name === targetModelName)) {
+          found = true;
+          return { ...m, transform: nextTransform };
+        }
+        return m;
+      });
+
+      const finalModels = found ? updatedModels : (modelsRef.current || models).map((m, idx) => {
+        if (idx === 0) return { ...m, transform: nextTransform };
+        return m;
+      });
+
+      modelsRef.current = finalModels;
+      setModels(finalModels);
       rootTransformRef.current = nextTransform;
       setRootTransform(nextTransform);
     }
@@ -2255,7 +2339,7 @@ export default function ThreedEditor() {
       }
       return nextTransform;
     });
-  }, [setTransformValues]);
+  }, [setTransformValues, selectedMaterial]);
 
   const canvasPointerDownPosRef = useRef(null);
 
@@ -2321,16 +2405,44 @@ export default function ThreedEditor() {
 
       {/* Main Canvas & Editor Viewport */}
       <div className="flex flex-1 overflow-hidden relative w-full h-full bg-[#1e2025]">
-        {/* Left Side Navigation & Tab Selector */}
         <LeftSidebar
           activeTab={activeLeftTab}
           onSelectTab={setActiveLeftTab}
           modelName={modelName}
           onRenameModel={handleRename}
+          fileSize={combinedStats?.fileSize || modelStats?.fileSize || "18MB"}
+          models={models}
+          activeModelId={selectedMaterial?.id || selectedMaterial?.parentGroup || (typeof selectedMaterial === "string" ? selectedMaterial : null)}
+          onSelectModel={(id, modelItem) => {
+            setActiveLeftTab("model");
+            if (modelItem) {
+              handleSelectMaterial({
+                id: modelItem.id,
+                name: modelItem.name,
+                parentGroup: modelItem.name,
+                isModel: true,
+                isGroup: true
+              });
+            }
+          }}
+          onAddModel={() => {
+            setShowAddModelModal(true);
+          }}
           meshCount={activeMaterialList.length}
           pageCount={10}
           onExport={() => setShowExportModal(true)}
           hasModel={models.length > 0}
+          materialList={activeMaterialList}
+          modelMaterialLists={modelMaterialLists}
+          selectedMaterial={selectedMaterial}
+          onSelectMaterial={handleSelectMaterial}
+          hiddenMaterials={hiddenMaterials}
+          xrayMaterials={xrayMaterials}
+          onToggleVisibility={handleToggleVisibility}
+          onToggleXray={handleToggleXray}
+          onDeleteMaterial={handleDeleteMaterial}
+          onDeleteModel={handleDeleteModel}
+          onRenameMaterial={handleRenameMaterial}
         />
 
         {/* Material & Color Preset Drawer */}
@@ -2395,8 +2507,9 @@ export default function ThreedEditor() {
 
         {/* Center Workspace (Canvas + Floating Tools + Bottom Swatch Tray) */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 relative">
-          <div className="flex-1 bg-[#1e2025] relative overflow-hidden flex flex-col w-full h-full">
+          <div className={`flex-1 relative overflow-hidden flex flex-col w-full h-full ${activeLeftTab === "camera" ? (cameraBgType === "solid" ? "" : "bg-[#f3f4f6]") : "bg-[#1e2025]"}`} style={activeLeftTab === "camera" && cameraBgType === "solid" ? { backgroundColor: cameraBgColor || "#ffffff" } : {}}>
             {/* Top Viewport Floating Controls */}
+            {activeLeftTab !== "camera" && (
             <CanvasFloatingToolbar
               cameraMode={cameraViewMode}
               onSelectCameraView={handleCameraViewChange}
@@ -2422,6 +2535,7 @@ export default function ThreedEditor() {
               }}
               canTransform={models.length > 0}
             />
+            )}
 
             {/* Snapshot / Screenshot Modal */}
             {isScreenshotOpen && (
@@ -2450,6 +2564,30 @@ export default function ThreedEditor() {
             )}
 
             {/* 3D Scene Viewport */}
+                        {/* Save Current Angle Floating Button */}
+            {activeLeftTab === "camera" && (
+              <div className="absolute bottom-[1.2vw] right-[1.2vw] z-30 pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const snapUrl = await handleCaptureSnapshot();
+                    setSavedCameraAngles((prev) => [
+                      ...prev,
+                      {
+                        id: 'snap_' + Date.now(),
+                        title: 'Top Angle',
+                        dataUrl: snapUrl || null,
+                      },
+                    ]);
+                  }}
+                  className="flex items-center gap-[0.5vw] px-[1vw] py-[0.55vw] bg-white hover:bg-gray-50 text-gray-800 hover:text-[#ea543a] rounded-[0.5vw] shadow-lg border border-gray-200/80 text-[0.8vw] font-semibold transition-all cursor-pointer active:scale-95 group"
+                >
+                  <Icon icon="solar:camera-add-linear" className="w-[1.1vw] h-[1.1vw] text-[#ea543a] group-hover:scale-110 transition-transform" />
+                  <span>Save Current Angle</span>
+                </button>
+              </div>
+            )}
+
             <ThreedCanvasViewport
               models={models}
               isPlacingHotspot={isPlacingHotspot}
@@ -2474,7 +2612,7 @@ export default function ThreedEditor() {
               handleSelectMaterial={handleSelectMaterial}
               hotspots={hotspots}
               activeHotspotId={activeHotspotId}
-              transformMode={transformMode}
+              transformMode={activeLeftTab === "camera" ? null : transformMode}
               rootTransform={rootTransform}
               transformValues={transformValues}
               meshTransformsState={meshTransformsState}
@@ -2515,8 +2653,27 @@ export default function ThreedEditor() {
               setShowHotspotModal={setShowHotspotModal}
               setIsPlacingHotspot={setIsPlacingHotspot}
               isPlacingHotspotRef={isPlacingHotspotRef}
+              activeLeftTab={activeLeftTab}
+              cameraBgType={cameraBgType}
+              cameraBgColor={cameraBgColor}
             />
           </div>
+
+          {/* Camera Saved Angles Bottom Tray */}
+          {activeLeftTab === "camera" && (
+            <CameraBottomTray
+              snapshots={savedCameraAngles}
+              onDeleteSnapshot={(id) => {
+                setSavedCameraAngles((prev) => prev.filter((s) => s.id !== id));
+              }}
+              onRenameSnapshot={(id, newTitle) => {
+                setSavedCameraAngles((prev) =>
+                  prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
+                );
+              }}
+              modelName={modelName}
+            />
+          )}
 
           {/* Bottom Material / Texture Gallery Swatches */}
           <BottomGalleryTray
@@ -2583,7 +2740,7 @@ export default function ThreedEditor() {
         </div>
 
         {/* Right Settings Panel (Model / Materials / Environment / Hotspots) */}
-        <div className="w-[22vw] min-w-[280px] max-w-[340px] h-full border-l border-gray-200 bg-white z-40 relative flex flex-col shrink-0">
+        <div className="w-[23vw] min-w-[305px] max-w-[360px] h-full border-l border-gray-200 bg-white z-40 relative flex flex-col shrink-0">
           <RightPanel
             activeLeftTab={activeLeftTab}
             onOpenMaterialDrawer={() => setIsMaterialDrawerOpen(true)}
@@ -2689,6 +2846,15 @@ export default function ThreedEditor() {
             onGalleryClick={() => setShowModelGalleryModal(true)}
             onClearModel={handleClearModel}
             modelStats={combinedStats}
+            cameraPosition={cameraCoordinates}
+            cameraBgType={cameraBgType}
+            onChangeCameraBgType={setCameraBgType}
+            cameraBgColor={cameraBgColor}
+            onChangeCameraBgColor={setCameraBgColor}
+            cameraBgOpacity={cameraBgOpacity}
+            onChangeCameraBgOpacity={setCameraBgOpacity}
+            selectedFrameId={selectedFrameId}
+            onSelectFrameId={setSelectedFrameId}
           />
         </div>
       </div>

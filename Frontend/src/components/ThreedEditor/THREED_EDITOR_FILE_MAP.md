@@ -25,9 +25,10 @@ graph TD
     F --> F1[panels/ModelTab/ModelPanel.jsx]
     F --> F2[panels/MaterialsTab/MaterialsPanel.jsx]
     F --> F3[panels/MaterialsTab/TexturesPanel.jsx]
-    F --> F4[panels/CameraTab/CameraPanel.jsx]
-    F --> F5[panels/HotspotsTab/HotspotsPanel.jsx]
-    F --> F6[panels/AnimationTab/AnimationPanel.jsx]
+    F --> F4[panels/LightingTab/LightingPanel.jsx]
+    F --> F5[panels/CameraTab/CameraPanel.jsx]
+    F --> F6[panels/HotspotsTab/HotspotsPanel.jsx]
+    F --> F7[panels/AnimationTab/AnimationPanel.jsx]
 ```
 
 ---
@@ -89,6 +90,8 @@ graph TD
   * Selected mesh thumbnail preview, drawer trigger, color swatches, physical PBR factor sliders (Metallic, Roughness, Opacity, Bump), and UV tile/offset controls.
 * **[`panels/MaterialsTab/TexturesPanel.jsx`](file:///d:/Sham/Flipibook/Frontend/src/components/ThreedEditor/panels/MaterialsTab/TexturesPanel.jsx)**
   * PBR texture map slots (Base, Metalness, Roughness, Normal, AO, Bump, Alpha) with upload and clear buttons.
+* **[`panels/LightingTab/LightingPanel.jsx`](file:///d:/Sham/Flipibook/Frontend/src/components/ThreedEditor/panels/LightingTab/LightingPanel.jsx)**
+  * Interactive circular sun positioning compass, X/Y/Z light coordinates, HDR environment studio presets, custom HDR upload/management, rotation, specular, reflection, world opacity/blur, and shadows.
 * **[`panels/CameraTab/CameraPanel.jsx`](file:///d:/Sham/Flipibook/Frontend/src/components/ThreedEditor/panels/CameraTab/CameraPanel.jsx)**
   * Field of View (FOV) slider and camera snapshot / screenshot triggers.
 * **[`panels/HotspotsTab/HotspotsPanel.jsx`](file:///d:/Sham/Flipibook/Frontend/src/components/ThreedEditor/panels/HotspotsTab/HotspotsPanel.jsx)**

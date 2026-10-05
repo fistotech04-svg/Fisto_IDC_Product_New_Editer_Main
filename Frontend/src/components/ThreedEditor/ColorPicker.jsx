@@ -56,8 +56,9 @@ const hsvToHex = ({ h, s, v }) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
-export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClose, className, style, ...props }) {
-  const [hsv, setHsv] = useState(() => hexToHsv(color));
+export default function ColorPicker({ color, onChange, opacity = 100, onOpacityChange, onClose, className, style, ...props }) {
+  const [hsv, setHsv] = useState(() => hexToHsv(color || "#000000"));
+  const currentOpacity = typeof opacity === "number" ? opacity : 100;
   const pickerRef = useRef(null);
 
   // Close on click outside
@@ -242,19 +243,19 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                 <div className="relative flex-1 h-[0.35vw] bg-gray-100 rounded-full">
                    <div 
                      className="absolute top-0 left-0 h-full bg-[#7c5dff] rounded-full"
-                     style={{ width: `${opacity}%` }}
+                     style={{ width: `${currentOpacity}%` }}
                    ></div>
                    <input 
                       type="range" 
                       min="0" 
                       max="100" 
-                      value={opacity} 
+                      value={currentOpacity} 
                       onChange={(e) => onOpacityChange && onOpacityChange(parseInt(e.target.value))}
                       className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
                    />
                    <div 
                       className="absolute top-1/2 -translate-y-1/2 w-[0.85vw] h-[0.85vw] bg-[#7c5dff] border-2 border-white rounded-full shadow-md pointer-events-none"
-                      style={{ left: `${opacity}%`, marginLeft: "-0.425vw" }}
+                      style={{ left: `${currentOpacity}%`, marginLeft: "-0.425vw" }}
                    ></div>
                 </div>
              </div>

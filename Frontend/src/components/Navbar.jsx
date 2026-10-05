@@ -16,21 +16,26 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const [isPublishMenuOpen, setIsPublishMenuOpen] = useState(false);
+  const [isSaveDropdownOpen, setIsSaveDropdownOpen] = useState(false);
   const deviceMenuRef = useRef(null);
+  const saveDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (deviceMenuRef.current && !deviceMenuRef.current.contains(event.target)) {
         setIsDeviceMenuOpen(false);
       }
+      if (saveDropdownRef.current && !saveDropdownRef.current.contains(event.target)) {
+        setIsSaveDropdownOpen(false);
+      }
     };
-    if (isDeviceMenuOpen) {
+    if (isDeviceMenuOpen || isSaveDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDeviceMenuOpen]);
+  }, [isDeviceMenuOpen, isSaveDropdownOpen]);
   const location = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
@@ -261,100 +266,118 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
         <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
           {isThreedEditor ? (
             <>
-              {/* Saved Badge */}
-              <div className="flex items-center gap-[0.4vw] text-emerald-600 font-semibold text-[0.78vw] bg-emerald-50 px-[0.7vw] py-[0.35vw] rounded-full border border-emerald-200/80 shadow-2xs">
-                <Icon icon="solar:check-circle-bold" className="w-[0.95vw] h-[0.95vw] text-emerald-500" />
-                <span>Saved</span>
+              {/* Saved / Unsaved Status Badge */}
+              <div className={`flex items-center gap-[0.45vw] font-semibold text-[0.82vw] bg-white px-[0.85vw] py-[0.4vw] rounded-full border shadow-2xs transition-colors ${
+                hasUnsavedChanges ? "text-amber-700 border-amber-300/80 bg-amber-50/40" : "text-gray-700 border-gray-300"
+              }`}>
+                {hasUnsavedChanges ? (
+                  <Icon icon="solar:danger-circle-bold" className="w-[1.25vw] h-[1.25vw] text-amber-500 shrink-0" />
+                ) : (
+                  <Icon icon="reicon:tick-circle-filled" className="w-[1.25vw] h-[1.25vw] text-[#10b981] shrink-0" />
+                )}
+                <span>{hasUnsavedChanges ? "Unsaved" : "Saved"}</span>
               </div>
 
-              {/* Save Button */}
-              <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-                <button
-                  onClick={onSave}
-                  disabled={isSaving}
-                  className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm cursor-pointer active:scale-95
-                    ${hasUnsavedChanges 
-                        ? 'bg-[#FFFBEB] text-yellow-600 hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
-                        : 'bg-[#F2FDF8] text-green-600 hover:bg-green-100 ring-[0.06vw] ring-green-300'
-                    }`}
-                  title="Save"
-                >
-                  {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
-                </button>
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-                  <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-                  <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                    {hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "Click to Save"}
-                  </div>
+              {/* Red/Orange Split Save Changes Button with Dropdown */}
+              <div className="relative flex items-center" ref={saveDropdownRef}>
+                <div className="flex items-center bg-[#ea543a] hover:bg-[#d9442a] text-white rounded-[0.65vw] shadow-sm transition-all">
+                  {/* Left Action: Save Changes */}
+                  <button
+                    type="button"
+                    onClick={onSave}
+                    disabled={isSaving}
+                    className="flex items-center gap-[0.55vw] px-[1.1vw] py-[0.55vw] font-bold text-[0.85vw] cursor-pointer rounded-l-[0.65vw] transition-colors active:scale-98"
+                  >
+                    <Icon icon="codicon:save" className="w-[1.15vw] h-[1.15vw]" />
+                    <span>{isSaving ? "Saving..." : "Save Changes"}</span>
+                  </button>
+
+                  {/* Divider */}
+                  <div className="w-[1px] h-[1.3vw] bg-white/30"></div>
+
+                  {/* Right Chevron: Toggle Dropdown */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSaveDropdownOpen(!isSaveDropdownOpen)}
+                    className="px-[0.65vw] py-[0.55vw] cursor-pointer rounded-r-[0.65vw] transition-colors hover:bg-black/10 active:scale-98 flex items-center justify-center"
+                    title="Save & Export Options"
+                  >
+                    <Icon
+                      icon="heroicons:chevron-down-20-solid"
+                      className={`w-[1.1vw] h-[1.1vw] transition-transform duration-200 ${
+                        isSaveDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
                 </div>
 
-                {/* Success Toast Popup */}
-                {saveSuccessInfo && (saveSuccessInfo.isManual || !isAutoSaveEnabled) && (
-                  <div className="absolute top-full right-0 mt-[0.5vw] w-[12vw] z-[99999] animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="bg-[#5CBC49] rounded-[0.5vw] shadow-2xl p-[0.6vw] text-white relative">
-                      <div className="absolute -top-[0.2vw] right-[1vw] w-[0.6vw] h-[0.6vw] bg-[#5CBC49] rotate-45 transform"></div>
-                      <div className="flex items-center gap-[0.4vw]">
-                        <div className="w-[1.2vw] h-[1.2vw] rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                          <Icon icon="lucide:check" className="w-[0.8vw] h-[0.8vw] text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[0.75vw] font-semibold truncate">{saveSuccessInfo.name || '3D Model'}</p>
-                          <p className="text-[0.65vw] text-white/90">Saved successfully</p>
-                        </div>
+                {/* Save & Export Dropdown Menu */}
+                {isSaveDropdownOpen && (
+                  <div className="absolute right-0 top-[calc(100%+0.6vw)] bg-white rounded-[0.8vw] shadow-[0_12px_36px_rgba(0,0,0,0.14)] border border-gray-100/90 py-[0.4vw] w-[15.5vw] min-w-[210px] z-[99999] animate-in fade-in zoom-in-95 duration-150">
+                    {/* Item 1: Save as New Model */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSaveDropdownOpen(false);
+                        if (onSaveAs) onSaveAs();
+                      }}
+                      className="w-full flex items-start gap-[0.75vw] px-[1vw] py-[0.65vw] hover:bg-gray-50/90 transition-colors text-left cursor-pointer group"
+                    >
+                      <div className="w-[1.8vw] h-[1.8vw] rounded-[0.35vw] flex items-center justify-center text-gray-800 group-hover:text-[#ea543a] transition-colors shrink-0 mt-[0.1vw]">
+                        <Icon icon="codicon:save-all" className="w-[1.35vw] h-[1.35vw]" />
                       </div>
-                    </div>
+                      <div className="flex flex-col">
+                        <span className="text-[0.82vw] font-bold text-gray-900 group-hover:text-[#ea543a] transition-colors leading-tight">
+                          Save as New Model
+                        </span>
+                        <span className="text-[0.68vw] text-gray-400 font-medium leading-tight mt-[0.15vw]">
+                          Keep original unchanged
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Item 2: Export 3D Model */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSaveDropdownOpen(false);
+                        if (onExport) onExport();
+                      }}
+                      className="w-full flex items-start gap-[0.75vw] px-[1vw] py-[0.65vw] hover:bg-gray-50/90 transition-colors text-left cursor-pointer group"
+                    >
+                      <div className="w-[1.8vw] h-[1.8vw] rounded-[0.35vw] flex items-center justify-center text-gray-800 group-hover:text-[#ea543a] transition-colors shrink-0 mt-[0.1vw]">
+                        <Icon icon="bitcoin-icons:export-outline" className="w-[1.45vw] h-[1.45vw]" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[0.82vw] font-bold text-gray-900 group-hover:text-[#ea543a] transition-colors leading-tight">
+                          Export 3D Model
+                        </span>
+                        <span className="text-[0.68vw] text-gray-400 font-medium leading-tight mt-[0.15vw]">
+                          Download to your device
+                        </span>
+                      </div>
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Save As Copy Button */}
-              {onSaveAs && (
-                <div className="relative group/tooltip flex items-center ml-[0.2vw]">
-                  <button
-                    onClick={onSaveAs}
-                    disabled={isSaving}
-                    className="p-[0.6vw] bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 cursor-pointer rounded-[0.5vw] transition-all border border-gray-200/80 active:scale-95 shadow-xs flex items-center justify-center"
-                    title="Save As Copy"
-                  >
-                    <Icon icon="material-symbols:save-as-outline-rounded" className="w-[1.2vw] h-[1.2vw]" />
-                  </button>
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.4vw] hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-                    <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-                    <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                      Save As Copy
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Publish Button */}
-              <div className="relative flex items-center ml-[0.3vw]">
-                <button
-                  onClick={onPublish}
-                  className="flex items-center gap-[0.4vw] px-[1.1vw] py-[0.5vw] text-[0.8vw] font-bold cursor-pointer rounded-[0.5vw] bg-[#ea543a] hover:bg-[#d9442a] text-white shadow-sm transition-all active:scale-95"
-                >
-                  <Icon icon="solar:book-2-bold" className="w-[1vw] h-[1vw]" />
-                  <span>Publish</span>
-                </button>
-              </div>
-
-              {/* User Avatar */}
+              {/* User Avatar + Dropdown Indicator */}
               <div
                 onClick={() => setIsProfileOpen(true)}
-                className="flex items-center gap-[0.35vw] cursor-pointer p-[0.2vw] hover:opacity-90 transition-opacity ml-[0.3vw]"
+                className="flex items-center gap-[0.35vw] cursor-pointer p-[0.15vw] hover:opacity-90 transition-opacity ml-[0.3vw]"
               >
-                <div className="w-[2.1vw] h-[2.1vw] rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center shadow-2xs">
+                <div className="w-[2.2vw] h-[2.2vw] rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center shadow-xs">
                   <img
                     src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces"
                     alt="User"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.style.display = 'none';
+                      e.target.style.display = "none";
                     }}
                   />
                   <User size="1.2vw" className="text-gray-500" />
                 </div>
-                <ChevronDown size="0.85vw" className="text-gray-500" />
+                <Icon icon="heroicons:chevron-down-20-solid" className="w-[1.05vw] h-[1.05vw] text-gray-500" />
               </div>
             </>
           ) : (

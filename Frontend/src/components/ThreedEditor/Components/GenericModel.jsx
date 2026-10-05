@@ -26,6 +26,7 @@ const GenericModel = React.memo(React.forwardRef(({
     setMaterialList,
     selectedMaterial,
     onSelectMaterial,
+    modelId,
     modelName,
     transformMode,
     materialSettings,
@@ -1163,6 +1164,9 @@ const GenericModel = React.memo(React.forwardRef(({
             position: [centeredX, bottomY, centeredZ],
             scale: targetScale
         };
+        if (modelId) {
+            scene.userData.modelId = modelId;
+        }
         if (modelGroup) {
             modelGroup.userData.originalTransform = {
                 position: new THREE.Vector3(centeredX, bottomY, centeredZ),
@@ -1851,11 +1855,36 @@ const GenericModel = React.memo(React.forwardRef(({
     useEffect(() => {
         if (!scene) return;
 
-        const targetName = selectedMaterial ? selectedMaterial.name : null;
-        const isAll = selectedMaterial ? selectedMaterial.isAll : false;
-        const isGroup = selectedMaterial ? selectedMaterial.isGroup : false;
+        // If nothing is selected, do not show any gizmo controls on this model
+        if (!selectedMaterial) {
+            setTransformTarget(null);
+            relatedMeshesRef.current = [];
+            followerOffsetsRef.current.clear();
+            return;
+        }
 
-        const isModelLevel = !selectedMaterial || !targetName || targetName === "Scene" || isAll || (targetName === modelName && !isGroup);
+        const targetName = typeof selectedMaterial === 'string' ? selectedMaterial : selectedMaterial.name;
+        const parentGroup = typeof selectedMaterial === 'object' ? selectedMaterial.parentGroup : null;
+        const selectedId = typeof selectedMaterial === 'object' ? (selectedMaterial.id || selectedMaterial.modelId) : null;
+        const isGroup = typeof selectedMaterial === 'object' ? selectedMaterial.isGroup : false;
+        const isAll = typeof selectedMaterial === 'object' ? selectedMaterial.isAll : false;
+        const isModel = typeof selectedMaterial === 'object' ? selectedMaterial.isModel : false;
+
+        // Check if the selection belongs to this specific model instance
+        const isSelectedThisModel =
+            (selectedId && (selectedId === modelId || selectedId === scene?.userData?.modelId)) ||
+            (parentGroup && (parentGroup === modelName || parentGroup === scene?.name)) ||
+            (selectedMaterial && (selectedMaterial.name === modelName || targetName === modelName));
+
+        if (!isSelectedThisModel) {
+            setTransformTarget(null);
+            relatedMeshesRef.current = [];
+            followerOffsetsRef.current.clear();
+            return;
+        }
+
+        // If selecting the entire model
+        const isModelLevel = isModel || isAll || !selectedMaterial.isMesh;
 
         if (isModelLevel) {
             relatedMeshesRef.current = [];
@@ -1864,6 +1893,7 @@ const GenericModel = React.memo(React.forwardRef(({
             return;
         }
 
+        // Check if selecting a specific mesh/material within this model
         const targetedMeshes = resolveTargetMeshes(selectedMaterial);
 
         if (targetedMeshes && targetedMeshes.length > 0) {
@@ -2079,6 +2109,8 @@ const GenericModel = React.memo(React.forwardRef(({
                             if (typeof onTransformChange === 'function') {
                                 onTransformChange({
                                     isModelLevel: true,
+                                    modelId: modelId || scene?.userData?.modelId,
+                                    modelName: modelName,
                                     position: {
                                         x: transformTarget.position.x - bx,
                                         y: transformTarget.position.y - by,
@@ -2125,7 +2157,9 @@ const GenericModel = React.memo(React.forwardRef(({
                                     rotation: pivot ? pivot.rotation : transformTarget.rotation,
                                     scale: pivot ? pivot.scale : transformTarget.scale,
                                     meshUuid: transformTarget.uuid,
-                                    meshName: transformTarget.name || selectedMaterial?.name
+                                    meshName: transformTarget.name || selectedMaterial?.name,
+                                    modelId: modelId || scene?.userData?.modelId,
+                                    modelName: modelName
                                 });
                             }
                         }
@@ -2147,7 +2181,7 @@ const GenericModel = React.memo(React.forwardRef(({
                             }
                         });
                         if (typeof onTransformEnd === 'function') {
-                            onTransformEnd(all, transformTarget === modelGroup);
+                            onTransformEnd(all, transformTarget === modelGroup, { modelId: modelId || scene?.userData?.modelId, modelName });
                         }
                         if (transformTarget !== modelGroup) {
                             updatePivotToTarget(transformTarget, relatedMeshesRef.current);
@@ -2281,6 +2315,7 @@ const GenericModel = React.memo(React.forwardRef(({
                                         meshUuid: mesh.uuid,
                                         meshName: mesh.name || meshName,
                                         parentGroup: modelName,
+                                        modelId: modelId || scene?.userData?.modelId,
                                         isMesh: true,
                                         isShift: e.shiftKey,
                                         isTransformSelect: !!transformMode,

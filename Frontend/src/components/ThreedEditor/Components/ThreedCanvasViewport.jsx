@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+﻿import React, { Suspense } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { TransformControls, Environment } from "@react-three/drei";
@@ -74,7 +74,10 @@ export default function ThreedCanvasViewport({
   setEditingHotspot,
   setShowHotspotModal,
   setIsPlacingHotspot,
-  isPlacingHotspotRef
+  isPlacingHotspotRef,
+  activeLeftTab = "model",
+  cameraBgType = "transparent",
+  cameraBgColor = "#F3F3F3"
 }) {
   const rawX = materialSettings.lightPosition?.x ?? 10;
   const rawY = materialSettings.lightPosition?.y ?? 10;
@@ -109,68 +112,80 @@ export default function ThreedCanvasViewport({
             gl.outputColorSpace = THREE.SRGBColorSpace;
           }}
         >
-          {isCapturing && <color attach="background" args={['transparent']} />}
+          {isCapturing ? (
+            <color attach="background" args={['transparent']} />
+          ) : activeLeftTab === "camera" && cameraBgType === "solid" ? (
+            <color attach="background" args={[cameraBgColor || '#F3F3F3']} />
+          ) : null}
 
-          <ambientLight intensity={0.4 + (100 - (materialSettings.shadow ?? 50)) / 250} />
+          <ambientLight intensity={0.4 + (100 - (materialSettings.shadowDensity ?? materialSettings.shadow ?? 50)) / 250} />
 
           <DirectionalSunLight
             position={[sunX, sunY, sunZ]}
             specular={materialSettings.specular}
-            softness={materialSettings.softness}
+            softness={materialSettings.softness ?? materialSettings.shadowSoftness ?? 50}
+            color={materialSettings.lightColor || "#ffffff"}
+            intensity={materialSettings.lightIntensity ?? 100}
+            shadowDensity={materialSettings.shadowDensity ?? materialSettings.shadow ?? 100}
           />
 
           <directionalLight
             position={[-sunX * 0.4, Math.max(sunY * 0.6, 4), -sunZ * 0.4]}
-            intensity={0.35}
+            intensity={0.35 * ((materialSettings.lightIntensity ?? 100) / 100)}
+            color={materialSettings.lightColor || "#ffffff"}
             castShadow={false}
           />
 
           <Suspense fallback={null}>
             <group ref={sceneWrapperRef}>
-              {models.map((model, index) => (
-                <RenderModel
-                  key={model.id}
-                  ref={(r) => {
-                    if (index === 0) modelRef.current = r;
-                    if (r) modelRefs.current.set(model.id, r);
-                    else modelRefs.current.delete(model.id);
-                  }}
-                  type={model.type}
-                  url={model.url}
-                  wireframe={settings.wireframe}
-                  xrayMode={xrayMode}
-                  xrayMaterials={xrayMaterials}
-                  setModelStats={(stats) => handleSetModelStats(model.id, stats)}
-                  setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
-                  selectedMaterial={selectedMaterial}
-                  onSelectMaterial={handleSelectMaterial}
-                  activeHotspotMeshUuid={hotspots.find(h => h.id === activeHotspotId)?.meshUuid || null}
-                  activeHotspotMeshName={hotspots.find(h => h.id === activeHotspotId)?.meshName || null}
-                  modelName={model.name}
-                  transformMode={transformMode}
-                  rootTransform={rootTransform}
-                  transformValues={transformValues}
-                  meshTransforms={meshTransformsState}
-                  materialSettings={materialSettings}
-                  customizedMaterials={customizedMaterials}
-                  hiddenMaterials={hiddenMaterials}
-                  deletedMaterials={deletedMaterials}
-                  onUpdateMaterialSetting={handleMaterialSync}
-                  selectedTexture={selectedTexture}
-                  resetKey={resetKey}
-                  sceneResetTrigger={sceneResetTrigger}
-                  uvUnwrapTrigger={uvUnwrapTrigger}
-                  onTextureApplied={handleTextureApplied}
-                  onTextureIdentified={handleTextureIdentified}
-                  onTransformStart={handleTransformStart}
-                  onTransformEnd={handleTransformEnd}
-                  onTransformChange={handleTransformChange}
-                  onModelReady={(bounds) => handleModelReady(model.id, bounds)}
-                  onProgress={(pct, stage) => handleModelProgress(model.id, pct, stage)}
-                  isAnimationPlaying={isAnimationPlaying}
-                  onHasAnimationsChange={(hasAnim) => handleHasAnimationsChange(model.id, hasAnim)}
-                />
-              ))}
+              {models.map((model, index) => {
+                const modelRootTransform = model.transform || (models.length === 1 ? rootTransform : { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
+                return (
+                  <RenderModel
+                    key={model.id}
+                    modelId={model.id}
+                    ref={(r) => {
+                      if (index === 0) modelRef.current = r;
+                      if (r) modelRefs.current.set(model.id, r);
+                      else modelRefs.current.delete(model.id);
+                    }}
+                    type={model.type}
+                    url={model.url}
+                    wireframe={settings.wireframe}
+                    xrayMode={xrayMode}
+                    xrayMaterials={xrayMaterials}
+                    setModelStats={(stats) => handleSetModelStats(model.id, stats)}
+                    setMaterialList={(list, dataMap) => handleSetMaterialList(model.id, list, dataMap)}
+                    selectedMaterial={selectedMaterial}
+                    onSelectMaterial={handleSelectMaterial}
+                    activeHotspotMeshUuid={hotspots.find(h => h.id === activeHotspotId)?.meshUuid || null}
+                    activeHotspotMeshName={hotspots.find(h => h.id === activeHotspotId)?.meshName || null}
+                    modelName={model.name}
+                    transformMode={transformMode}
+                    rootTransform={modelRootTransform}
+                    transformValues={transformValues}
+                    meshTransforms={meshTransformsState}
+                    materialSettings={materialSettings}
+                    customizedMaterials={customizedMaterials}
+                    hiddenMaterials={hiddenMaterials}
+                    deletedMaterials={deletedMaterials}
+                    onUpdateMaterialSetting={handleMaterialSync}
+                    selectedTexture={selectedTexture}
+                    resetKey={resetKey}
+                    sceneResetTrigger={sceneResetTrigger}
+                    uvUnwrapTrigger={uvUnwrapTrigger}
+                    onTextureApplied={handleTextureApplied}
+                    onTextureIdentified={handleTextureIdentified}
+                    onTransformStart={handleTransformStart}
+                    onTransformEnd={handleTransformEnd}
+                    onTransformChange={handleTransformChange}
+                    onModelReady={(bounds) => handleModelReady(model.id, bounds)}
+                    onProgress={(pct, stage) => handleModelProgress(model.id, pct, stage)}
+                    isAnimationPlaying={isAnimationPlaying}
+                    onHasAnimationsChange={(hasAnim) => handleHasAnimationsChange(model.id, hasAnim)}
+                  />
+                );
+              })}
             </group>
 
             {transformMode && (selectedMaterial?.name === "Scene") && (
@@ -193,7 +208,7 @@ export default function ThreedCanvasViewport({
             )}
           </Suspense>
 
-          {settings.grid && !isCapturing && (
+          {settings.grid && !isCapturing && activeLeftTab !== "camera" && (
             <BlenderInfiniteGrid
               showGridLines={showGridLines}
               showAxis={showAxis}
@@ -224,7 +239,7 @@ export default function ThreedCanvasViewport({
               <planeGeometry args={[120, 120]} />
               <shadowMaterial
                 transparent
-                opacity={Math.min(1, Math.max(0, (materialSettings.shadow ?? 50) / 100))}
+                opacity={Math.min(1, Math.max(0, ((materialSettings.shadowDensity ?? materialSettings.shadow ?? 100) / 100) * 0.7))}
                 depthWrite={false}
                 polygonOffset
                 polygonOffsetFactor={1}
@@ -278,7 +293,7 @@ export default function ThreedCanvasViewport({
           {models.length > 0 && !isCapturing && (
             <AnimatedGizmo
               isTextureOpen={isTextureOpen}
-              activeTab="properties"
+              activeTab={activeLeftTab || "properties"}
             />
           )}
 
@@ -310,7 +325,7 @@ export default function ThreedCanvasViewport({
                   ? null
                   : (materialSettings?.environment || 'studio')
               }
-              background={!isCapturing}
+              background={!isCapturing && !(activeLeftTab === "camera" && cameraBgType === "solid")}
               blur={(materialSettings?.worldBlur ?? 0) / 100}
               environmentIntensity={(materialSettings?.reflection ?? 50) <= 50 ? ((materialSettings?.reflection ?? 50) / 50) : 1.0 + (((materialSettings?.reflection ?? 50) - 50) / 50) * 2.0}
             />
@@ -320,6 +335,7 @@ export default function ThreedCanvasViewport({
               worldBlur={materialSettings?.worldBlur ?? 0}
               reflection={materialSettings?.reflection ?? 50}
               isCapturing={isCapturing}
+              customBgColor={activeLeftTab === "camera" && cameraBgType === "solid" ? cameraBgColor : null}
             />
           </Suspense>
         </Canvas>
