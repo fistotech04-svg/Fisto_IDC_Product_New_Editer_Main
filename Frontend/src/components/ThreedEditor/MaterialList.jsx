@@ -812,7 +812,8 @@ export default function MaterialList({
     onRenameMaterial,
     onDeleteModel,
     hiddenMaterials = new Set(),
-    xrayMaterials = new Set()
+    xrayMaterials = new Set(),
+    variant = "dropdown"
 }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [forceExpand, setForceExpand] = useState(null);
@@ -979,6 +980,169 @@ export default function MaterialList({
 
         return () => clearTimeout(timer);
     }, [selectedMaterial, safeModelName]);
+
+    if (variant === "panel") {
+        return (
+            <div className="w-full h-full flex flex-col select-none font-sans bg-white overflow-hidden">
+                {/* Header (Meshes badge + Chevron) */}
+                <div
+                    onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
+                    className="flex items-center justify-between gap-[0.55vw] bg-white px-[0.9vw] py-[0.7vw] border-b border-gray-100 cursor-pointer hover:bg-gray-50/70 transition-colors shrink-0"
+                >
+                    <div className="flex items-center gap-[0.5vw] min-w-0">
+                        <div className="w-[1.4vw] h-[1.4vw] rounded-[0.35vw] bg-indigo-50 text-[#5d5efc] flex items-center justify-center shrink-0 border border-indigo-100/80 shadow-2xs">
+                            <Icon icon="solar:box-bold-duotone" width="0.88vw" height="0.88vw" />
+                        </div>
+                        <span className="text-[0.82vw] font-bold text-gray-800 tracking-tight whitespace-nowrap">
+                            Meshes
+                        </span>
+                        <span className="bg-indigo-50/80 text-[#5d5efc] text-[0.6vw] font-bold px-[0.4vw] py-[0.08vw] rounded-full border border-indigo-100/60 shrink-0">
+                            {meshCount}
+                        </span>
+                    </div>
+
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsCollapsed && setIsCollapsed(!isCollapsed);
+                        }}
+                        className={`w-[1.4vw] h-[1.4vw] flex items-center justify-center rounded-[0.32vw] hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-all cursor-pointer ${
+                            !isCollapsed ? "bg-gray-50" : "bg-white"
+                        }`}
+                        title={isCollapsed ? "Expand hierarchy" : "Collapse hierarchy"}
+                    >
+                        <Icon
+                            icon="heroicons:chevron-up-20-solid"
+                            width="0.85vw"
+                            height="0.85vw"
+                            className={`transition-transform duration-300 ${
+                                isCollapsed ? "rotate-180" : "rotate-0"
+                            }`}
+                        />
+                    </button>
+                </div>
+
+                {!isCollapsed && (
+                    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                        {/* Search Bar */}
+                        <div className="px-[0.75vw] pt-[0.6vw] pb-[0.35vw] w-full shrink-0">
+                            <div className="relative group w-full flex items-center bg-gray-50/90 border border-gray-200/80 rounded-[0.5vw] px-[0.6vw] py-[0.35vw] focus-within:bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100/70 transition-all shadow-2xs">
+                                <Icon icon="heroicons:magnifying-glass-20-solid" width="0.8vw" height="0.8vw" className="text-gray-400 group-focus-within:text-[#5d5efc] transition-colors shrink-0 mr-[0.4vw]" />
+                                <input
+                                    type="text"
+                                    placeholder="Search objects or meshes..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full text-[0.72vw] font-medium text-gray-800 placeholder:text-gray-400 outline-none bg-transparent"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm("")}
+                                        className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer shrink-0 ml-[0.3vw]"
+                                        title="Clear search"
+                                    >
+                                        <Icon icon="heroicons:x-mark-20-solid" width="0.8vw" height="0.8vw" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Subheader Toolbar */}
+                        <div className="px-[0.75vw] py-[0.25vw] flex items-center justify-between text-gray-500 w-full whitespace-nowrap text-[0.58vw] border-b border-gray-100 shrink-0">
+                            <div className="flex items-center gap-[0.25vw] shrink-0">
+                                <button
+                                    onClick={() => setForceExpand(true)}
+                                    className="px-[0.4vw] py-[0.16vw] rounded-[0.25vw] bg-gray-50 hover:bg-indigo-50 border border-gray-200/80 text-gray-600 hover:text-[#5d5efc] text-[0.56vw] font-medium flex items-center gap-[0.2vw] transition-colors cursor-pointer shrink-0"
+                                    title="Expand all folders"
+                                >
+                                    <Icon icon="solar:maximize-square-minimalistic-bold-duotone" width="0.68vw" height="0.68vw" />
+                                    <span>Expand</span>
+                                </button>
+                                <button
+                                    onClick={() => setForceExpand(false)}
+                                    className="px-[0.4vw] py-[0.16vw] rounded-[0.25vw] bg-gray-50 hover:bg-indigo-50 border border-gray-200/80 text-gray-600 hover:text-[#5d5efc] text-[0.56vw] font-medium flex items-center gap-[0.2vw] transition-colors cursor-pointer shrink-0"
+                                    title="Collapse all folders"
+                                >
+                                    <Icon icon="solar:minimize-square-minimalistic-bold-duotone" width="0.68vw" height="0.68vw" />
+                                    <span>Collapse</span>
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-[0.3vw] shrink-0">
+                                <span className="text-[0.56vw] text-gray-400 font-medium whitespace-nowrap shrink-0">
+                                    {meshCount} {meshCount === 1 ? "mesh" : "meshes"}
+                                </span>
+
+                                {hasAnyXrayMesh && (
+                                    <button
+                                        onClick={handleToggleAllXray}
+                                        className="px-[0.35vw] py-[0.15vw] rounded-[0.22vw] border border-[#00BFFF]/40 bg-[#00BFFF]/10 text-[#0099dd] hover:bg-[#00BFFF]/20 text-[0.55vw] font-medium flex items-center gap-[0.18vw] transition-colors cursor-pointer shrink-0"
+                                        title="Clear all X-Ray highlights"
+                                    >
+                                        <Icon icon="solar:scanner-bold-duotone" width="0.68vw" height="0.68vw" />
+                                        <span>Clear X-Ray</span>
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={handleToggleAllVisibility}
+                                    className={`px-[0.38vw] py-[0.15vw] rounded-[0.25vw] border text-[0.56vw] font-medium flex items-center gap-[0.2vw] transition-colors cursor-pointer shrink-0 ${
+                                        allMeshesHidden
+                                            ? "border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                            : "border-gray-200/80 bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-[#5d5efc] hover:border-indigo-200"
+                                    }`}
+                                    title={allMeshesHidden ? "Show all meshes" : "Hide all meshes"}
+                                >
+                                    <Icon
+                                        icon={allMeshesHidden ? "ph:eye-closed-bold" : "ph:eye-bold"}
+                                        width="0.68vw"
+                                        height="0.68vw"
+                                    />
+                                    <span>{allMeshesHidden ? "Show All" : "Hide All"}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Scrollable Tree */}
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden px-[0.6vw] pb-[0.6vw] mt-[0.2vw] w-full [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
+                            <div className="space-y-[0.05vw] w-full min-w-0">
+                                {filteredTree.length === 0 && (
+                                    <div className="text-center py-[2vw] px-[0.5vw]">
+                                        <Icon
+                                            icon="solar:box-linear"
+                                            className="w-[1.8vw] h-[1.8vw] text-gray-300 mx-auto mb-[0.3vw]"
+                                        />
+                                        <p className="text-[0.72vw] text-gray-500 font-medium">
+                                            {searchTerm ? `No items matching "${searchTerm}"` : "No 3D objects loaded"}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {filteredTree.map((itemNode, idx) => (
+                                    <TreeItem
+                                        key={itemNode.id || `tree_root_${idx}`}
+                                        node={itemNode}
+                                        depth={0}
+                                        selectedMaterial={selectedMaterial}
+                                        onSelect={onSelect}
+                                        hiddenMaterials={hiddenMaterials}
+                                        xrayMaterials={xrayMaterials}
+                                        onToggleVisibility={handleToggleVisibility}
+                                        onToggleXray={handleToggleXray}
+                                        onDelete={handleDeleteNode}
+                                        onRename={onRenameMaterial}
+                                        searchTerm={searchTerm}
+                                        forceExpand={forceExpand}
+                                        modelName={safeModelName}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="relative z-40 flex flex-col w-[16.5vw] min-w-[240px] max-w-[285px] select-none font-sans">

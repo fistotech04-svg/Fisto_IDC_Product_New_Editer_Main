@@ -227,7 +227,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
 
     const filteredTextures = useMemo(() => {
         if (selectedCategory === "All") return currentTextures;
-        return currentTextures.filter(t => t.id === "none" || (t.category || "General") === selectedCategory);
+        return currentTextures.filter(t => t.id === "none" || (t.category || "General").toLowerCase() === selectedCategory.toLowerCase());
     }, [currentTextures, selectedCategory]);
 
     const selectedTextureName = useMemo(() => {

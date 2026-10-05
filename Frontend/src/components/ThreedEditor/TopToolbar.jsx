@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
 
@@ -27,7 +26,6 @@ const TopToolbar = ({
     canRedo,
     disableRename = false
 }) => {
-    const navigate = useNavigate();
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState("");
 

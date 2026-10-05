@@ -6,10 +6,17 @@ function toComparableArray(val) {
     if (val instanceof Set) return Array.from(val).sort();
     try {
         return Array.from(val).sort();
-    } catch (_) {
+    } catch {
         return [];
     }
 }
+
+const stableStringify = (obj) => {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`;
+  const keys = Object.keys(obj).sort();   // ✅ Sort keys
+  return `{${keys.map(k => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
+};
 
 /**
  * Fast deep equality comparison for 3D editor snapshots to prevent duplicate history states
@@ -21,27 +28,31 @@ function areStatesEqual(a, b) {
         if (a.modelName !== b.modelName) return false;
         if ((a.selectedTextureId || null) !== (b.selectedTextureId || null)) return false;
         if ((a.models?.length || 0) !== (b.models?.length || 0)) return false;
-        
+
         // Compare selectedMaterial
         const aMat = a.selectedMaterial?.name || null;
         const bMat = b.selectedMaterial?.name || null;
         if (aMat !== bMat) return false;
 
-        // Compare hidden and deleted materials (handling Set / Array safely)
+        // Compare Sets / Arrays
         if (JSON.stringify(toComparableArray(a.hiddenMaterials)) !== JSON.stringify(toComparableArray(b.hiddenMaterials))) return false;
         if (JSON.stringify(toComparableArray(a.deletedMaterials)) !== JSON.stringify(toComparableArray(b.deletedMaterials))) return false;
 
-        // Compare transformValues
-        if (JSON.stringify(a.transformValues) !== JSON.stringify(b.transformValues)) return false;
+        // ✅ FIX: Add missing comparisons
+        if (JSON.stringify(toComparableArray(a.xrayMaterials)) !== JSON.stringify(toComparableArray(b.xrayMaterials))) return false;
 
-        // Compare meshTransforms (individual child mesh transforms)
-        if (JSON.stringify(a.meshTransforms || {}) !== JSON.stringify(b.meshTransforms || {})) return false;
+        if (stableStringify(a.transformValues) !== stableStringify(b.transformValues)) return false;
+        if (stableStringify(a.meshTransforms || {}) !== stableStringify(b.meshTransforms || {})) return false;
+        if (stableStringify(a.customizedMaterials || {}) !== stableStringify(b.customizedMaterials || {})) return false;
+        if (stableStringify(a.materialSettings) !== stableStringify(b.materialSettings)) return false;
 
-        // Compare materialSettings
-        if (JSON.stringify(a.materialSettings) !== JSON.stringify(b.materialSettings)) return false;
+        // ✅ FIX: Compare previously ignored fields
+        if (stableStringify(a.rootTransform || {}) !== stableStringify(b.rootTransform || {})) return false;
+        if (stableStringify(a.hotspots || []) !== stableStringify(b.hotspots || [])) return false;
+        if (stableStringify(a.modelMaterialLists || {}) !== stableStringify(b.modelMaterialLists || {})) return false;
 
         return true;
-    } catch (_) {
+    } catch {
         return false;
     }
 }
@@ -49,14 +60,14 @@ function areStatesEqual(a, b) {
 export default function useModalHistory(initialState) {
     const [index, setIndex] = useState(0);
     const [history, setHistory] = useState([initialState]);
-    
+
     const historyRef = useRef([initialState]);
     const indexRef = useRef(0);
 
     const setState = useCallback((newState) => {
         const curIndex = indexRef.current;
         const curHistory = historyRef.current;
-        
+
         // Prevent pushing duplicate identical states
         if (curHistory[curIndex] && areStatesEqual(curHistory[curIndex], newState)) {
             return;
@@ -113,7 +124,7 @@ export default function useModalHistory(initialState) {
         setHistory(curHistory);
     }, []);
 
-    const currentState = history[index] || historyRef.current[indexRef.current];
+    const currentState = history[index] ?? history[0] ?? null;
 
     return {
         state: currentState,

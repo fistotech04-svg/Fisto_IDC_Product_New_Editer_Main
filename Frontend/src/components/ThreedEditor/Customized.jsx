@@ -968,6 +968,9 @@ export default function Customized({
     updateControl, 
     activePanel, 
     setActivePanel, 
+    lightingOnly = true,
+    showMaterialProperties = false,
+    showModelPosition = false,
     transformValues, 
     onManualTransformChange, 
     onResetFactor, 
@@ -1022,8 +1025,14 @@ export default function Customized({
 
   const [openInnerAccordion, setOpenInnerAccordion] = useState("base");
 
+  const [internalLightingOpen, setInternalLightingOpen] = useState(true);
   const handlePanelToggle = (panelName) => {
-    setActivePanel(activePanel === panelName ? null : panelName);
+    if (panelName === "lighting") {
+      setInternalLightingOpen(prev => !prev);
+    }
+    if (setActivePanel && typeof setActivePanel === 'function') {
+      setActivePanel(activePanel === panelName ? null : panelName);
+    }
   };
 
   const toggleInnerAccordion = (name) => {
@@ -1116,6 +1125,7 @@ export default function Customized({
 
   return (
     <div className={`flex flex-col gap-[0.25vw] pb-[2.5vw] ${isDraggingLight ? 'select-none' : ''}`}>
+      {!lightingOnly && showMaterialProperties && (
       <Accordion
         title="Material Properties"
         icon="icon-park-outline:texture-two"
@@ -1389,8 +1399,10 @@ export default function Customized({
             </div>
         </div>
       </Accordion>
+      )}
 
       {/* 2. Position Section (Updated) */}
+      {!lightingOnly && showModelPosition && (
       <Accordion
         title="Model Position"
         icon="hugeicons:3d-move"
@@ -1473,12 +1485,13 @@ export default function Customized({
            </div>
         </div>
       </Accordion>
+      )}
 
       {/* --- LIGHTING CONTROLS --- */}
       <Accordion
         title="Lighting Controls"
         icon="ix:light-dark"
-        isOpen={activePanel === "lighting"}
+        isOpen={lightingOnly ? internalLightingOpen : activePanel === "lighting"}
         onToggle={() => handlePanelToggle("lighting")}
       >
         {(() => {

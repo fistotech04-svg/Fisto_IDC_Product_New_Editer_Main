@@ -57,7 +57,10 @@ export const GlobalLoader = ({
   } else if (manualLoading) {
     target = Math.max(15, Math.min(95, Math.round(dreiProgress || 0)));
   }
-  targetProgressRef.current = target;
+
+  React.useEffect(() => {
+    targetProgressRef.current = target;
+  }, [target]);
 
   // Mount/unmount with smooth fade transition
   React.useEffect(() => {

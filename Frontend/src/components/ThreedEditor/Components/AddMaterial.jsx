@@ -221,7 +221,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
       };
       fetchCategories();
     }
-  }, [isOpen]);
+  }, [isOpen, backendUrl]);
 
   // States for all maps
   const [maps, setMaps] = useState({
