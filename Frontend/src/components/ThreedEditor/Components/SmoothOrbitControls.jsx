@@ -6,10 +6,14 @@ import { OrbitControls } from "@react-three/drei";
 /**
  * SmoothOrbitControls
  * Provides ultra-smooth 60-120fps camera rotation with natural inertial coasting / momentum,
+ * custom Auto-Rotate supporting specific Axis (X, Y, Z) and Angle Range limits,
  * and intelligent boundary protection to prevent zooming inside the 3D model.
  */
 const SmoothOrbitControls = React.forwardRef(({
   autoRotate = false,
+  autoRotateSpeed = 2.0,
+  autoRotateAxis = "X",
+  autoRotateRange = 360,
   dampingFactor = 0.08,
   momentumFriction = 0.95,
   rotateSpeed = 1.0,
@@ -35,6 +39,19 @@ const SmoothOrbitControls = React.forwardRef(({
   const lastPointerRef = useRef({ x: 0, y: 0, time: 0 });
   const recentDeltasRef = useRef([]);
 
+  // Auto-rotate oscillation / tracking refs
+  const autoRotateDirRef = useRef(1);
+  const baseThetaRef = useRef(null);
+  const basePhiRef = useRef(null);
+  const accumAngleRef = useRef(0);
+
+  // Reset base angles whenever autoRotate is toggled or axis/range changes
+  useEffect(() => {
+    baseThetaRef.current = null;
+    basePhiRef.current = null;
+    accumAngleRef.current = 0;
+  }, [autoRotate, autoRotateAxis, autoRotateRange]);
+
   // 1. Pointer Event Handlers for Velocity Tracking
   useEffect(() => {
     if (!domElement) return;
@@ -44,6 +61,10 @@ const SmoothOrbitControls = React.forwardRef(({
       isCoastingRef.current = false;
       velocityRef.current = { x: 0, y: 0 };
       recentDeltasRef.current = [];
+
+      // Reset auto-rotate base reference so it resumes smoothly from where user leaves it
+      baseThetaRef.current = null;
+      basePhiRef.current = null;
 
       // If pan mode is active, do not track rotational momentum
       if (navMode === "pan") return;
@@ -61,7 +82,6 @@ const SmoothOrbitControls = React.forwardRef(({
 
     const handlePointerMove = (e) => {
       if (!isInteractingRef.current) return;
-
       const now = performance.now();
       const dt = now - lastPointerRef.current.time;
       if (dt <= 0) return;
@@ -69,33 +89,29 @@ const SmoothOrbitControls = React.forwardRef(({
       const dx = e.clientX - lastPointerRef.current.x;
       const dy = e.clientY - lastPointerRef.current.y;
 
-      lastPointerRef.current = { x: e.clientX, y: e.clientY, time: now };
+      recentDeltasRef.current.push({ dx, dy, dt, time: now });
+      // Keep only recent events (last 100ms)
+      while (recentDeltasRef.current.length > 0 && now - recentDeltasRef.current[0].time > 100) {
+        recentDeltasRef.current.shift();
+      }
 
-      // Keep recent samples within last 65ms for responsive release velocity
-      const sample = { dx, dy, dt, time: now };
-      recentDeltasRef.current.push(sample);
-      const cutoff = now - 65;
-      recentDeltasRef.current = recentDeltasRef.current.filter((s) => s.time >= cutoff);
+      lastPointerRef.current = { x: e.clientX, y: e.clientY, time: now };
     };
 
     const handlePointerUp = () => {
       if (!isInteractingRef.current) return;
       isInteractingRef.current = false;
 
-      const now = performance.now();
-      // Only recent movements within 65ms count as a flick/swipe
-      const validSamples = recentDeltasRef.current.filter((s) => now - s.time < 65);
-
-      if (validSamples.length >= 2) {
+      // Calculate release velocity
+      if (recentDeltasRef.current.length > 1) {
         let totalDx = 0;
         let totalDy = 0;
         let totalDt = 0;
-
-        validSamples.forEach((s) => {
-          totalDx += s.dx;
-          totalDy += s.dy;
-          totalDt += s.dt;
-        });
+        for (const item of recentDeltasRef.current) {
+          totalDx += item.dx;
+          totalDy += item.dy;
+          totalDt += item.dt;
+        }
 
         if (totalDt > 5) {
           const clientHeight = domElement.clientHeight || window.innerHeight || 800;
@@ -130,21 +146,82 @@ const SmoothOrbitControls = React.forwardRef(({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [domElement, rotateSpeed]);
+  }, [domElement, rotateSpeed, navMode]);
 
-  // Momentum Coasting Animation in useFrame
+  // Momentum Coasting & Custom Multi-Axis / Limited-Range AutoRotate in useFrame
   useFrame((state, delta) => {
     const ctrl = controlsRef.current;
+    if (!ctrl || typeof ctrl.getAzimuthalAngle !== "function") return;
 
-    // 2. Momentum Coasting
-    // If autoRotate is on or user is currently dragging, don't coast
-    if (autoRotate || isInteractingRef.current) {
+    // A. Custom Auto-Rotate with Axis Selection & Range Constraints
+    if (autoRotate && !isInteractingRef.current) {
       isCoastingRef.current = false;
+      const speedFactor = (autoRotateSpeed || 2.0) * 0.5;
+      const radPerSec = speedFactor * (Math.PI / 180) * 30;
+      const step = radPerSec * delta * autoRotateDirRef.current;
+
+      const rangeDeg = Number(autoRotateRange) || 360;
+      const maxHalfRad = ((Math.min(360, Math.max(15, rangeDeg))) * (Math.PI / 180)) / 2;
+      const isFull360 = rangeDeg >= 360;
+
+      const curTheta = ctrl.getAzimuthalAngle();
+      const curPhi = ctrl.getPolarAngle();
+
+      if (baseThetaRef.current === null) baseThetaRef.current = curTheta;
+      if (basePhiRef.current === null) basePhiRef.current = curPhi;
+
+      const target = ctrl.target || new THREE.Vector3(0, 0, 0);
+      const camera = state.camera;
+      const axis = (autoRotateAxis || "Y").toUpperCase();
+
+      if (axis === "Y") {
+        // Standard Horizontal Azimuthal Orbit around Y-axis
+        if (isFull360) {
+          ctrl.setAzimuthalAngle(curTheta - Math.abs(radPerSec * delta));
+        } else {
+          let nextTheta = curTheta - step;
+          const diff = nextTheta - baseThetaRef.current;
+          if (Math.abs(diff) >= maxHalfRad) {
+            autoRotateDirRef.current *= -1;
+            nextTheta = baseThetaRef.current + Math.sign(diff) * maxHalfRad;
+          }
+          ctrl.setAzimuthalAngle(nextTheta);
+        }
+      } else {
+        // Precise 3D Orbital rotation around X or Z Cartesian World Axes
+        const rotAxis = axis === "X" 
+          ? new THREE.Vector3(1, 0, 0) 
+          : new THREE.Vector3(0, 0, 1);
+
+        // Check range limits if < 360
+        if (!isFull360) {
+          accumAngleRef.current += step;
+          if (Math.abs(accumAngleRef.current) >= maxHalfRad) {
+            autoRotateDirRef.current *= -1;
+            accumAngleRef.current = Math.sign(accumAngleRef.current) * maxHalfRad;
+          }
+        }
+
+        const angleDelta = isFull360 ? Math.abs(radPerSec * delta) : step;
+        
+        // Rotate camera position around target along chosen axis
+        const offset = camera.position.clone().sub(target);
+        offset.applyAxisAngle(rotAxis, angleDelta);
+        camera.position.copy(target).add(offset);
+        
+        // Maintain camera up vector stability
+        if (axis === "X" || axis === "Z") {
+          camera.up.applyAxisAngle(rotAxis, angleDelta);
+        }
+        camera.lookAt(target);
+      }
+
+      ctrl.update();
       return;
     }
 
-    if (!isCoastingRef.current) return;
-    if (!ctrl || typeof ctrl.getAzimuthalAngle !== "function") return;
+    // B. Momentum Coasting
+    if (!isCoastingRef.current || isInteractingRef.current) return;
 
     // Frame step in milliseconds (clamped to prevent jumps on tab focus)
     const dtMs = Math.min(32, delta * 1000);
@@ -172,13 +249,15 @@ const SmoothOrbitControls = React.forwardRef(({
       isCoastingRef.current = false;
       velocityRef.current = { x: 0, y: 0 };
     }
+
+    ctrl.update();
   });
 
   return (
     <OrbitControls
       ref={controlsRef}
       makeDefault
-      autoRotate={autoRotate}
+      autoRotate={false}
       enableDamping={true}
       dampingFactor={dampingFactor}
       rotateSpeed={rotateSpeed}

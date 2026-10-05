@@ -21,7 +21,7 @@ Frontend/src/components/ThreedEditor/
 ├── MaterialList.jsx             # Hierarchy tree / list of materials and sub-meshes with visibility/lock
 ├── ColorPicker.jsx              # Custom color picker popup
 ├── EditorInfoBox.jsx            # Polycount, vertices, mesh count badge
-├── Customized.jsx               # Customization view presets & saved configurations
+├── panels/                      # Modular tab panels (Model, Materials, Textures, Lighting, Camera, Hotspots, Animation)
 ├── hooks/
 │   └── useModalHistory.js       # Undo / Redo stack manager with snapshot deep-diffing
 ├── Components/

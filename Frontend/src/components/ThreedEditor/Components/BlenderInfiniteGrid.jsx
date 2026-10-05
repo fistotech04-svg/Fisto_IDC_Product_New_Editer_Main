@@ -25,6 +25,8 @@ export default function BlenderInfiniteGrid({
   sectionThickness = 1.3,
   axisThickness = 1.3,
   y = 0.0005,
+  showGridLines = true,
+  showAxis = true,
 }) {
   const meshRef = useRef();
 
@@ -43,6 +45,8 @@ export default function BlenderInfiniteGrid({
       cellThickness: { value: cellThickness },
       sectionThickness: { value: sectionThickness },
       axisThickness: { value: axisThickness },
+      showGridLines: { value: showGridLines ? 1.0 : 0.0 },
+      showAxis: { value: showAxis ? 1.0 : 0.0 },
     };
   }, []);
 
@@ -60,6 +64,8 @@ export default function BlenderInfiniteGrid({
       uniforms.cellThickness.value = cellThickness;
       uniforms.sectionThickness.value = sectionThickness;
       uniforms.axisThickness.value = axisThickness;
+      uniforms.showGridLines.value = showGridLines ? 1.0 : 0.0;
+      uniforms.showAxis.value = showAxis ? 1.0 : 0.0;
     }
   }, [
     uniforms,
@@ -74,6 +80,8 @@ export default function BlenderInfiniteGrid({
     cellThickness,
     sectionThickness,
     axisThickness,
+    showGridLines,
+    showAxis,
   ]);
 
   const material = useMemo(() => {
@@ -115,6 +123,8 @@ export default function BlenderInfiniteGrid({
         uniform float cellThickness;
         uniform float sectionThickness;
         uniform float axisThickness;
+        uniform float showGridLines;
+        uniform float showAxis;
 
         // Isotropic anti-aliased grid filter
         float getGrid(float size, float thickness) {
@@ -135,31 +145,29 @@ export default function BlenderInfiniteGrid({
         }
 
         void main() {
-          // 1. Minor grid lines (1 unit)
-          float g1 = getGrid(cellSize, cellThickness);
+          // 1. Minor grid lines (1 unit) & Major section lines (10 units)
+          float g1 = showGridLines > 0.5 ? getGrid(cellSize, cellThickness) : 0.0;
+          float g2 = showGridLines > 0.5 ? getGrid(sectionSize, sectionThickness) : 0.0;
 
-          // 2. Major section lines (10 units)
-          float g2 = getGrid(sectionSize, sectionThickness);
-
-          // 3. Screen-space pixel derivatives for axes
+          // 2. Screen-space pixel derivatives for axes
           vec2 dX = dFdx(localPosition.xz);
           vec2 dY = dFdy(localPosition.xz);
           vec2 fw = vec2(length(vec2(dX.x, dY.x)), length(vec2(dX.y, dY.y)));
 
           // Red X-axis line (runs along X, where Z = 0)
-          float axisX = getAxis(localPosition.z, fw.y, axisThickness);
+          float axisX = showAxis > 0.5 ? getAxis(localPosition.z, fw.y, axisThickness) : 0.0;
 
           // Teal Z-axis line (runs along Z, where X = 0)
-          float axisZ = getAxis(localPosition.x, fw.x, axisThickness);
+          float axisZ = showAxis > 0.5 ? getAxis(localPosition.x, fw.x, axisThickness) : 0.0;
 
-          // 4. Smooth horizon distance fade
+          // 3. Smooth horizon distance fade
           float dist = distance(worldCamProjPosition, worldPosition.xyz);
           float d = clamp(1.0 - (dist / fadeDistance), 0.0, 1.0);
           float fade = pow(d, fadeStrength);
 
           if (fade <= 0.001) discard;
 
-          // 5. Composite colors and alpha
+          // 4. Composite colors and alpha
           vec3 color = mix(cellColor, sectionColor, clamp(g2 * 1.5, 0.0, 1.0));
           float alpha = (g1 * 0.32 + g2 * 0.68);
 

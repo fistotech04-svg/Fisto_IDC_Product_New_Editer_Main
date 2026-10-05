@@ -7,7 +7,7 @@ export const builtInHdris = [
     aliases: ["day_078"],
     name: "Day Forest",
     category: "Day",
-    preview: `${HDRI_BASE_URL}/Day_forest/DayEnvironmentHDRI078.png`,
+    preview: `${HDRI_BASE_URL}/Day_forest/DayEnvironmentHDRI078_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Day_forest/DayEnvironmentHDRI078_2K_HDR.exr`,
   },
   {
@@ -15,7 +15,7 @@ export const builtInHdris = [
     aliases: ["day_064"],
     name: "Day Outdoor",
     category: "Day",
-    preview: `${HDRI_BASE_URL}/Day_outdoor/DayEnvironmentHDRI064.png`,
+    preview: `${HDRI_BASE_URL}/Day_outdoor/DayEnvironmentHDRI064_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Day_outdoor/DayEnvironmentHDRI064_2K_HDR.exr`,
   },
   {
@@ -23,7 +23,7 @@ export const builtInHdris = [
     aliases: ["day_089"],
     name: "Day Street",
     category: "Day",
-    preview: `${HDRI_BASE_URL}/Day_street/DayEnvironmentHDRI089.png`,
+    preview: `${HDRI_BASE_URL}/Day_street/DayEnvironmentHDRI089_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Day_street/DayEnvironmentHDRI089_2K_HDR.exr`,
   },
   {
@@ -31,7 +31,7 @@ export const builtInHdris = [
     aliases: ["evening_003"],
     name: "Evening Outdoor",
     category: "Evening",
-    preview: `${HDRI_BASE_URL}/Evening_outdoor/EveningEnvironmentHDRI003.png`,
+    preview: `${HDRI_BASE_URL}/Evening_outdoor/EveningEnvironmentHDRI003_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Evening_outdoor/EveningEnvironmentHDRI003_2K_HDR.exr`,
   },
   {
@@ -39,7 +39,7 @@ export const builtInHdris = [
     aliases: ["evening_sky_047b"],
     name: "Evening Sky",
     category: "Evening",
-    preview: `${HDRI_BASE_URL}/Evening_sky/EveningSkyHDRI047B.png`,
+    preview: `${HDRI_BASE_URL}/Evening_sky/EveningSkyHDRI047B_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Evening_sky/EveningSkyHDRI047B_2K_HDR.exr`,
   },
   {
@@ -47,7 +47,7 @@ export const builtInHdris = [
     aliases: ["evening_sky_046b"],
     name: "Evening Sunset",
     category: "Evening",
-    preview: `${HDRI_BASE_URL}/Evening_sunset/EveningSkyHDRI046B.png`,
+    preview: `${HDRI_BASE_URL}/Evening_sunset/EveningSkyHDRI046B_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Evening_sunset/EveningSkyHDRI046B_2K_HDR.exr`,
   },
   {
@@ -55,7 +55,7 @@ export const builtInHdris = [
     aliases: ["indoor_019"],
     name: "Indoor Auditorium",
     category: "Indoor",
-    preview: `${HDRI_BASE_URL}/Indoor_auditorium/IndoorEnvironmentHDRI019.png`,
+    preview: `${HDRI_BASE_URL}/Indoor_auditorium/IndoorEnvironmentHDRI019_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Indoor_auditorium/IndoorEnvironmentHDRI019_2K_HDR.exr`,
   },
   {
@@ -63,7 +63,7 @@ export const builtInHdris = [
     aliases: ["indoor_021"],
     name: "Indoor Hall",
     category: "Indoor",
-    preview: `${HDRI_BASE_URL}/Indoor_hall/IndoorEnvironmentHDRI021.png`,
+    preview: `${HDRI_BASE_URL}/Indoor_hall/IndoorEnvironmentHDRI021_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Indoor_hall/IndoorEnvironmentHDRI021_2K_HDR.exr`,
   },
   {
@@ -71,7 +71,7 @@ export const builtInHdris = [
     aliases: ["indoor_023"],
     name: "Indoor Room",
     category: "Indoor",
-    preview: `${HDRI_BASE_URL}/Indoor_room/IndoorEnvironmentHDRI023.png`,
+    preview: `${HDRI_BASE_URL}/Indoor_room/IndoorEnvironmentHDRI023_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Indoor_room/IndoorEnvironmentHDRI023_2K_HDR.exr`,
   },
   {
@@ -79,7 +79,7 @@ export const builtInHdris = [
     aliases: ["indoor_006"],
     name: "Indoor Subway",
     category: "Indoor",
-    preview: `${HDRI_BASE_URL}/Indoor_subway/IndoorEnvironmentHDRI006.png`,
+    preview: `${HDRI_BASE_URL}/Indoor_subway/IndoorEnvironmentHDRI006_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Indoor_subway/IndoorEnvironmentHDRI006_2K_HDR.exr`,
   },
   {
@@ -87,7 +87,7 @@ export const builtInHdris = [
     aliases: ["night_007"],
     name: "Night Outdoor",
     category: "Night",
-    preview: `${HDRI_BASE_URL}/Night_outdoor/NightEnvironmentHDRI007.png`,
+    preview: `${HDRI_BASE_URL}/Night_outdoor/NightEnvironmentHDRI007_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Night_outdoor/NightEnvironmentHDRI007_2K_HDR.exr`,
   },
   {
@@ -95,7 +95,7 @@ export const builtInHdris = [
     aliases: ["night_sky_003"],
     name: "Night Sky",
     category: "Night",
-    preview: `${HDRI_BASE_URL}/Night_sky/NightSkyHDRI003.png`,
+    preview: `${HDRI_BASE_URL}/Night_sky/NightSkyHDRI003_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Night_sky/NightSkyHDRI003_2K_HDR.exr`,
   },
   {
@@ -103,7 +103,7 @@ export const builtInHdris = [
     aliases: ["night_sky_012"],
     name: "Night Sky Stars",
     category: "Night",
-    preview: `${HDRI_BASE_URL}/Night_sky_stars/NightSkyHDRI012.png`,
+    preview: `${HDRI_BASE_URL}/Night_sky_stars/NightSkyHDRI012_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Night_sky_stars/NightSkyHDRI012_2K_HDR.exr`,
   },
   {
@@ -111,7 +111,7 @@ export const builtInHdris = [
     aliases: ["night_010"],
     name: "Night Street",
     category: "Night",
-    preview: `${HDRI_BASE_URL}/Night_street/NightEnvironmentHDRI010.png`,
+    preview: `${HDRI_BASE_URL}/Night_street/NightEnvironmentHDRI010_2K_TONEMAPPED.jpg`,
     file: `${HDRI_BASE_URL}/Night_street/NightEnvironmentHDRI010_2K_HDR.exr`,
   },
 ];
