@@ -1,3 +1,5 @@
+import { resolveUploadsPath } from "../utils/supabaseUtils";
+
 const BACKEND_URL = ((typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL) || 'http://localhost:5000').trim().replace(/\/+$/, '');
 const MATERIAL_BASE_URL = `${BACKEND_URL}/assets/materials`;
 
@@ -1137,3 +1139,48 @@ export const textureData = [
     },
   }
 ];
+
+// In-memory cache for database-fetched materials
+let cachedMaterials = [...textureData];
+let isFetchingMaterials = false;
+
+export const fetchMaterials = async () => {
+  if (isFetchingMaterials) return cachedMaterials;
+  isFetchingMaterials = true;
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/presets/materials`);
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data?.materials) && data.materials.length > 0) {
+        const normalized = data.materials.map(item => {
+          const maps = item.maps ? { ...item.maps } : {};
+          for (const key in maps) {
+            if (maps[key]) {
+              maps[key] = resolveUploadsPath(maps[key]);
+            }
+          }
+          return {
+            ...item,
+            preview: item.preview ? resolveUploadsPath(item.preview) : null,
+            maps
+          };
+        });
+        cachedMaterials = normalized;
+        // Also update textureData array in place for components importing it directly
+        textureData.length = 0;
+        textureData.push(...normalized);
+      }
+    }
+  } catch (err) {
+    console.warn("[Material Data] Backend presets fetch failed, using fallback textureData:", err.message);
+  } finally {
+    isFetchingMaterials = false;
+  }
+  return cachedMaterials;
+};
+
+// Initial background fetch
+if (typeof window !== "undefined") {
+  fetchMaterials();
+}
+

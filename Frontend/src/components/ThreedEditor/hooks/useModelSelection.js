@@ -4,7 +4,7 @@ import { useCallback } from "react";
  * Hook providing selection resolution helpers for GenericModel.
  * Resolves targeted meshes and active materials based on single-mesh, multi-mesh, or group selections.
  */
-export function useModelSelection({ scene, modelName, deletedMaterials, meshIndexRef }) {
+export function useModelSelection({ scene, modelName, modelId, deletedMaterials, meshIndexRef }) {
     // Helper to resolve all 3D meshes targeted by the current selection
     const resolveTargetMeshes = useCallback((selMat) => {
         if (!selMat || !scene) return [];
@@ -17,8 +17,34 @@ export function useModelSelection({ scene, modelName, deletedMaterials, meshInde
             return mats.some(mat => mat?.name && deletedMaterials.has(mat.name));
         };
 
-        const isFullModel = !selMat || selMat.isAll || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene" || selMat.name === "All Meshes";
+        const targetUuid = selMat.uuid || selMat.meshUuid;
+        const targetMat = typeof selMat.material === 'string' ? selMat.material : selMat.material?.name;
+        const targetName = selMat.meshName || selMat.name;
+
+        // Model Affiliation Check:
+        // If selection has modelId or parentGroup, ensure this model matches before falling back to generic names
+        const selModelId = selMat.modelId || selMat.id;
+        const selParent = selMat.parentGroup;
+        const sceneModelId = scene?.userData?.modelId;
+
+        const isExplicitThisModel = Boolean(
+            (modelId && selModelId && (selModelId === modelId || selModelId === sceneModelId)) ||
+            (modelName && selParent && selParent === modelName)
+        );
+
+        const isExplicitOtherModel = Boolean(
+            (modelId && selModelId && selModelId !== modelId && selModelId !== sceneModelId) ||
+            (modelName && selParent && selParent !== modelName && selParent !== 'Scene' && selParent !== 'All Meshes')
+        );
+
+        // If explicitly belongs to another model instance, do not resolve any meshes here
+        if (isExplicitOtherModel && !isExplicitThisModel) {
+            return [];
+        }
+
+        const isFullModel = selMat.isAll || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "All Meshes";
         if (isFullModel) {
+            if (isExplicitOtherModel) return [];
             const all = [];
             scene.traverse(child => {
                 if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && child.visible !== false && !isMeshDeleted(child)) {
@@ -83,10 +109,6 @@ export function useModelSelection({ scene, modelName, deletedMaterials, meshInde
             }
         }
 
-        const targetUuid = selMat.uuid || selMat.meshUuid;
-        const targetMat = typeof selMat.material === 'string' ? selMat.material : selMat.material?.name;
-        const targetName = selMat.meshName || selMat.name;
-
         // 1. Single mesh selection: Strictly resolve by targetUuid if available
         if (targetUuid && !selMat.isGroup && !selMat.isAll) {
             if (meshIndexRef.current.has(targetUuid)) {
@@ -100,9 +122,11 @@ export function useModelSelection({ scene, modelName, deletedMaterials, meshInde
                 }
             });
             if (exactMatch.length > 0) return exactMatch;
+            // If targetUuid was provided and was not found in this scene, it belongs to another model instance!
+            return [];
         }
 
-        // 2. Fallback when targetUuid is not available (e.g. legacy selection)
+        // 2. Fallback when targetUuid is not available (e.g. legacy selection by name)
         if (selMat.isMesh) {
             if (targetName && meshIndexRef.current.has(targetName)) {
                 const list = meshIndexRef.current.get(targetName).filter(c => !isMeshDeleted(c));
@@ -136,11 +160,24 @@ export function useModelSelection({ scene, modelName, deletedMaterials, meshInde
             }
         });
         return matches;
-    }, [scene, modelName, deletedMaterials, meshIndexRef]);
+    }, [scene, modelName, modelId, deletedMaterials, meshIndexRef]);
 
     // Helper to resolve the primary THREE.Material targeted by the current selection
     const resolveTargetMaterial = useCallback((selMat) => {
         if (!selMat || !scene) return null;
+
+        const selModelId = selMat.modelId || selMat.id;
+        const selParent = selMat.parentGroup;
+        const sceneModelId = scene?.userData?.modelId;
+
+        const isExplicitOtherModel = Boolean(
+            (modelId && selModelId && selModelId !== modelId && selModelId !== sceneModelId) ||
+            (modelName && selParent && selParent !== modelName && selParent !== 'Scene' && selParent !== 'All Meshes')
+        );
+
+        if (isExplicitOtherModel) {
+            return null;
+        }
 
         const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene";
         if (isFullModel) {
@@ -167,6 +204,7 @@ export function useModelSelection({ scene, modelName, deletedMaterials, meshInde
                 }
             });
             if (found) return found;
+            return null;
         }
 
         if (targetMat && meshIndexRef.current.has(targetMat)) {
@@ -200,7 +238,7 @@ export function useModelSelection({ scene, modelName, deletedMaterials, meshInde
             }
         });
         return found;
-    }, [scene, modelName, meshIndexRef]);
+    }, [scene, modelName, modelId, meshIndexRef]);
 
     return {
         resolveTargetMeshes,

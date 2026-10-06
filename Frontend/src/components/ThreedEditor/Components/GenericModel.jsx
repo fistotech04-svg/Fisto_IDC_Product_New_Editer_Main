@@ -151,6 +151,7 @@ const GenericModel = React.memo(React.forwardRef(({
     const { resolveTargetMeshes, resolveTargetMaterial } = useModelSelection({
         scene,
         modelName,
+        modelId,
         deletedMaterials,
         meshIndexRef
     });

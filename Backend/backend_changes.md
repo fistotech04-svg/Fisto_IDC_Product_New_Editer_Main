@@ -78,11 +78,69 @@ This document summarizes the changes made to the backend codebase on the `sham` 
 
 ---
 
+---
+
+## 3. Monday, October 6, 2026
+
+### Commit: `3be7e49` & Current Branch Updates — *Material and Texture Management, Multi-Model Scene Persistence, Supabase Exclusivity*
+
+- **Texture & Category Management (`Backend/controllers/Texture/` & `Backend/models/`)**:
+  - `Backend/models/Texture.js`:
+    - Updated `maps` schema to make `base`, `metallic`, `roughness`, and `normal` optional (`default: null` instead of `required: true`).
+    - Enables saving materials with as few as **1 single map** (or only a preview image).
+  - `Backend/controllers/Texture/textureController.js`:
+    - Removed strict mandatory requirement checking for all 4 primary maps (`base`, `metallic`, `roughness`, `normal`).
+    - Now validates that at least one texture map or preview exists across all upload slots before saving.
+  - `Backend/controllers/Texture/textureCategoryController.js`:
+    - Improved `addCategory` and `getCategories` to support both `userEmail` and `email` query / body parameters.
+    - Added trimming and sanitization for category names.
+    - Verified folder CRUD endpoints:
+      - `POST /api/textures/categories/add`
+      - `GET /api/textures/categories/get`
+      - `PUT /api/textures/categories/rename/:id`
+      - `DELETE /api/textures/categories/delete/:id`
+
+- **Supabase Storage Direct Persistence & Local Cleanup**:
+  - `Backend/routes/User_Details/threed_models.js`:
+    - Removed saving copies of uploaded `.glb` models to the local `uploads/.../3D_Modals/` disk folder.
+    - All uploads now stream directly to Supabase Storage bucket, and local temporary chunk assembly folders are immediately cleaned up upon merge (`fs.rmSync(tempDir, { recursive: true, force: true })`).
+    - Model and thumbnail URLs are generated as direct Supabase public URLs instead of local relative `/uploads/...` paths.
+
+- **Duplicate Model Uploads & Force New Model Support**:
+  - `Backend/routes/User_Details/threed_models.js` (`/upload-chunk`):
+    - Added `forceNew` flag handling (`req.body.forceNew === "true"`).
+    - If `forceNew` is passed or it's a new upload without `modelId`, automatically checks for existing models with the same name and appends a numeric suffix (e.g. `model_(1).glb`) to create a distinct model rather than overwriting.
+
+- **Scene Multi-Model Persistence**:
+  - `Backend/models/ThreedModel.js` & `Backend/models/InteractionThreedModel.js`:
+    - Added `sceneModels` array schema (`type: Array, default: []`) to track multi-model scene configurations.
+  - `Backend/routes/User_Details/threed_models.js`:
+    - Updated `/save-settings` and `/get-model/:modelId` to read, write, and return `sceneModels`.
+    - Added `GET /api/3d-models/get-session` endpoint to restore saved user session state from Supabase.
+
+- **HDRI and Material Presets Database Architecture**:
+  - `Backend/models/PresetHdri.js`: Mongoose schema storing environment HDRIs (`id`, `aliases`, `name`, `category`, `preview`, `file`, `order`).
+  - `Backend/models/PresetMaterial.js`: Mongoose schema storing preset PBR materials (`id`, `name`, `category`, `preview`, `maps`, `color`, `metallic`, `roughness`, `alpha`, `order`).
+  - `Backend/routes/Presets/presets.js`:
+    - `GET /api/presets/hdri`: Fetches all preset HDRIs from MongoDB with dynamic absolute host resolution for preview images and EXR/HDR files.
+    - `GET /api/presets/materials`: Fetches all 91+ preset materials from MongoDB with dynamic host URL resolution for all PBR texture maps.
+  - `Backend/utils/seedPresets.js`: Automatic database seeder that populates MongoDB on backend startup with all preset items if the collections are empty or missing records.
+  - `Backend/server.js`: Mounted `/api/presets` route and integrated automatic background preset seeding on database connection.
+  - **Frontend Resilient Architecture**:
+    - `Frontend/src/data/hdriData.js`: Implemented `fetchHdris()` which queries `GET /api/presets/hdri` from backend MongoDB, dynamically updates the cache, and seamlessly falls back to local `builtInHdris` array if the backend is unreachable or offline.
+    - `Frontend/src/data/textureData.js`: Implemented `fetchMaterials()` which queries `GET /api/presets/materials` from backend MongoDB, dynamically updates `textureData` cache, and falls back to local `textureData` array if offline.
+    - `LightingPanel.jsx` & `MaterialSelectorDrawer.jsx`: Integrated dynamic backend fetching with reactive re-rendering and fallback.
+
+---
+
 ## Summary of Core Changes
 
 | Area | Key Updates |
 |---|---|
-| **Hotspot Persistence** | Added `hotspots` field to `ThreedModel` and `InteractionThreedModel` schemas; added `/save-hotspots` route and updated chunk upload + get routes to read/write hotspot annotations. |
-| **HDRI Environment Maps** | Added static route `app.use('/hdri', ...)` in `server.js` and added structured 2K HDR `.exr`, tonemapped previews, and organized directory names. |
-| **Model Metadata** | Supported `displayName` in model listing responses. |
-| **3D Assets** | Added `.glb` test model files in user uploads directory. |
+| **Database-Driven Presets** | Added `PresetHdri` & `PresetMaterial` schemas in MongoDB with auto-seeder (`seedPresets.js`) and `/api/presets` routes; frontend fetches from DB with automatic local JS fallback. |
+| **Texture & Material Flexibility** | Made all texture maps optional (`default: null`); allowed saving materials with any single map; updated category controller for full CRUD & email compatibility. |
+| **Storage Exclusivity** | Switched 3D model uploads entirely to Supabase Storage; removed local disk storage redundancy and auto-cleaned temporary directories. |
+| **Model Upload Conflicts** | Added `forceNew` query support to create auto-incremented separate models instead of silent overwrites. |
+| **Scene Models & Sessions** | Added `sceneModels` to `ThreedModel` & `InteractionThreedModel`; added session retrieval endpoint (`/get-session`). |
+| **Hotspots & Annotations** | Dedicated endpoints and schema fields for persisting interactive hotspots. |
+| **HDRI & Environment Maps** | Static `/hdri` route serving pre-rendered EXRs, HDRs, and previews for Three.js scene environments. |

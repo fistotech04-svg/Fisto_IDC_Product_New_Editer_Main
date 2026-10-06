@@ -18,13 +18,17 @@ import textureRoutes from "./routes/Texture/texture.js";
 import exploreRoutes from "./routes/Explore/explore.js";
 import profileRoutes from "./routes/User_Details/profile.js";
 import activityRoutes from "./routes/User_Details/activity.js";
+import presetsRoutes from "./routes/Presets/presets.js";
+import { seedPresets } from "./utils/seedPresets.js";
 import compression from "compression";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 // Connect to database
-connectDB();
+connectDB().then(() => {
+  seedPresets().catch(err => console.warn("[Presets Seed Notice]:", err.message));
+});
 
 
 import { SUPABASE_BUCKET, getSupabasePublicUrl, downloadFileFromSupabase } from "./config/supabase.js";
@@ -244,6 +248,7 @@ app.use("/api/textures", textureRoutes);
 app.use("/api/explore", exploreRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/presets", presetsRoutes);
 
 import { startBackgroundTempCleaner } from "./utils/tempCleaner.js";
 

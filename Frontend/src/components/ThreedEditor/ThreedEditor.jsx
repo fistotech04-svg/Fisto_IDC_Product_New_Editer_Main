@@ -2510,6 +2510,52 @@ export default function ThreedEditor() {
     }
   }, [selectedMaterial, lastHotspotClickTimeRef, isHotspotFocusingRef]);
 
+  // Keyboard shortcuts for Center Canvas (W = Move, R = Rotate, S = Scale, H = Hand)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if user is typing in input, textarea, select, or contentEditable elements
+      const target = e.target;
+      const tagName = target?.tagName?.toUpperCase();
+      if (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        target?.isContentEditable ||
+        target?.closest?.('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
+
+      // Ignore if modifier keys are pressed (Ctrl, Alt, Meta/Cmd) to prevent conflicting with browser or system shortcuts
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'w') {
+        e.preventDefault();
+        setTransformMode('translate');
+        setActiveAccordion('position');
+      } else if (key === 'r') {
+        e.preventDefault();
+        setTransformMode('rotate');
+        setActiveAccordion('position');
+      } else if (key === 's') {
+        e.preventDefault();
+        setTransformMode('scale');
+        setActiveAccordion('position');
+      } else if (key === 'h') {
+        e.preventDefault();
+        setNavMode((prev) => (prev === 'pan' ? 'orbit' : 'pan'));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   // ==========================================================================
   // SECTION 14: JSX VIEWPORT & COMPONENT LAYOUT RENDERING
   // ==========================================================================

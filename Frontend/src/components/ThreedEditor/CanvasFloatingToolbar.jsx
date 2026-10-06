@@ -46,10 +46,10 @@ export default function CanvasFloatingToolbar({
   ];
 
   const transformTools = [
-    { id: "select", label: "Select", icon: "clarity:cursor-arrow-line" },
-    { id: "translate", label: "Move", icon: "iconamoon:move-thin" },
-    { id: "rotate", label: "Rotate", icon: "hugeicons:rotate-01" },
-    { id: "scale", label: "Scale", icon: "solar:scale-outline" }
+    { id: "select", label: "Select", icon: "clarity:cursor-arrow-line", shortcut: "" },
+    { id: "translate", label: "Move", icon: "iconamoon:move-thin", shortcut: "W" },
+    { id: "rotate", label: "Rotate", icon: "hugeicons:rotate-01", shortcut: "R" },
+    { id: "scale", label: "Scale", icon: "solar:scale-outline", shortcut: "S" }
   ];
 
   return (
@@ -133,11 +133,12 @@ export default function CanvasFloatingToolbar({
         <div className="bg-[#181b20]/90 backdrop-blur-md p-[0.35vw] rounded-[0.7vw] border border-white/10 shadow-2xl flex flex-col items-center gap-[0.35vw]">
           {transformTools.map((tool) => {
             const isActive = transformMode === tool.id;
+            const tooltip = tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label;
             return (
               <button
                 key={tool.id}
                 onClick={() => onSelectTransformMode && onSelectTransformMode(tool.id)}
-                title={tool.label}
+                title={tooltip}
                 className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex flex-col items-center justify-center transition-all cursor-pointer ${isActive
                   ? "bg-[#ea543a] text-white shadow-md shadow-[#ea543a]/30"
                   : "text-gray-300 hover:text-white hover:bg-white/10"
@@ -163,7 +164,7 @@ export default function CanvasFloatingToolbar({
             }
             className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${navMode === "pan" ? "text-white" : "text-gray-300 hover:text-white"
               }`}
-            title={navMode === "pan" ? "Disable Hand / Pan View" : "Enable Hand / Pan View"}
+            title={navMode === "pan" ? "Disable Hand / Pan View (H)" : "Enable Hand / Pan View (H)"}
           >
             <Icon
               icon="famicons:hand-right-outline"

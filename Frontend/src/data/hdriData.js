@@ -1,3 +1,5 @@
+import { resolveUploadsPath } from "../utils/supabaseUtils";
+
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 const HDRI_BASE_URL = `${BACKEND_URL}/hdri`;
 
@@ -115,3 +117,40 @@ export const builtInHdris = [
     file: `${HDRI_BASE_URL}/Night_street/NightEnvironmentHDRI010_2K_HDR.exr`,
   },
 ];
+
+// In-memory cache for database-fetched HDRIs
+let cachedHdris = [...builtInHdris];
+let isFetchingHdris = false;
+
+export const fetchHdris = async () => {
+  if (isFetchingHdris) return cachedHdris;
+  isFetchingHdris = true;
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/presets/hdri`);
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data?.hdris) && data.hdris.length > 0) {
+        const normalized = data.hdris.map((item) => ({
+          ...item,
+          preview: resolveUploadsPath(item.preview),
+          file: resolveUploadsPath(item.file),
+        }));
+        cachedHdris = normalized;
+        // Also update builtInHdris array in place for components importing it directly
+        builtInHdris.length = 0;
+        builtInHdris.push(...normalized);
+      }
+    }
+  } catch (err) {
+    console.warn("[HDRI Data] Backend presets fetch failed, using fallback builtInHdris:", err.message);
+  } finally {
+    isFetchingHdris = false;
+  }
+  return cachedHdris;
+};
+
+// Initial background fetch
+if (typeof window !== "undefined") {
+  fetchHdris();
+}
+

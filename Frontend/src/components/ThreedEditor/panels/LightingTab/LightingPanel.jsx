@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import ColorPicker from "../../ColorPicker";
 import { AxisInput } from "../common/PanelInputs";
-import { builtInHdris } from "../../../../data/hdriData";
+import { builtInHdris, fetchHdris } from "../../../../data/hdriData";
 import FloorPresetSelector from "../../Components/FloorPresetSelector";
 
 // Reusable Slider Component styled with editable Axis-like input pill
@@ -131,11 +131,10 @@ const LightingSlider = ({
       {/* Editable Value Pill */}
       <div
         onMouseDown={handlePillPointerDown}
-        className={`w-[3.4vw] h-[1.55vw] bg-gray-100 hover:bg-gray-200/80 rounded-[0.3vw] flex items-center justify-center shrink-0 border transition-all cursor-ew-resize px-[0.2vw] ${
-          isFocused
+        className={`w-[3.4vw] h-[1.55vw] bg-gray-100 hover:bg-gray-200/80 rounded-[0.3vw] flex items-center justify-center shrink-0 border transition-all cursor-ew-resize px-[0.2vw] ${isFocused
             ? "border-[#ea543a] bg-white ring-1 ring-[#ea543a]/25 shadow-2xs"
             : "border-transparent"
-        }`}
+          }`}
         title="Click to edit or drag left/right to adjust"
       >
         <input
@@ -156,8 +155,8 @@ const LightingSlider = ({
   );
 };
 
-// Standard studio / daylight / softbox + all built-in HDRIs
-const allEnvironments = [
+// Base standard studio / daylight / softbox
+const BASE_ENVIRONMENT_PRESETS = [
   {
     id: "studio",
     name: "Studio",
@@ -176,12 +175,6 @@ const allEnvironments = [
     preview: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=300&auto=format&fit=crop&q=60&ixlib=rb-4.0.3",
     envValue: "warehouse",
   },
-  ...(builtInHdris || []).map((hdr) => ({
-    id: `builtin_${hdr.id}`,
-    name: hdr.name,
-    preview: hdr.preview,
-    envValue: `builtin_${hdr.id}`,
-  })),
 ];
 
 export function LightingPanel({
@@ -191,13 +184,34 @@ export function LightingPanel({
   updateControl,
 }) {
   const currentControls = materialSettings || controls || {};
-  const handleUpdate = onUpdateMaterialSetting || updateControl || (() => {});
+  const handleUpdate = onUpdateMaterialSetting || updateControl || (() => { });
 
   // State for See All environments expansion
   const [showAllEnvironments, setShowAllEnvironments] = useState(false);
 
   // State for Color Picker popover
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+
+  // State for dynamic HDRI list loaded from backend database
+  const [dynamicHdris, setDynamicHdris] = useState(() => [...builtInHdris]);
+
+  useEffect(() => {
+    fetchHdris().then((loaded) => {
+      if (Array.isArray(loaded) && loaded.length > 0) {
+        setDynamicHdris([...loaded]);
+      }
+    });
+  }, []);
+
+  const environmentOptions = useMemo(() => [
+    ...BASE_ENVIRONMENT_PRESETS,
+    ...(dynamicHdris || []).map((hdr) => ({
+      id: `builtin_${hdr.id}`,
+      name: hdr.name,
+      preview: hdr.preview,
+      envValue: `builtin_${hdr.id}`,
+    })),
+  ], [dynamicHdris]);
   const colorPickerContainerRef = useRef(null);
   const [isFloorColorPickerOpen, setIsFloorColorPickerOpen] = useState(false);
   const floorColorPickerRef = useRef(null);
@@ -350,22 +364,20 @@ export function LightingPanel({
             <span>See All</span>
             <Icon
               icon="heroicons:chevron-down-20-solid"
-              className={`w-[0.9vw] h-[0.9vw] transition-transform duration-200 ${
-                showAllEnvironments ? "rotate-180" : ""
-              }`}
+              className={`w-[0.9vw] h-[0.9vw] transition-transform duration-200 ${showAllEnvironments ? "rotate-180" : ""
+                }`}
             />
           </button>
         </div>
 
         {/* 3-Column Environment Grid (Shows first 3 or all based on showAllEnvironments) */}
         <div
-          className={`grid grid-cols-3 gap-[0.65vw] pt-[0.2vw] ${
-            showAllEnvironments
+          className={`grid grid-cols-3 gap-[0.65vw] pt-[0.2vw] ${showAllEnvironments
               ? "max-h-[16vw] overflow-y-auto pr-[0.2vw] custom-left-scrollbar"
               : ""
-          }`}
+            }`}
         >
-          {(showAllEnvironments ? allEnvironments : allEnvironments.slice(0, 3)).map((env) => {
+          {(showAllEnvironments ? environmentOptions : environmentOptions.slice(0, 3)).map((env) => {
             const isSelected =
               activeEnv === env.envValue ||
               activeEnv === env.id ||
@@ -379,11 +391,10 @@ export function LightingPanel({
                 className="flex flex-col items-center gap-[0.35vw] group cursor-pointer focus:outline-none"
               >
                 <div
-                  className={`w-full aspect-[16/9] rounded-[0.45vw] overflow-hidden border-2 transition-all bg-gray-100 ${
-                    isSelected
+                  className={`w-full aspect-[16/9] rounded-[0.45vw] overflow-hidden border-2 transition-all bg-gray-100 ${isSelected
                       ? "border-[#ea543a] shadow-sm ring-1 ring-[#ea543a]/30"
                       : "border-gray-200 group-hover:border-gray-300"
-                  }`}
+                    }`}
                 >
                   <img
                     src={env.preview}
@@ -395,9 +406,8 @@ export function LightingPanel({
                   />
                 </div>
                 <span
-                  className={`text-[0.74vw] font-medium transition-colors truncate w-full text-center ${
-                    isSelected ? "text-[#ea543a] font-semibold" : "text-gray-600 group-hover:text-gray-900"
-                  }`}
+                  className={`text-[0.74vw] font-medium transition-colors truncate w-full text-center ${isSelected ? "text-[#ea543a] font-semibold" : "text-gray-600 group-hover:text-gray-900"
+                    }`}
                   title={env.name}
                 >
                   {env.name}
