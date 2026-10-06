@@ -52,8 +52,966 @@ import slide1 from '../assets/Home/Slide_1.png';
 import slide2 from '../assets/Home/Slide_2.png';
 import slide3 from '../assets/Home/Slide_3.png';
 import slide4 from '../assets/Home/Slide_4.png';
+import heroBookImg from '../assets/Home/Hero_book.png';
+import bookShowImg from '../assets/Home/Book_show.png'; 
 import goldenArrow from '../assets/Home/golden_arrow.png';
-import bookShowImg from '../assets/Home/Book_show.png';
+import AR_image_model from '../assets/Home/AR_image_model.png';
+import icon360 from '../assets/Home/360-icon.svg';
+import PumpImage from '../assets/Home/Pump-image.png';
+import exampleSvg from '../assets/Home/example svg.svg';
+import workImg1 from '../assets/Home/work-img-1.png';
+import workImg2 from '../assets/Home/work-img-2.png';
+import workImg3 from '../assets/Home/work-img-3.png';
+import workImg4 from '../assets/Home/work-img-4.png';
+import aboutUsImg from '../assets/Home/abou-us-image.png';
+import testimonialIcon from '../assets/Home/testimonial-icon.png';
+import flipibookImg from '../assets/Home/Hero_book.png'
+
+// Testimonials Section Component - Stacked Animated Card Carousel with Autoplay (4s)
+const TestimonialsSection = () => {
+  const testimonials = [
+    {
+      id: 1,
+      name: "Industrial Marketing Manager",
+      company: "Manufacturing Brand",
+      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200",
+      quote: "Flipibook helped us present our product range with interactive page flips, 3D product views and video content. Customers can explore product details more clearly, and our digital catalogue is easier to share.",
+      rating: 5
+    },
+    {
+      id: 2,
+      name: "Senior Product Strategist",
+      company: "Global Tech Corp",
+      avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200",
+      quote: "Transforming our static PDF brochures into interactive digital experiences doubled our customer engagement rate within weeks. The embedded 3D models allow buyers to inspect every angle effortlessly.",
+      rating: 5
+    },
+    {
+      id: 3,
+      name: "Director of Digital Sales",
+      company: "Innovate Hardware Solutions",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
+      quote: "The seamless integration of videos and page-flip animations made our sales collateral stand out in trade shows and client presentations. Absolutely essential tool for modern B2B marketing.",
+      rating: 5
+    },
+    {
+      id: 4,
+      name: "Head of Marketing",
+      company: "Precision Machinery Ltd",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200",
+      quote: "Our distribution partners love the interactive flipbooks! Being able to update product catalogs on the fly without printing costs has saved us thousands while keeping our clients informed.",
+      rating: 5
+    }
+  ];
+
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Auto-play interval every 4 seconds (4000ms)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % testimonials.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [testimonials.length]);
+
+  return (
+    <section className="w-full bg-[#f8f9fb] pt-[10vh] px-[5vw] flex flex-col items-center justify-center font-sans relative overflow-hidden">
+      {/* Top Header & Subtitle */}
+      <div className="text-center max-w-[60vw] mb-[8vh] space-y-[1.5vh]">
+        <h2 className="text-[3.4vw] sm:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
+          The Smarter Way to <br/> Present products
+        </h2>
+        <p className="text-[1.3vw] sm:text-[1.25vw] text-[#262F3B] font-normal leading-relaxed">
+          Turn static PDFs into engaging digital catalogue experiences.
+        </p>
+      </div>
+
+      {/* Stacked Cards Container */}
+      <div className="relative w-full max-w-[56vw] h-[32vw] min-h-[420px] flex items-center justify-center mb-[4vh]">
+        {testimonials.map((item, index) => {
+          // Compute relative position in stack
+          const total = testimonials.length;
+          const offset = (index - activeIndex + total) % total;
+
+          // Only render top 3 visible stack layers
+          if (offset > 2) return null;
+
+          // Card visual stack transformation styles
+          const scale = 1 - offset * 0.05;
+          const translateY = offset * 2.8; // in vw
+          const zIndex = 20 - offset;
+          const opacity = offset === 0 ? 1 : offset === 1 ? 0.9 : 0.7;
+
+          return (
+            <motion.div
+              key={item.id}
+              initial={false}
+              animate={{
+                scale,
+                y: `${translateY}vw`,
+                opacity,
+                zIndex
+              }}
+              transition={{
+                duration: 0.6,
+                ease: [0.32, 0.72, 0, 1]
+              }}
+              className="absolute top-0 left-0 right-0 mx-auto w-full bg-white rounded-[1.6vw] p-[3.2vw] border border-gray-100/80 flex flex-col justify-between"
+              style={{
+                boxShadow: offset === 0 
+                  ? '0 30px 70px -15px rgba(0, 0, 0, 0.09), 0 12px 25px -5px rgba(0, 0, 0, 0.04)' 
+                  : '0 15px 35px -10px rgba(0,0,0,0.05)'
+              }}
+            >
+              {/* 3D Orange Quote Icon overlapping top-right of active top card */}
+              {offset === 0 && (
+                <div className="absolute -top-[3vw] right-[1.8vw] w-[8vw] h-[8vw] min-w-[70px] min-h-[70px] z-30 pointer-events-none drop-shadow-2xl">
+                  <img 
+                    src={testimonialIcon} 
+                    alt="Quote Icon" 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              )}
+
+              {/* Author & Header Info Row */}
+              <div className="flex items-center gap-[1.8vw] mb-[2.5vh]">
+                <img
+                  src={item.avatar}
+                  alt={item.name}
+                  className="w-[5.2vw] h-[5.2vw] min-w-[60px] min-h-[60px] rounded-full object-cover border-2 border-white shadow-md flex-shrink-0"
+                />
+                <div className="flex flex-col text-left">
+                  <h4 className="text-[1.45vw] font-bold text-[#1e232d] leading-tight tracking-tight">
+                    {item.name}
+                  </h4>
+                  <div className="flex items-center gap-[0.4vw]">
+                    <p 
+                      className="text-[1.1vw] text-[#4a5264] font-medium leading-tight inline-block pb-[0.2vh]"
+                      style={{
+                        backgroundImage: 'linear-gradient(to right, #7b8fae 35%, rgba(255,255,255,0) 0%)',
+                        backgroundPosition: 'bottom',
+                        backgroundSize: '8px 1.5px',
+                        backgroundRepeat: 'repeat-x'
+                      }}
+                    >
+                      {item.company}
+                    </p>
+                  </div>
+                  
+                  {/* Star Rating Row */}
+                  <div className="flex items-center gap-[0.3vw] mt-[0.8vh]">
+                    {[...Array(item.rating)].map((_, i) => (
+                      <span key={i} className="text-[#ff9500] text-[1.3vw] font-bold leading-none">
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quote Body Paragraph */}
+              <p className="text-[1.35vw] text-[#4b5262] font-normal leading-[1.65] tracking-normal text-left pl-[0.2vw]">
+                &ldquo;{item.quote}&rdquo;
+              </p>
+            </motion.div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+// FAQ Section Component - Smooth Accordion (CodePen Byjaaqd mechanics)
+const FAQSection = ({ navigate }) => {
+  const [openIndex, setOpenIndex] = useState(null);
+
+  const faqs = [
+    {
+      question: "What files can I upload?",
+      answer: "You can upload PDF files, Microsoft Word (.docx), PowerPoint (.pptx), and high-resolution images (.jpg, .png). Our system automatically converts them into smooth, interactive flipbooks."
+    },
+    {
+      question: "Can I customise page layouts?",
+      answer: "Yes! You can fully customize backgrounds, toolbar branding, add hot-spots, clickable links, video embeds, and 3D product widgets using our drag-and-drop editor."
+    },
+    {
+      question: "Can I add 3D models and videos?",
+      answer: "Absolutely. Flipibook supports interactive GLTF/GLB 3D models, YouTube/Vimeo embeds, self-hosted MP4 videos, and audio tracks directly on your flipbook pages."
+    },
+    {
+      question: "Does Flipibook support 360° views?",
+      answer: "Yes, you can integrate 360-degree interactive product spin views so buyers can inspect products from every angle."
+    },
+    {
+      question: "Can I share my catalogue online?",
+      answer: "You can instantly share your flipbook via a short web URL, QR code, or embed it seamlessly directly into your website or e-commerce store."
+    },
+    {
+      question: "Can I track catalogue engagement?",
+      answer: "Yes! Our real-time analytics dashboard gives you insights on total reads, page views, time spent per page, button clicks, and visitor locations."
+    }
+  ];
+
+  const toggleFAQ = (index) => {
+    setOpenIndex(openIndex === index ? null : index);
+  };
+
+  return (
+    <section className="w-full bg-[#f8f9fb] pb-[5vh] px-[5vw] flex flex-col items-center justify-center font-sans relative">
+      {/* Section Header */}
+      <div className="text-center max-w-[60vw] mb-[7vh] space-y-[1.2vh]">
+        <h2 className="text-[3.4vw] sm:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
+          Common Questions About <br />
+          <span className="text-[#f15a24]">Flipibook</span>
+        </h2>
+        <p className="text-[1.3vw] sm:text-[1.25vw] text-[#5e636e] font-normal leading-relaxed">
+          Turn static PDFs into engaging digital catalogue experiences.
+        </p>
+      </div>
+
+      {/* 2-Column FAQ Grid */}
+      <div className="w-full max-w-[75vw] grid grid-cols-1 md:grid-cols-2 gap-[1.5vw] items-start">
+        {faqs.map((faq, index) => {
+          const isOpen = openIndex === index;
+          return (
+            <div
+              key={index}
+              onClick={() => toggleFAQ(index)}
+              className={`bg-white border rounded-[0.9vw] p-[1.6vw] cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${
+                isOpen ? 'border-[#f15a24]/40 bg-white ring-2 ring-[#f15a24]/10' : 'border-gray-200/90 hover:border-gray-300'
+              }`}
+            >
+              {/* Question Header Row */}
+              <div className="flex items-center justify-between gap-[1vw]">
+                <h3 className="text-[1.5vw] font-semibold text-[#1e232d] leading-snug text-left">
+                  {faq.question}
+                </h3>
+                <div
+                  className={`w-[1.8vw] h-[1.8vw] min-w-[26px] min-h-[26px] flex items-center justify-center rounded-full text-gray-500 transition-transform duration-300 flex-shrink-0 ${
+                    isOpen ? 'rotate-90 text-[#f15a24]' : ''
+                  }`}
+                >
+                  <Icon icon="ep:arrow-right" className="w-[2vw] h-[2vw] stroke-[2.5]" />
+                </div>
+              </div>
+
+              {/* Answer Content with Smooth Expand Animation */}
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.35, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <p className="text-[1.05vw] text-[#5e636e] font-normal leading-relaxed text-left pt-[1.5vh] border-t border-gray-100 mt-[1.5vh]">
+                      {faq.answer}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+// Interactive Digital Catalogue (IDC) Hero Section Component
+const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => {
+  const containerRef = useRef(null);
+  const heroBookRef = useRef(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Scroll animations with framer-motion
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end start"]
+  });
+
+  // Transform values for pinned scroll effect
+  const orangeScale = useTransform(scrollYProgress, [0, 0.4, 0.8], [0.92, 1, 1]);
+  const orangeY = useTransform(scrollYProgress, [0, 0.4, 0.8], ["5vw", "0vw", "0vw"]);
+  const headerOpacity = useTransform(scrollYProgress, [0, 0.3, 0.7], [1, 0.95, 0.9]);
+  const bookScale = useTransform(scrollYProgress, [0, 0.4, 0.8], [0.95, 1.02, 1]);
+
+  const handlePrevPage = () => {
+    if (heroBookRef.current) {
+      heroBookRef.current.pageFlip()?.flipPrev();
+    }
+  };
+
+  const handleNextPage = () => {
+    if (heroBookRef.current) {
+      heroBookRef.current.pageFlip()?.flipNext();
+    }
+  };
+
+  const onHeroBookFlip = useCallback((e) => {
+    setCurrentPage(e.data + 1);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative w-full h-auto min-h-[115vh] bg-white p-5 font-sans overflow-visible flex flex-col justify-between">
+      {/* Sticky Hero Viewport Container */}
+      
+        
+        {/* Top Header & Branding Row */}
+        <motion.div style={{ opacity: headerOpacity }} className="flex flex-col md:flex-row justify-between items-start z-10 w-full mb-4 lg:mb-[0.8vw] gap-4 md:gap-0">
+          {/* Main Title */}
+          <div>
+            <h1 className="text-[26px] sm:text-[34px] lg:text-[3.6vw] font-bold font-popins text-[#35363A] leading-[1.07]">
+              INTERACTIVE <br />
+              DIGITAL <span className="text-[#EA7233] text-[18px] sm:text-[24px] lg:text-[2.3vw]">CATALOGUE</span> <span className="text-[#35363A] font-bold text-[18px] sm:text-[24px] lg:text-[2.3vw]">(IDC)</span>
+            </h1>
+          </div>
+
+          {/* Top-Right Branding & Reviews */}
+          <div className="flex flex-col items-start md:items-end text-left md:text-right">
+            {/* YOUR CONTENT. STORY. Main Title */}
+            <div className="flex items-center gap-2 lg:gap-[0.8vw]">
+              {/* Dual-tone gradient text "YOUR" */}
+              <span 
+                className="text-[26px] sm:text-[34px] lg:text-[3.6vw] font-bold tracking-tight leading-none bg-clip-text text-transparent select-none"
+                style={{
+                  backgroundImage: 'linear-gradient(to bottom, #1e293b 0%, #1e293b 50%, #cbd5e1 50%, #cbd5e1 100%)'
+                }}
+              >
+                YOUR
+              </span>
+              <span className="text-[11px] sm:text-[13px] lg:text-[1vw] font-bold text-gray-800 tracking-wider text-left leading-[1.25] font-sans">
+                CONTENT.<br />STORY.
+              </span>
+            </div>
+            
+            {/* Taglines with bullets */}
+            <div className="flex items-center gap-[0.6vw] text-[10px] sm:text-[12px] lg:text-[0.8vw] font-bold tracking-wider text-[#ea7233] uppercase mt-[0.4vw]">
+              <span className="text-[#ea7233]">•</span>
+              <span className="">INTERACTIVE</span>
+              <span className="text-[#ea7233]">•</span>
+              <span className="">IMMERSIVE</span>
+              <span className="text-[#ea7233]">•</span>
+              <span className="">INTELLIGENT</span>
+            </div>
+
+            {/* Bottom Orange Accent Line */}
+            <div className="w-12 lg:w-[4vw] h-[3px] lg:h-[0.25vw] bg-[#ea7233] rounded-full mt-2 lg:mt-[0.5vw] self-start ml-1 lg:ml-[0.3vw]" />
+          </div>
+        </motion.div>
+          
+        {/* Center Orange Interactive Hero Container */}
+        <motion.div 
+          style={{ scale: orangeScale, y: orangeY }}
+          className="relative flex-1 min-h-[65vh] lg:min-h-[75vh] bg-[#e65c00] rounded-2xl md:rounded-[2vw] shadow-2xl p-3 sm:p-5 pt-16 sm:pt-20 lg:p-[1.2vw] flex flex-col justify-between overflow-visible transition-all duration-300 w-full"
+        >
+          {/* AR / 360° Card overlapping upper-left edge */}
+          <motion.div 
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="absolute -top-10 sm:-top-14 lg:-top-[7.5vw] left-2 sm:left-6 lg:left-[3.5vw] z-30 bg-white/30 backdrop-blur-sm border border-white/40 rounded-xl sm:rounded-2xl lg:rounded-[1.8vw] shadow-[0_1vw_2.5vw_rgba(0,0,0,0.2)] p-2 sm:p-3 lg:p-[0.7vw] lg:pb-[0.4vw] flex flex-col items-center w-32 sm:w-44 lg:w-[13.5vw] min-w-[125px] sm:min-w-[170px] overflow-hidden group hover:scale-105 transition-transform duration-300"
+          >
+            {/* Top Solid White Container for AR, 360 Icon & Motor Image */}
+            <div className="w-full bg-white rounded-lg sm:rounded-xl lg:rounded-[1.3vw] p-1.5 sm:p-2 lg:p-[0.8vw] lg:pt-[0.6vw] lg:pb-[0.4vw] flex flex-col items-center shadow-inner">
+              {/* Header row: AR + 360° icon */}
+              <div className="w-full flex justify-between items-center px-1 lg:px-[0.2vw] mb-0.5 lg:mb-[0.2vw]">
+                <span className="text-sm sm:text-lg lg:text-[1.8vw] font-medium text-[#2d2d2d] leading-none tracking-tight font-sans">AR</span>
+                <img src={icon360} alt="360-icon" className="w-5 sm:w-8 lg:w-[3.4vw] h-auto object-contain" />
+              </div>
+
+              {/* AR Motor Image on pure white background */}
+              <div className="relative w-full h-12 sm:h-18 lg:h-[6.5vw] min-h-[50px] sm:min-h-[80px] flex items-center justify-center my-0.5 lg:my-[0.3vw] bg-white">
+                <img 
+                  src={AR_image_model} 
+                  alt="AR Product Motor"
+                  className="max-h-full max-w-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-500" 
+                />
+              </div>
+            </div>
+
+            {/* Bottom Label Container */}
+            <div className="w-full py-0.5 sm:py-1 lg:py-[0.55vw] px-0.5 lg:px-[0.2vw] flex items-center justify-center">
+              <span className="text-[9px] sm:text-xs lg:text-[0.8vw] font-bold text-[#111111] text-center leading-none tracking-tight">
+                One Interaactive Experience
+              </span>
+            </div>
+          </motion.div>
+
+          {/* Customer Reviews */}
+          <div className="flex flex-col absolute -top-10 sm:-top-14 lg:-top-[5.8vw] right-2 sm:right-6 lg:right-[3.5vw] z-30 items-end">
+            <div className="flex -space-x-1.5 sm:-space-x-2 lg:-space-x-[0.4vw]">
+              <img className="inline-block w-5 h-5 sm:w-7 sm:h-7 lg:w-[2vw] lg:h-[2vw] rounded-full ring-1 ring-[#FD9F0D] object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="user" />
+              <img className="inline-block w-5 h-5 sm:w-7 sm:h-7 lg:w-[2vw] lg:h-[2vw] rounded-full ring-1 ring-[#FD9F0D] object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80" alt="user" />
+              <img className="inline-block w-5 h-5 sm:w-7 sm:h-7 lg:w-[2vw] lg:h-[2vw] rounded-full ring-1 ring-[#FD9F0D] object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80" alt="user" />
+              <img className="inline-block w-5 h-5 sm:w-7 sm:h-7 lg:w-[2vw] lg:h-[2vw] rounded-full ring-1 ring-[#FD9F0D] object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80" alt="user" />
+            </div>
+            <div className="flex text-[#FD9F0D] text-[10px] sm:text-sm lg:text-[1.4vw]">★★★★★</div>
+            <span className="text-[8px] sm:text-[11px] lg:text-[0.7vw] text-gray-600 font-bold leading-none text-right">Rated 10,000+ Customer Reviews</span>
+          </div>
+
+          {/* SVG Definitions for Dashed Arrows with Arrowheads */}
+          <svg className="absolute w-0 h-0 pointer-events-none">
+            <defs>
+              <marker
+                id="arrowhead-left"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto"
+              >
+                <polygon points="0 1.5, 9 5, 0 8.5" fill="#ffffff" />
+              </marker>
+            </defs>
+          </svg>
+
+          {/* Mobile & Tablet Feature Badges Grid (Visible only on < lg screens) */}
+          <div className="lg:hidden flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 my-2 z-20">
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="carbon:cube" className="text-xs sm:text-sm" /> 3D Model
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="mdi:cube-scan" className="text-xs sm:text-sm" /> AR View
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="fa:cube" className="text-xs sm:text-sm" /> Interactive
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="ant-design:play-circle-outlined" className="text-xs sm:text-sm" /> Video
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="charm:sound-up" className="text-xs sm:text-sm" /> Flip Sound
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="material-symbols:ads-click-rounded" className="text-xs sm:text-sm" /> Hotspots
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <Icon icon="akar-icons:arrow-up-right" className="text-xs sm:text-sm" /> Exploder
+            </span>
+            <span className="bg-white/25 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[11px] sm:text-xs font-semibold flex items-center gap-1 shadow-sm">
+              <img src={icon360} className="w-3 h-auto object-contain" /> 360° View
+            </span>
+          </div>
+
+          {/* Desktop Left Features Column (Hidden on < lg screens) */}
+          <div className="hidden lg:flex lg:absolute lg:left-[8vw] lg:top-1/2 lg:-translate-y-1/2 flex-col gap-[2vw] z-20 pointer-events-auto">
+            {/* 3D Model */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">3D Model</span>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="carbon:cube" className="text-[1.3vw]" />
+              </div>
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 2,20 Q 35,0 65,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+            </div>
+
+            {/* AR View */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">AR View</span>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="mdi:cube-scan" className="text-[1.3vw]" />
+              </div>
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 2,20 Q 35,0 65,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+            </div>
+
+            {/* Interactive */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">Interactive</span>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="fa:cube" className="text-[1.2vw]" />
+              </div>
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 2,20 Q 35,0 65,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+            </div>
+
+            {/* Video */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">Video</span>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="ant-design:play-circle-outlined" className="text-[1.3vw]" />
+              </div>
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 2,20 Q 35,0 65,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Desktop Right Features Column (Hidden on < lg screens) */}
+          <div className="hidden lg:flex lg:absolute lg:right-[8vw] lg:top-1/2 lg:-translate-y-1/2 flex-col gap-[2vw] z-20 pointer-events-auto items-start">
+            {/* Flip Sound */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 68,20 Q 35,0 7,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="charm:sound-up" className="text-[1.3vw]" />
+              </div>
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">Flip Sound</span>
+            </div>
+
+            {/* Hotspots */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 68,20 Q 35,0 7,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="material-symbols:ads-click-rounded" className="text-[1.3vw]" />
+              </div>
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">Hotspots</span>
+            </div>
+
+            {/* Exploder */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 68,20 Q 35,0 7,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <Icon icon="akar-icons:arrow-up-right" className="text-[1.3vw]" />
+              </div>
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">Exploder</span>
+            </div>
+
+            {/* 360° View */}
+            <div className="flex items-center gap-[0.8vw] group cursor-pointer">
+              <svg className="w-[4.5vw] h-[2vw] text-white/90 hidden lg:block overflow-visible" viewBox="0 0 70 25">
+                <path d="M 68,20 Q 35,0 7,10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4" markerEnd="url(#arrowhead-left)" className="animate-pulse" />
+              </svg>
+              <div className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full bg-white text-gray-800 flex items-center justify-center shadow-lg group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                <img src={icon360} className="w-[1.4vw] h-auto object-contain" />
+              </div>
+              <span className="text-white font-semibold text-[1.1vw] drop-shadow-sm group-hover:text-amber-200 transition-colors">360° View</span>
+            </div>
+          </div>
+
+          {/* Central Flipbook Catalogue */}
+          <motion.div 
+            style={{ scale: bookScale }}
+            className="relative my-auto mx-auto w-full max-w-[92vw] sm:max-w-[80vw] lg:w-[50vw] lg:max-w-[880px] h-[55vw] sm:h-[42vw] lg:h-[34vw] min-h-[220px] max-h-[750px] flex items-center justify-center z-10 drop-shadow-[0_1.5vw_2.5vw_rgba(0,0,0,0.3)] my-2 lg:my-auto"
+          >
+            <img src={flipibookImg} className="w-full h-full object-contain" />
+          </motion.div>
+
+          {/* Bottom Bar Controls */}
+          <div className="relative z-20 flex flex-col md:flex-row items-center justify-between pt-2 lg:pt-[0.8vw] pb-1 lg:pb-[0.2vw] px-2 sm:px-4 lg:px-[3vw] w-full max-w-full lg:max-w-[63vw] mx-auto gap-2 md:gap-0">
+            {/* Pagination Controls on Mobile (First) */}
+            <div className="flex items-center justify-center gap-2 sm:gap-3 lg:gap-[1vw] w-full md:w-auto">
+              <button 
+                onClick={handlePrevPage}
+                className="w-7 h-7 sm:w-8 sm:h-8 lg:w-[2.2vw] lg:h-[2.2vw] rounded-full bg-white text-gray-700 flex items-center justify-center hover:bg-orange-500 hover:text-white transition-all shadow-md active:scale-95 flex-shrink-0"
+              >
+                <Icon icon="lucide:chevron-left" className="text-sm sm:text-base lg:text-[1.2vw]" />
+              </button>
+
+              <div className="flex items-center gap-1.5 sm:gap-3 lg:gap-[0.8vw]">
+                <div className="w-10 sm:w-24 lg:w-[14vw] h-[2px] bg-white/40 rounded-full overflow-hidden">
+                  <div className="h-full bg-white/40 rounded-full transition-all duration-300" />
+                </div>
+                <span className="text-white text-xs sm:text-sm lg:text-[0.85vw] font-medium tracking-wide whitespace-nowrap">
+                  0{currentPage} / 30
+                </span>
+                <div className="w-10 sm:w-24 lg:w-[14vw] h-[2px] bg-white/40 rounded-full overflow-hidden">
+                  <div className="h-full bg-white/40 rounded-full transition-all duration-300" />
+                </div>
+              </div>
+
+              <button 
+                onClick={handleNextPage}
+                className="w-7 h-7 sm:w-8 sm:h-8 lg:w-[2.2vw] lg:h-[2.2vw] rounded-full bg-white text-gray-700 flex items-center justify-center hover:bg-orange-500 hover:text-white transition-all shadow-md active:scale-95 flex-shrink-0"
+              >
+                <Icon icon="lucide:chevron-right" className="text-sm sm:text-base lg:text-[1.2vw]" />
+              </button>
+            </div>
+
+            {/* Bottom Actions Row: Thumbnails on Left, Share & Fullscreen on Right */}
+            <div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-[1.8vw] pt-1 md:pt-0">
+              {/* Thumbnails */}
+              <button className="flex items-center md:flex-col gap-1 lg:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
+                <Icon icon="hugeicons:menu-square" className="text-base sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] sm:text-xs lg:text-[0.75vw] font-medium">Thumbnails</span>
+              </button>
+
+              {/* Share & Fullscreen */}
+              <div className="flex items-center gap-3 sm:gap-4 lg:gap-[1.8vw]">
+                <button className="flex items-center md:flex-col gap-1 lg:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
+                  <Icon icon="ph:share-network" className="text-base sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs lg:text-[0.75vw] font-medium">Share</span>
+                </button>
+
+                <button className="flex items-center md:flex-col gap-1 lg:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
+                  <Icon icon="akar-icons:full-screen" className="text-base sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs lg:text-[0.75vw] font-medium">Full Screen</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Action Buttons */}
+        <motion.div className="w-full flex items-center justify-center pt-6 sm:pt-10 lg:pt-[5.5vw] pb-3 lg:pb-[1vw] px-4 lg:px-[3vw] max-w-[1920px] mx-auto z-20">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-[1.2vw] w-full sm:w-auto">
+            <button
+              onClick={() => navigate('/my-flipbooks')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 lg:px-[1.8vw] lg:py-[0.7vw] bg-[#1e232a] text-white rounded-lg font-bold shadow-lg hover:bg-black hover:shadow-xl transition-all duration-300 active:scale-95 text-xs sm:text-sm lg:text-[0.85vw] group cursor-pointer"
+            >
+              <span>My FlipBook</span>
+              <Icon icon="lucide:arrow-right" className="text-sm lg:text-[1vw] group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 lg:px-[1.8vw] lg:py-[0.7vw] bg-white text-gray-800 border border-gray-200 rounded-lg font-bold shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-300 active:scale-95 text-xs sm:text-sm lg:text-[0.85vw] group cursor-pointer"
+            >
+              <Icon icon="lucide:play-circle" className="text-sm lg:text-[1vw] text-gray-700" />
+              <span>View Live Demo</span>
+            </button>
+          </div>
+        </motion.div>
+        
+
+
+      
+    </div>
+    
+  );
+};
+
+// Smart Solutions for Modern Industries Section Component
+const SmartSolutionsSection = () => {
+  const sectionRef = useRef(null);
+  const [activeCategory, setActiveCategory] = useState('Industries');
+
+  const industryNodes = [
+    { id: 'Architecture', label: 'Architecture', icon: 'fluent:building-16-regular', left: '8%', top: '61%' },
+    { id: 'Industries', label: 'Industries', icon: 'fluent-emoji-high-contrast:factory', left: '25%', top: '14%' },
+    { id: 'Education', label: 'Education', icon: 'boxicons:education-filled', left: '50%', top: '6%' },
+    { id: 'Medical', label: 'Medical', icon: 'mdi:hospital', left: '75%', top: '14%' },
+    { id: 'Agriculture', label: 'Agriculture', icon: 'fluent-emoji-high-contrast:factory', left: '92%', top: '61%' },
+  ];
+
+  return (
+    <section ref={sectionRef} className="relative w-full min-h-screen lg:h-[100vh] bg-white font-sans py-8 lg:pt-[1vw] lg:pb-[1.5vw] px-4 sm:px-8 lg:px-[5vw] flex flex-col justify-between overflow-hidden">
+      
+      {/* 1. BACKGROUND HEADING WITH TEXT SMOKE GRADIENT FADE */}
+      <div className="relative w-full flex justify-center pointer-events-none select-none z-0">
+        <motion.h2 
+          initial={{ opacity: 0, y: -20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="text-2xl sm:text-4xl lg:text-[6.2vw] font-black tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-b from-[#cbd5e1] via-[#e2e8f0]/90 to-white/10 text-center leading-tight"
+        >
+          IT STARTS WITH A CLICK
+        </motion.h2>
+      </div>
+
+      {/* CENTER & RIGHT MAIN CONTENT CONTAINER (Grid 5: col-span-3 for pump image, col-span-2 for text) */}
+      <div 
+        className="relative lg:absolute lg:top-[4vw] lg:left-1/2 lg:-translate-x-1/2 z-10 w-full max-w-[1600px] h-auto lg:h-[20vw] grid grid-cols-1 lg:grid-cols-5 items-center gap-6 lg:gap-[2vw] my-6 lg:my-0"
+      >
+        
+        {/* CENTER 3D MODEL & CIRCULAR ORBIT NAVIGATION (Grid col-span-3) */}
+        <div className="relative w-full lg:w-[84vw] col-span-1 lg:col-span-3 flex items-center justify-center min-h-[220px] sm:min-h-[280px] lg:min-h-[28vw] py-4 lg:py-0">
+          
+          {/* Exact Figma Vector Orbit (Arc + Dashed lines + Orange Badges + Labels) */}
+          <img 
+            src={exampleSvg} 
+            alt="IDC Industry Categories Orbit" 
+            className="absolute w-[88vw] sm:w-[65vw] lg:w-[36vw] max-w-[660px] h-auto pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-[45%] z-10 select-none" 
+          />
+
+          {/* Center 3D Motor Image */}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            whileInView={{ scale: 1, opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="relative z-20 w-[60vw] sm:w-[40vw] lg:w-[22vw] max-w-[500px] flex flex-col items-center justify-center pt-16 sm:pt-24 lg:pt-[15vw]"
+          >
+            <img 
+              src={PumpImage} 
+              alt="Industrial Machinery Motor 3D Model"
+              className="w-full h-auto max-h-[180px] sm:max-h-[240px] lg:max-h-[20vw] object-contain drop-shadow-[0_1.5vw_2vw_rgba(0,0,0,0.18)] hover:scale-105 transition-transform duration-700" 
+            />
+            
+            {/* Soft Ground Shadow */}
+            <div className="w-[85%] h-3 lg:h-[1.2vw] bg-black/15 rounded-full filter blur-md -mt-2 lg:-mt-[0.6vw] pointer-events-none" />
+          </motion.div>
+        </div>
+
+        {/* RIGHT SIDE TEXT CONTENT (Grid col-span-2) */}
+        <motion.div 
+          initial={{ opacity: 0, x: 40 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="w-full lg:w-[80%] col-span-1 lg:col-span-2 ml-0 lg:ml-[5vw] flex flex-col justify-center space-y-2.5 lg:space-y-[0.8vw] text-center lg:text-left items-center lg:items-start z-10 pl-0 lg:pl-[1vw] px-4 lg:px-0"
+        >
+          {/* Main Heading */}
+          <h2 className="text-2xl sm:text-4xl lg:text-[2.8vw] font-bold text-gray-900 leading-[1.15] tracking-tight font-sans">
+            Smart Solutions for <br />
+            Modern Industries
+          </h2>
+
+          {/* Thin Black Accent Line under heading */}
+          <div className="w-10 lg:w-[2.2vw] h-[2.5px] bg-gray-900 rounded-full my-1 lg:my-[0.2vw]" />
+
+          {/* Description */}
+          <p className="text-xs sm:text-base lg:text-[1vw] text-gray-500 font-normal leading-relaxed max-w-full lg:max-w-[70%]">
+            Turn static pages into immersive, interactive digital experiences that engage, respond and feel alive with every interaction.
+          </p>
+        </motion.div>
+      </div>
+
+      {/* 6. BOTTOM FEATURE CARDS */}
+      <motion.div 
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8, delay: 0.4 }}
+        className="relative z-10 w-full max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-[1.5vw] mt-6 lg:mt-[-0.5vw] mb-4 lg:mb-[0.8vw] px-2 lg:px-0"
+      >
+        {/* CARD 1: Immersive 3D */}
+        <motion.div 
+          whileHover={{ y: -4, boxShadow: '0 1vw 2vw rgba(0,0,0,0.06)' }}
+          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full lg:w-[22vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
+        >
+          <div className="w-10 h-10 lg:w-[3vw] lg:h-[3vw] bg-black text-white rounded-lg lg:rounded-[0.6vw] flex items-center justify-center shadow-sm shrink-0">
+            <Icon icon="lucide:box" className="w-5 h-5 lg:w-[2vw] lg:h-[2vw] text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="text-sm sm:text-base lg:text-[1vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.1vw]">Immersive 3D</h3>
+            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 leading-snug">
+              Add depth with realistic models and smooth page-turn effects.
+            </p>
+          </div>
+        </motion.div>
+
+        {/* CARD 2: Interactive Elements */}
+        <motion.div 
+          whileHover={{ y: -4, boxShadow: '0 1vw 2vw rgba(0,0,0,0.06)' }}
+          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full lg:w-[22vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
+        >
+          <div className="w-10 h-10 lg:w-[3vw] lg:h-[3vw] bg-black text-white rounded-lg lg:rounded-[0.6vw] flex items-center justify-center shadow-sm shrink-0">
+            <Icon icon="mdi:cursor-default-click-outline" className="w-5 h-5 lg:w-[2vw] lg:h-[2vw] text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="text-sm sm:text-base lg:text-[1vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.1vw]">Interactive Elements</h3>
+            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 leading-snug">
+              Engage your users with rich interactive content.
+            </p>
+          </div>
+        </motion.div>
+
+        {/* CARD 3: Publish Anywhere */}
+        <motion.div 
+          whileHover={{ y: -4, boxShadow: '0 1vw 2vw rgba(0,0,0,0.06)' }}
+          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full lg:w-[22vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
+        >
+          <div className="w-10 h-10 lg:w-[3vw] lg:h-[3vw] bg-black text-white rounded-lg lg:rounded-[0.6vw] flex items-center justify-center shadow-sm shrink-0">
+            <Icon icon="clarity:world-line" className="w-5 h-5 lg:w-[2vw] lg:h-[2vw] text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="text-sm sm:text-base lg:text-[1vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.1vw]">Publish Anywhere</h3>
+            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 leading-snug">
+              Share and publish across all platforms and devices.
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </section>
+  );
+};
+
+// How It Works - 4 Simple Steps Section Component
+const HowItWorksSection = () => {
+  const steps = [
+    {
+      number: "01",
+      title: "Upload & Select",
+      desc: "Upload your PDF or choose from professionally designed templates.",
+      image: workImg1
+    },
+    {
+      number: "02",
+      title: "Page Layouts",
+      desc: "Upload your PDF or choose from professionally designed templates.",
+      image: workImg2
+    },
+    {
+      number: "03",
+      title: "Publish & Share",
+      desc: "Upload your PDF or choose from professionally designed templates.",
+      image: workImg3
+    },
+    {
+      number: "04",
+      title: "Analyse Performance",
+      desc: "Upload your PDF or choose from professionally designed templates.",
+      image: workImg4
+    }
+  ];
+
+  return (
+    <section className="relative w-full bg-white font-sans py-10 lg:py-[4vw] px-4 sm:px-8 lg:px-[6vw] flex flex-col items-center justify-between border-t border-gray-100">
+      
+      {/* Top Header */}
+      <div className="text-center max-w-full lg:max-w-[60vw] mx-auto mb-8 lg:mb-[3vw] space-y-2 lg:space-y-[0.6vw] px-2">
+        <span className="text-xs lg:text-[0.85vw] font-semibold text-gray-800 uppercase tracking-[0.25em] block font-sans">
+          HOW IT WORKS
+        </span>
+        <h2 className="text-2xl sm:text-4xl lg:text-[2.8vw] font-bold text-gray-900 tracking-tight leading-tight font-sans">
+          Create Your <span className="text-[#ea7233]">Flipibook</span> in 4 Simple Steps
+        </h2>
+        <p className="text-xs sm:text-base lg:text-[0.95vw] text-gray-800 font-normal leading-relaxed font-sans">
+          From upload to publish, everything you need in one simple process.
+        </p>
+      </div>
+
+      {/* 4 Cards Grid: 2 cards per row on mobile & tablet, 4 cards on desktop */}
+      <div className="w-full max-w-[1600px] mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-[1.8vw] items-stretch justify-items-center">
+        {steps.map((step, idx) => (
+          <div key={idx} className="flex flex-col items-center group w-full">
+            {/* Top Grey Card Box with Image & Step Number */}
+            <div className="w-full bg-[#dedede] rounded-xl sm:rounded-2xl lg:rounded-[0.1vw] p-2.5 sm:p-4 lg:p-[1.5vw] lg:pt-[1vw] flex flex-col justify-between aspect-[1/1.08] lg:aspect-[1/1.12] relative shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">
+              {/* Large Step Number 01 02 03 04 */}
+              <span className="text-2xl sm:text-4xl lg:text-[5.5vw] font-bold text-white/95 leading-none select-none block text-left font-sans z-10">
+                {step.number}
+              </span>
+
+              {/* Step Image */}
+              <div className="flex-1 flex items-center justify-center p-1 sm:p-2 lg:p-[0.5vw] w-full h-full">
+                <img 
+                  src={step.image} 
+                  alt={step.title} 
+                  className="w-full h-full max-h-[100px] sm:max-h-[160px] lg:max-h-none object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-sm" 
+                />
+              </div>
+            </div>
+
+            {/* Bottom Title & Description */}
+            <div className="mt-2 sm:mt-4 lg:mt-[1.2vw] text-center flex flex-col items-center w-full px-1 lg:px-[0.5vw]">
+              {/* Title with side dash lines */}
+              <div className="flex items-center justify-center gap-1 sm:gap-3 lg:gap-[0.8vw] w-full mb-1 lg:mb-[0.4vw]">
+                <span className="hidden sm:inline-block w-3 sm:w-8 lg:w-[2vw] h-[1.5px] bg-gray-400"></span>
+                <h3 className="text-xs sm:text-base lg:text-[1.1vw] font-bold text-gray-900 leading-tight font-sans">
+                  {step.title}
+                </h3>
+                <span className="hidden sm:inline-block w-3 sm:w-8 lg:w-[2vw] h-[1.5px] bg-gray-400"></span>
+              </div>
+
+              {/* Description */}
+              <p className="text-[10px] sm:text-sm lg:text-[0.9vw] text-gray-500 font-normal leading-tight sm:leading-relaxed max-w-full lg:max-w-[92%] font-sans">
+                {step.desc}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+// About Us Section Component
+const AboutUsSection = ({ navigate }) => {
+  return (
+    <section className="relative w-full bg-white font-sans py-10 lg:py-[5vw] px-4 sm:px-8 lg:px-[6vw] flex flex-col justify-between overflow-hidden border-t border-gray-100">
+      
+      {/* Top Layout: Left Content + Right Image */}
+      <div className="w-full max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-2 items-center gap-8 lg:gap-[4vw] mb-8 lg:mb-[3.5vw]">
+        
+        {/* Left Column: Headline & Description */}
+        <div className="flex flex-col justify-center space-y-4 lg:space-y-[1.4vw] text-center lg:text-left items-center lg:items-start">
+          {/* Sub-heading tag */}
+          <div className="flex items-center gap-2 lg:gap-[0.8vw]">
+            <span className="text-xs lg:text-[0.85vw] font-bold text-gray-900 uppercase font-sans">
+              ABOUT US
+            </span>
+            <span className="w-8 lg:w-[3.5vw] h-[1.8px] bg-gray-800 inline-block rounded-full"></span>
+          </div>
+
+          {/* Main Headline */}
+          <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-bold text-gray-900 leading-[1.12] tracking-tight font-poppins">
+            Bringing Your <br />
+            <span className="text-[#ea7233]">Products</span> to Life
+          </h2>
+
+          {/* Paragraph 1 */}
+          <p className="text-xs sm:text-base lg:text-[1.1vw] text-gray-800 font-normal max-w-full lg:max-w-[80%] font-sans pt-1 lg:pt-[0.4vw]">
+            Flipibook by FIST-O Tech Pvt Ltd transforms static catalogues into interactive digital experiences with 3D models, videos, 360° views, and augmented reality.
+          </p>
+
+          {/* Paragraph 2 */}
+          <p className="text-xs sm:text-base lg:text-[1.1vw] text-gray-800 font-normal max-w-full lg:max-w-[80%] font-sans">
+            We help businesses showcase products in a more engaging and informative way, making product discovery simple and interactive.
+          </p>
+        </div>
+
+        {/* Right Column: About Us Showcase Image (Laptop + Tablet + Phone with 3D Pump) */}
+        <div className="relative w-full flex items-center justify-center my-4 lg:my-0">
+          <img 
+            src={aboutUsImg} 
+            alt="Fisto IDC Interactive Catalogue Showcase" 
+            className="w-full max-w-[92vw] sm:max-w-[500px] lg:max-w-[640px] h-auto object-contain drop-shadow-xl lg:absolute lg:right-[-5.9vw] lg:top-[-13vw] hover:scale-102 transition-transform duration-500" 
+          />
+        </div>
+      </div>
+
+      {/* Bottom Row: Our Mission, Our Vision, and Explore Live Demo CTA */}
+      <div className="w-full max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-[1.8vw] items-center">
+        
+        {/* Card 1: Our Mission */}
+        <div className="bg-white p-4 lg:p-[1.2vw] rounded-xl lg:rounded-[1.2vw] border border-gray-100 shadow-[0_0.6vw_1.8vw_rgba(0,0,0,0.04)] flex items-center gap-3 lg:gap-[1.2vw] w-full">
+          <div className="w-10 h-10 lg:w-[3.2vw] lg:h-[3.2vw] bg-black text-white rounded-lg lg:rounded-[0.8vw] flex items-center justify-center shadow-md shrink-0">
+            <Icon icon="fluent:target-arrow-20-regular" className="text-xl lg:text-[2.2vw] text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="text-sm sm:text-base lg:text-[1.05vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.2vw] font-sans">
+              Our <span className="text-[#ea7233]">Mission</span>
+            </h3>
+            <p className="text-xs sm:text-sm lg:text-[0.8vw] text-gray-600 leading-snug font-sans">
+              To help businesses communicate their products clearly through accessible, interactive digital catalogues.
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Our Vision */}
+        <div className="bg-white p-4 lg:p-[1.2vw] rounded-xl lg:rounded-[1.2vw] border border-gray-100 shadow-[0_0.6vw_1.8vw_rgba(0,0,0,0.04)] flex items-center gap-3 lg:gap-[1.2vw] w-full">
+          <div className="w-10 h-10 lg:w-[3.2vw] lg:h-[3.2vw] bg-black text-white rounded-lg lg:rounded-[0.8vw] flex items-center justify-center shadow-md shrink-0">
+            <Icon icon="ant-design:eye-outlined" className="text-xl lg:text-[2.2vw] text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="text-sm sm:text-base lg:text-[1.05vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.2vw] font-sans">
+              Our <span className="text-[#ea7233]">Vision</span>
+            </h3>
+            <p className="text-xs sm:text-sm lg:text-[0.8vw] text-gray-600 leading-snug font-sans">
+              To make product discovery more immersive, informative and engaging for every audience.
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Explore the Live Demo Button */}
+        <div className="flex items-center justify-center md:justify-end w-full">
+          <button 
+            onClick={() => navigate && navigate('/templates')}
+            className="w-full md:w-auto justify-center bg-[#1a1f26] text-white px-6 py-3 lg:px-[2vw] lg:py-[1.1vw] rounded-lg text-xs sm:text-sm lg:text-[1vw] font-semibold hover:bg-black transition-all flex items-center gap-2 lg:gap-[0.8vw] shadow-lg cursor-pointer group"
+          >
+            <span>Explore the Live Demo</span>
+            <Icon icon="lucide:arrow-right" className="text-sm lg:text-[1.2vw] text-white group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+  );
+};
 
 // Real-time 3D Particle Wave Dots Canvas Component
 const WaveDotsCanvas = () => {
@@ -1053,586 +2011,135 @@ export default function Home() {
   };
 
   return (
-    <div className="bg-white text-[#1a1a1a] font-sans">
-      {/* Hero Section Container */}
-      <div className="snap-start w-[100%] h-[92vh] mx-auto px-[3vw] relative flex flex-col pt-[5vh]">
+    <div className="bg-white text-[#1a1a1a] font-sans overflow-x-hidden scroll-smooth">
+      {/* Hero Section Container with Pin/Scroll animation */}
+      <section className="relative lg:sticky lg:top-0 z-10 snap-start snap-always w-full bg-white">
+        <HeroSection navigate={navigate} page1={page1} page2={page2} page3={page3} page4={page4} page5={page5} page6={page6} bookShowImg={bookShowImg} />
+      </section>
 
-        {/* Main Content Area */}
-        <div className="flex items-start justify-between gap-[5vw] w-full">
-          {/* Left Content */}
-          <div className="space-y-[1.5vw] animate-in fade-in slide-in-from-left-8 duration-700 w-[45%] pt-[2vh]">
-            <h1 className="text-[4vw] font-[600] tracking-tight leading-[1.1] text-gray-900">
-              Bring Your Content <br />
-              to Life with <span className="text-transparent text-[4.5vw] font-bold bg-clip-text bg-gradient-to-r from-[#9333ea] to-[#db2777]" style={{ filter: 'url(#inner-shadow)' }}>IDC</span>
-            </h1>
+      {/* Smart Solutions for Modern Industries Section */}
+      <section className="relative lg:sticky lg:top-0 z-20 snap-start snap-always w-full bg-white">
+        <SmartSolutionsSection />
+      </section>
 
-            <p className="text-[1.1vw] text-gray-500 w-full leading-relaxed font-regular">
-              Turn static pages into immersive, interactive digital catalogues that engage, respond, and feel alive with every interaction
-            </p>
+      {/* How It Works - 4 Simple Steps Section */}
+      <section className="relative lg:sticky lg:top-0 z-30 snap-start snap-always w-full bg-white">
+        <HowItWorksSection />
+      </section>
 
-            <div className="flex items-center gap-[1.5vw] pt-[0.5vw]">
-              <button
-                onClick={() => navigate('/my-flipbooks')}
-                className="flex items-center cursor-pointer gap-[0.5vw] px-[2vw] py-[0.8vw] bg-white text-gray-900 border border-gray-100 rounded-[0.5vw] font-semibold shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 text-[0.9vw]"
-              >
-                <Icon icon="material-symbols:book-ribbon" className="text-[1.3vw]" />
-                My Flipbooks
-              </button>
+      {/* About Us Section */}
+      <section className="relative lg:sticky lg:top-0 z-40 snap-start snap-always w-full bg-white">
+        <AboutUsSection navigate={navigate} />
+      </section>
 
-              <button
-                className="flex items-center cursor-pointer gap-[0.5vw] px-[2vw] py-[0.8vw] bg-black text-white rounded-[0.5vw] font-semibold shadow-[0_0.5vw_2vw_-0.5vw_rgba(0,0,0,0.3)] hover:bg-gray-800 transition-all duration-300 active:scale-95 text-[0.9vw]"
-              >
-                <Icon icon="basil:video-outline" className="text-[1.3vw]" />
-                Demo video
-              </button>
-            </div>
-          </div>
+      {/* Testimonials Stacked Section */}
+      <section className="relative lg:sticky lg:top-0 z-50 snap-start snap-always w-full bg-white">
+        <TestimonialsSection />
+      </section>
 
-          {/* Right Content - Shelf Image */}
-          <div className="relative flex justify-end animate-in fade-in zoom-in-95 duration-1000 delay-200 w-[60%] pt-[8vh]">
-            <div className="relative w-full">
-              <img
-                src={shelfImg}
-                alt="Content Shelf"
-                className="w-full h-auto drop-shadow-[0_5vw_6vw_rgba(0,0,0,0.2)]"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Footer Text - Anchored to bottom */}
-        <div className="absolute bottom-[7vh] left-[3vw] animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
-          <p className="text-black text-[0.95vw] font-[500]">
-            Upload, Customize, and Publish your flipbook with powerful tools and Immersive 3D effects
-          </p>
-        </div>
-      </div>
+      {/* FAQ Section */}
+      <section className="relative lg:sticky lg:top-0 z-60 snap-start snap-always w-full bg-white">
+        <FAQSection navigate={navigate} />
+      </section>
 
       {/* Book Section - Featured Flipbook */}
-      <div
-        ref={containerRef}
-        className="snap-start w-full min-h-[92vh] bg-[#e6e6e8] relative flex flex-col md:flex-row items-center justify-between px-[5vw] py-[8vh] overflow-hidden font-sans gap-[2vw]"
-      >
-        {/* Left Column Text Block */}
-        <div className="max-w-[25vw] flex flex-col justify-start self-start z-10 space-y-[2.5vh] pt-[2vh]">
-          {/* Top Tag Header */}
-          <div className="flex items-center gap-[0.6vw]">
-            <span className="w-[3px] h-[1.3vw] min-h-[16px] bg-[#3b4998] rounded-full inline-block"></span>
-            <h4 className="text-[0.9vw] font-bold text-gray-500 uppercase">
-              FEATURED FLIPBOOK
-            </h4>
-          </div>
-
-          {/* Main Title */}
-          <h2 className="text-[3.2vw] font-semibold text-gray-900 leading-[1.15] tracking-tight">
-            Ideas Inspire. <br />
-            Knowledge <br />
-            Transforms.
-          </h2>
-
-          {/* Subtitle Description */}
-          <p className="text-[1vw] text-gray-500 font-normal leading-[1.75]">
-            Explore handpicked flipbooks across creativity, business, lifestyle, and more. <br />
-            Read. Learn. Share. Make every page a meaningful experience.
-          </p>
-        </div>
-
-        {/* Center Column - 3D Interactive Flipbook */}
-        <div className="relative flex-1 flex items-center justify-center z-10 px-[1vw]">
-          <div className="relative w-[44vw] max-w-[720px] h-[31vw] max-h-[500px] flex items-center justify-center drop-shadow-[0_25px_40px_rgba(0,0,0,0.25)]">
-            <HTMLFlipBook
-              width={1000}
-              height={1414}
-              size="stretch"
-              minWidth={200}
-              maxWidth={2000}
-              minHeight={300}
-              maxHeight={3000}
-              maxShadowOpacity={0.5}
-              showCover={false}
-              mobileScrollSupport={true}
-              clickEventForward={false}
-              useMouseEvents={true}
-              onFlip={onPage}
-              flippingTime={1000}
-              swipeDistance={30}
-              ref={bookRef}
-              className="drop-shadow-2xl"
-            >
-              {/* Page 1 */}
-              <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
-              {/* Page 2 */}
-              <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
-              {/* Page 3 */}
-              <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
-              {/* Page 4 */}
-              <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
-              {/* Page 5 */}
-              <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
-              {/* Page 6 */}
-              <div className="bg-white">
-                <img src={page6} alt="" className="w-full h-full object-cover" />
-              </div>
-            </HTMLFlipBook>
-          </div>
-        </div>
-
-        {/* Right Column Text Block */}
-        <div className="max-w-[22vw] flex flex-col justify-center z-10 space-y-[2.5vh]">
-          {/* Main Title */}
-          <h3 className="text-[2.2vw] font-semibold text-gray-900 leading-[1.2] tracking-tight">
-            The Art of <br />
-            Thoughtful <br />
-            Living
-          </h3>
-
-          {/* Page Counter Line */}
-          <div className="pb-[1.5vh] border-b border-gray-300 w-[12vw]">
-            <span className="text-[1.1vw] text-gray-400 font-medium">
-              {Math.floor(page / 2) + 1}/3 Pages
-            </span>
-          </div>
-
-          {/* Paragraph Description */}
-          <p className="text-[0.9vw] text-gray-500 font-normal leading-[1.7]">
-            Explore timeless insights on mindfulness, creativity, and purposeful living through beautifully crafted stories and practical ideas.
-          </p>
-        </div>
-      </div>
-
-      {/* Interactive Demo Section - Experience Flipbooks in Action */}
-      <div className="snap-start w-full h-auto bg-[#e6e6e8] relative flex flex-col md:flex-row items-center justify-between px-[5vw] py-[8vh] font-sans gap-[3vw] border-t border-gray-300/40">
-        {/* Left Column Text Block */}
-        <div className="max-w-[25vw] flex flex-col justify-start self-start z-10 space-y-[2.5vh] pt-[2vh]">
-          {/* Top Tag Header */}
-          <div className="flex items-center gap-[0.6vw]">
-            <span className="w-[3px] h-[1.3vw] min-h-[16px] bg-[#3b4998] rounded-full inline-block"></span>
-            <h4 className="text-[0.9vw] font-bold text-gray-500 uppercase tracking-widest">
-              INTERACTIVE DEMO
-            </h4>
-          </div>
-
-          {/* Main Title */}
-          <h2 className="text-[3.2vw] font-semibold text-gray-900 leading-[1.15] tracking-tight">
-            Experience <br />
-            Flipbooks <br />
-            in Action
-          </h2>
-
-          {/* Underline Accent */}
-          <div className="w-[12vw] h-[1px] bg-gray-300 my-[1vh]"></div>
-
-          {/* Subtitle Description */}
-          <p className="text-[0.95vw] text-gray-500 font-normal leading-[1.7]">
-            Explore our handpicked demo books. Flip, zoom, and interact to discover how immersive and engaging digital reading can be.
-          </p>
-        </div>
-
-        {/* Right Column - 5 Demo Book Covers Row */}
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-[2vw] items-start pt-[2vh] z-10">
-          {[
-            {
-              id: 1,
-              title: "The Wise",
-              subtitle: "Man's Fear",
-              coverTitle: "THE WISE MAN'S",
-              coverHeadline: "FEAR",
-              author: "PATRICK ROTHFUSS",
-              bgGradient: "from-[#1a3823] via-[#112617] to-[#0a170e]",
-              accentColor: "text-emerald-400",
-              image: cover1
-            },
-            {
-              id: 2,
-              title: "Beyond",
-              subtitle: "Horizons",
-              coverTitle: "Beyond Horizons",
-              coverHeadline: "Journey to the Unknown",
-              author: "",
-              bgGradient: "from-[#6b4737] via-[#945f47] to-[#2c3d31]",
-              accentColor: "text-amber-300",
-              image: cover2
-            },
-            {
-              id: 3,
-              title: "Design",
-              subtitle: "Essential",
-              coverTitle: "Design Essentials",
-              coverHeadline: "The Principles of Great Design",
-              author: "",
-              bgGradient: "from-[#0d1117] via-[#161b22] to-[#010409]",
-              accentColor: "text-blue-400",
-              image: cover3
-            },
-            {
-              id: 4,
-              title: "Future",
-              subtitle: "Forward",
-              coverTitle: "Future Forward",
-              coverHeadline: "Innovations Shaping Tomorrow",
-              author: "",
-              bgGradient: "from-[#0f1026] via-[#1c1d42] to-[#080914]",
-              accentColor: "text-indigo-400",
-              image: cover4
-            },
-            {
-              id: 5,
-              title: "Culinary",
-              subtitle: "Stories",
-              coverTitle: "Culinary Stories",
-              coverHeadline: "Flavors That Connect Us",
-              author: "",
-              bgGradient: "from-[#1c1c1c] via-[#121212] to-[#080808]",
-              accentColor: "text-amber-400",
-              image: cover5
-            }
-          ].map((book) => (
-            <div key={book.id} className="flex flex-col items-center group cursor-pointer">
-              {/* 3D Book Cover Box */}
-              <div className="relative w-full aspect-[1/1.45] rounded-r-[6px] rounded-l-[2px] overflow-hidden shadow-[0_15px_30px_rgba(0,0,0,0.3)] group-hover:shadow-[0_25px_45px_rgba(0,0,0,0.4)] group-hover:-translate-y-2 transition-all duration-300 border-r-[4px] border-r-black/30">
-                {book.image ? (
-                  <img src={book.image} alt={book.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className={`w-full h-full bg-gradient-to-b ${book.bgGradient} p-[1.2vw] flex flex-col justify-between text-white relative`}>
-                    <div className="absolute top-0 bottom-0 left-[8px] w-[2px] bg-black/40 z-20"></div>
-                    <div className="space-y-[0.4vw]">
-                      <span className="text-[0.7vw] font-bold tracking-widest text-gray-300 uppercase block">{book.coverTitle}</span>
-                      <h3 className={`text-[1.3vw] font-extrabold leading-none ${book.accentColor}`}>{book.coverHeadline}</h3>
-                    </div>
-                    {book.author && (
-                      <span className="text-[0.6vw] tracking-wider text-gray-400 font-semibold">{book.author}</span>
-                    )}
-                  </div>
-                )}
-                {/* Left Spine Crease Highlight */}
-                <div className="absolute top-0 bottom-0 left-0 w-[8px] bg-gradient-to-r from-black/40 via-white/10 to-transparent pointer-events-none z-30"></div>
-              </div>
-
-              {/* Title under Book Cover */}
-              <div className="mt-[2vh] text-center">
-                <span className="text-[1.05vw] font-medium text-gray-700 leading-tight block group-hover:text-gray-900 transition-colors">
-                  {book.title}
-                </span>
-                <span className="text-[1.05vw] font-medium text-gray-700 leading-tight block group-hover:text-gray-900 transition-colors">
-                  {book.subtitle}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-
-      {/* Discover. Read. Get Inspired Section */}
-      <div className="snap-start w-full h-auto bg-[#f8f8f9] py-[10vh] px-[4vw] font-sans relative flex flex-col items-center border-t border-gray-200">
-        {/* Header Title with Compass Accent */}
-        <div className="text-center max-w-[50vw] space-y-[1.5vh] mb-[4vh]">
-          <h2 className="text-[3.2vw] font-extrabold text-gray-900 tracking-tight leading-tight flex items-center justify-center gap-[0.4vw]">
-            Discover
-            <Compass className="w-[2.4vw] h-[2.4vw] text-gray-900 stroke-[2] inline-block" />
-            . Read. Get Inspired
-          </h2>
-          <p className="text-[0.95vw] text-gray-500 font-normal leading-relaxed">
-            Dive into interactive flipbooks created by our community <br />
-            click any book to start reading
-          </p>
-        </div>
-
-        {/* Explore More Button */}
-        <button 
-          onClick={() => navigate('/templates')}
-          className="bg-black text-white px-[1.5vw] py-[1vh] rounded-full flex items-center gap-[0.8vw] text-[0.95vw] font-semibold hover:bg-gray-800 transition-all shadow-md mb-[6vh] group cursor-pointer"
+      <section className="relative lg:sticky lg:top-0 z-70 snap-start snap-always w-full bg-[#e6e6e8]">
+        <div
+          ref={containerRef}
+          className="w-full min-h-[92vh] bg-[#e6e6e8] relative flex flex-col lg:flex-row items-center justify-between px-4 sm:px-8 lg:px-[5vw] py-8 lg:py-[8vh] overflow-hidden font-sans gap-6 lg:gap-[2vw]"
         >
-          Explore more Flipbooks
-          <span className="w-[1.6vw] h-[1.6vw] rounded-full bg-white text-black flex items-center justify-center shadow-sm group-hover:rotate-45 transition-transform">
-            <ArrowUpRight className="w-[1vw] h-[1vw] text-black stroke-[2.5]" />
-          </span>
-        </button>
-
-        {/* 5 Flipbooks Showcase Row with Left & Right Arrow Buttons */}
-        <div className="relative w-full max-w-[92vw] flex items-center justify-between gap-[1vw]">
-          {/* Left Arrow Button */}
-          <button className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full border border-gray-300 bg-white flex items-center justify-center shadow-md hover:bg-gray-50 text-gray-700 z-20 cursor-pointer flex-shrink-0">
-            <ArrowLeft className="w-[1.2vw] h-[1.2vw] stroke-[2]" />
-          </button>
-
-          {/* 5 Flipbook Cards Container */}
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-[1.2vw]">
-            {[
-              {
-                id: 1,
-                author: "Alex Johnson",
-                location: "Coimbatore",
-                pages: "12 Pages",
-                readers: "12.5k reader",
-                rating: "4.5 (1,255)",
-                title: "Name of the Flipbook",
-                quote: "Bring your content to life with a real, interactive experience",
-                image: coverSvg1
-              },
-              {
-                id: 2,
-                author: "Alex Johnson",
-                location: "Coimbatore",
-                pages: "12 Pages",
-                readers: "12.5k reader",
-                rating: "4.5 (1,255)",
-                title: "Name of the Flipbook",
-                quote: "Bring your content to life with a real, interactive experience",
-                image: coverSvg2
-              },
-              {
-                id: 3,
-                author: "Alex Johnson",
-                location: "Coimbatore",
-                pages: "12 Pages",
-                readers: "12.5k reader",
-                rating: "4.5 (1,255)",
-                title: "Name of the Flipbook",
-                quote: "Bring your content to life with a real, interactive experience",
-                image: coverSvg3
-              },
-              {
-                id: 4,
-                author: "Alex Johnson",
-                location: "Coimbatore",
-                pages: "12 Pages",
-                readers: "12.5k reader",
-                rating: "4.5 (1,255)",
-                title: "Name of the Flipbook",
-                quote: "Bring your content to life with a real, interactive experience",
-                image: coverSvg4
-              },
-              {
-                id: 5,
-                author: "Alex Johnson",
-                location: "Coimbatore",
-                pages: "12 Pages",
-                readers: "12.5k reader",
-                rating: "4.5 (1,255)",
-                title: "Name of the Flipbook",
-                quote: "Bring your content to life with a real, interactive experience",
-                image: coverSvg5
-              }
-            ].map((book) => (
-              <div 
-                key={book.id}
-                className="bg-white rounded-[1vw] border border-gray-200/80 p-[0.9vw] shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between relative text-left group cursor-pointer"
-              >
-                {/* Top Image Box */}
-                <div className="w-full aspect-[4/3.8] rounded-[0.8vw] overflow-hidden relative bg-gray-50/80 flex items-center justify-center p-[0.3vw]">
-                  {/* Top Right Options Dot Button */}
-                  <button className="absolute top-[0.6vw] right-[0.6vw] w-[1.5vw] h-[1.5vw] min-w-[22px] min-h-[22px] rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-700 shadow-sm z-10 hover:bg-white">
-                    <MoreVertical className="w-[0.9vw] h-[0.9vw] stroke-[2]" />
-                  </button>
-
-                  <img src={book.image} alt={book.title} className="w-full h-full object-cover rounded-[0.5vw] shadow-sm group-hover:scale-105 transition-transform duration-300" />
-                </div>
-
-                {/* Author Info Row */}
-                <div className="flex items-center gap-[0.6vw] pt-[1vh]">
-                  <div className="w-[2vw] h-[2vw] min-w-[28px] min-h-[28px] rounded-full bg-gray-800 text-white font-bold flex items-center justify-center overflow-hidden shadow-sm">
-                    <User className="w-[1.1vw] h-[1.1vw] stroke-[2]" />
-                  </div>
-                  <div>
-                    <h4 className="text-[0.85vw] font-bold text-gray-900 leading-tight">{book.author}</h4>
-                    <span className="text-[0.7vw] text-gray-400 font-medium flex items-center gap-[0.2vw]">
-                      {book.location} <MapPin className="w-[0.7vw] h-[0.7vw] text-red-500 fill-red-500 inline-block" />
-                    </span>
-                  </div>
-                </div>
-
-                {/* Stats Row */}
-                <div className="flex items-center justify-between border-y border-gray-100 py-[0.6vh] my-[0.8vh] text-[0.68vw] text-gray-500 font-medium">
-                  <span>{book.pages}</span>
-                  <span className="flex items-center gap-[0.2vw]">
-                    <Eye className="w-[0.8vw] h-[0.8vw] text-gray-400 inline-block" /> {book.readers}
-                  </span>
-                  <span className="flex items-center gap-[0.2vw] text-amber-500 font-semibold">
-                    <Star className="w-[0.8vw] h-[0.8vw] text-amber-500 fill-amber-500 inline-block" /> {book.rating}
-                  </span>
-                </div>
-
-                {/* Card Bottom Footer */}
-                <div className="pr-[2.5vw] pb-[0.5vh]">
-                  <h3 className="text-[0.95vw] font-bold text-gray-900 leading-snug mb-[0.3vh]">
-                    {book.title}
-                  </h3>
-                  <p className="text-[0.72vw] text-gray-400 font-normal leading-relaxed line-clamp-2">
-                    &quot;{book.quote}&quot;
-                  </p>
-                </div>
-
-                {/* Bottom Right Black Arrow Button */}
-                <button className="absolute bottom-[0.9vw] right-[0.9vw] w-[2vw] h-[2vw] min-w-[28px] min-h-[28px] bg-black text-white rounded-full flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
-                  <ArrowUpRight className="w-[1.1vw] h-[1.1vw] text-white stroke-[2.5]" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Right Arrow Button */}
-          <button className="w-[2.8vw] h-[2.8vw] min-w-[36px] min-h-[36px] rounded-full border border-gray-300 bg-white flex items-center justify-center shadow-md hover:bg-gray-50 text-gray-700 z-20 cursor-pointer flex-shrink-0">
-            <ArrowRight className="w-[1.2vw] h-[1.2vw] stroke-[2]" />
-          </button>
-        </div>
-
-        {/* Bottom Call-Out Banner - Create Your Own Flipbook */}
-        <div className="w-full max-w-[88vw] mx-auto bg-white border border-gray-200/90 rounded-[1vw] p-[1.2vw] px-[2.2vw] flex flex-col sm:flex-row items-center justify-between shadow-sm mt-[6vh] gap-[2vw]">
-          <div className="flex items-center gap-[1.2vw]">
-            <div className="w-[3.2vw] h-[3.2vw] min-w-[42px] min-h-[42px] bg-gray-50 border border-gray-200 rounded-[0.8vw] flex items-center justify-center shadow-sm">
-              <BookOpen className="w-[1.6vw] h-[1.6vw] text-gray-800 stroke-[1.8]" />
-            </div>
-            <div>
-              <h3 className="text-[1.15vw] font-bold text-gray-900">
-                Create Your Own Flipbook
-              </h3>
-              <p className="text-[0.85vw] text-gray-500 font-normal">
-                Design, publish and share interactive flipbooks in minutes
-              </p>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setIsCreateModalOpen(true)}
-            className="bg-black text-white px-[1.6vw] py-[0.9vh] rounded-full text-[0.95vw] font-semibold hover:bg-gray-800 transition-all flex items-center gap-[0.6vw] shadow-md cursor-pointer flex-shrink-0 group"
-          >
-            Create Your Flipbook
-            <ArrowRight className="w-[1.1vw] h-[1.1vw] text-white group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-      </div>
-
-      {/* 4-Step Scroll-Driven Sticky Interactive Workflow Section */}
-      <WorkflowScrollSection 
-        slides={[slide1, slide2, slide3, slide4]} 
-        goldenArrow={goldenArrow} 
-      />
-
-      {/* 3D Reading Experience Showcase Section using Book_show.png */}
-      <ThreeDExperienceSection bookShowImg={bookShowImg} />
-
-      {/* Why Choose FIST-O Section - Powerful Features */}
-      <div className="snap-start w-full h-auto bg-[#070709] relative flex flex-col lg:flex-row items-center justify-between px-[5vw] py-[8vh] font-sans gap-[4vw] text-white overflow-hidden border-t border-white/10">
-        {/* Bottom Left Animated Wave Dots Canvas */}
-        <WaveDotsCanvas />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[45vw] h-[30vw] bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-white/10 via-white/5 to-transparent pointer-events-none opacity-40 blur-2xl"></div>
-        <div 
-          className="absolute bottom-0 left-0 w-[35vw] h-[25vw] pointer-events-none opacity-20"
-          style={{
-            backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)',
-            backgroundSize: '16px 16px',
-            maskImage: 'linear-gradient(to top right, black 20%, transparent 80%)',
-            WebkitMaskImage: 'linear-gradient(to top right, black 20%, transparent 80%)'
-          }}
-        ></div>
-
-        {/* Left Column Text & Headline */}
-        <div className="relative max-w-[28vw] flex flex-col justify-start self-start z-10 space-y-[3vh] pt-[2vh]">
-          <div className="space-y-[2.5vh]">
+          {/* Left Column Text Block */}
+          <div className="max-w-full lg:max-w-[25vw] flex flex-col justify-start self-center lg:self-start z-10 space-y-3 lg:space-y-[2.5vh] pt-2 lg:pt-[2vh] text-center lg:text-left items-center lg:items-start">
             {/* Top Tag Header */}
-            <div className="flex items-center gap-[0.6vw]">
-              <span className="w-[3px] h-[1.3vw] min-h-[16px] bg-gray-400 rounded-full inline-block"></span>
-              <h4 className="text-[0.9vw] font-bold text-gray-400 uppercase tracking-widest">
-                WHY CHOOSE FIST-O
+            <div className="flex items-center gap-2 lg:gap-[0.6vw]">
+              <span className="w-[3px] h-4 lg:h-[1.3vw] min-h-[16px] bg-[#3b4998] rounded-full inline-block"></span>
+              <h4 className="text-xs lg:text-[0.9vw] font-bold text-gray-500 uppercase">
+                FEATURED FLIPBOOK
               </h4>
             </div>
 
-            {/* Main Headline with Sparkle Accent */}
-            <div className="relative">
-              <Sparkles className="absolute -top-[1.2vw] right-[2vw] w-[1.5vw] h-[1.5vw] text-gray-300 opacity-80 animate-pulse" />
-              <h2 className="text-[3.2vw] font-semibold text-white leading-[1.15] tracking-tight">
-                Powerful Features. <br />
-                Limitless <span className="text-gray-400 font-light">Possibilities.</span>
-              </h2>
-            </div>
+            {/* Main Title */}
+            <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-semibold text-gray-900 leading-[1.15] tracking-tight">
+              Ideas Inspire. <br />
+              Knowledge <br />
+              Transforms.
+            </h2>
 
-            {/* Paragraph Description */}
-            <p className="text-[1vw] text-gray-400 font-normal leading-[1.75]">
-              Everything you need to create, share, and grow your content — all in one platform.
+            {/* Subtitle Description */}
+            <p className="text-sm sm:text-base lg:text-[1vw] text-gray-500 font-normal leading-relaxed lg:leading-[1.75]">
+              Explore handpicked flipbooks across creativity, business, lifestyle, and more. <br />
+              Read. Learn. Share. Make every page a meaningful experience.
             </p>
           </div>
 
-          {/* CTA Link */}
-          <div className="pt-[1vh]">
-            <span 
-              onClick={() => navigate('/about')}
-              className="group text-[1.1vw] font-medium text-white border-b border-gray-600 pb-[0.4vh] hover:border-white transition-all duration-300 flex items-center gap-[0.6vw] inline-flex cursor-pointer"
-            >
-              Explore All Features 
-              <ArrowRight className="w-[1.1vw] h-[1.1vw] group-hover:translate-x-1 transition-transform duration-300" />
-            </span>
+          {/* Center Column - 3D Interactive Flipbook */}
+          <div className="relative flex-1 flex items-center justify-center z-10 px-2 lg:px-[1vw] w-full">
+            <div className="relative w-full max-w-[92vw] sm:max-w-[80vw] lg:w-[44vw] lg:max-w-[720px] h-[55vw] sm:h-[42vw] lg:h-[31vw] max-h-[500px] flex items-center justify-center drop-shadow-[0_25px_40px_rgba(0,0,0,0.25)]">
+              <HTMLFlipBook
+                width={1000}
+                height={1414}
+                size="stretch"
+                minWidth={200}
+                maxWidth={2000}
+                minHeight={300}
+                maxHeight={3000}
+                maxShadowOpacity={0.5}
+                showCover={false}
+                mobileScrollSupport={true}
+                clickEventForward={false}
+                useMouseEvents={true}
+                onFlip={onPage}
+                flippingTime={1000}
+                swipeDistance={30}
+                ref={bookRef}
+                className="drop-shadow-2xl"
+              >
+                {/* Page 1 */}
+                <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
+                {/* Page 2 */}
+                <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
+                {/* Page 3 */}
+                <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
+                {/* Page 4 */}
+                <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
+                {/* Page 5 */}
+                <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
+                {/* Page 6 */}
+                <div className="bg-white">
+                  <img src={page6} alt="" className="w-full h-full object-cover" />
+                </div>
+              </HTMLFlipBook>
+            </div>
+          </div>
+
+          {/* Right Column Text Block */}
+          <div className="max-w-full lg:max-w-[22vw] flex flex-col justify-center z-10 space-y-3 lg:space-y-[2.5vh] text-center lg:text-left items-center lg:items-start">
+            {/* Main Title */}
+            <h3 className="text-xl sm:text-3xl lg:text-[2.2vw] font-semibold text-gray-900 leading-[1.2] tracking-tight">
+              The Art of <br />
+              Thoughtful <br />
+              Living
+            </h3>
+
+            {/* Page Counter Line */}
+            <div className="pb-2 lg:pb-[1.5vh] border-b border-gray-300 w-32 lg:w-[12vw]">
+              <span className="text-sm lg:text-[1.1vw] text-gray-400 font-medium">
+                {Math.floor(page / 2) + 1}/3 Pages
+              </span>
+            </div>
+
+            {/* Paragraph Description */}
+            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 font-normal leading-relaxed lg:leading-[1.7]">
+              Explore timeless insights on mindfulness, creativity, and purposeful living through beautifully crafted stories and practical ideas.
+            </p>
           </div>
         </div>
-
-        {/* Right Column - 4 Dark Glassmorphic Feature Cards Grid */}
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[1.5vw] items-stretch z-10 w-full">
-          {[
-            {
-              id: 1,
-              title: "3D Page Flip",
-              desc: "Realistic page flip experience that delights readers.",
-              icon: <Box className="w-[2.2vw] h-[2.2vw] text-white stroke-[1.5]" />
-            },
-            {
-              id: 2,
-              title: "Multimedia Rich",
-              desc: "Embed videos, audio, images, links & more to engage deeply.",
-              icon: <Video className="w-[2.2vw] h-[2.2vw] text-white stroke-[1.5]" />
-            },
-            {
-              id: 3,
-              title: "Fully Responsive",
-              desc: "Seamless reading experience on all devices.",
-              icon: <MonitorSmartphone className="w-[2.2vw] h-[2.2vw] text-white stroke-[1.5]" />
-            },
-            {
-              id: 4,
-              title: "Analytics Dashboard",
-              desc: "Track reads, clicks, engagement & performance in real-time.",
-              icon: <BarChart3 className="w-[2.2vw] h-[2.2vw] text-white stroke-[1.5]" />
-            }
-          ].map((card) => (
-            <div 
-              key={card.id}
-              className="bg-[#111114] border border-white/10 rounded-[1vw] p-[2.2vw] flex flex-col justify-start items-start text-left space-y-[2.5vh] shadow-2xl hover:border-white/25 hover:bg-[#16161a] transition-all duration-300 group"
-            >
-              {/* Circular Glowing Glass Orb Icon Wrapper */}
-              <div className="relative w-[5.2vw] h-[5.2vw] min-w-[50px] min-h-[50px] rounded-full bg-gradient-to-b from-white/15 to-white/5 border border-white/20 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
-                {/* Top Right Sparkle Glint */}
-                <span className="absolute top-[0.6vw] right-[0.8vw] text-white text-[0.6vw] opacity-80">✦</span>
-                
-                {card.badgeText ? (
-                  <div className="flex flex-col items-center justify-center">
-                    <span className="text-[1.3vw] font-extrabold text-white leading-none border border-white/40 rounded-[0.4vw] px-[0.4vw] py-[0.1vh]">3D</span>
-                  </div>
-                ) : (
-                  card.icon
-                )}
-              </div>
-
-              {/* Feature Title */}
-              <h3 className="text-[1.35vw] font-bold text-white tracking-tight leading-tight pt-[1vh]">
-                {card.title}
-              </h3>
-
-              {/* Underline Divider Line */}
-              <div className="w-[2.5vw] h-[1px] bg-gray-700 my-[0.5vh]"></div>
-
-              {/* Description Paragraph */}
-              <p className="text-[0.9vw] text-gray-400 font-normal leading-relaxed">
-                {card.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Interactive Digital Catalogue Section */}
-      <InteractiveDigitalCatalogueSection onOpenCreateModal={() => setIsCreateModalOpen(true)} />
+      </section>
 
       {/* Global Footer */}
-      <Footer />
+      <section className="relative z-[80] w-full bg-[#1e232a]">
+        <Footer />
+      </section>
 
 
 

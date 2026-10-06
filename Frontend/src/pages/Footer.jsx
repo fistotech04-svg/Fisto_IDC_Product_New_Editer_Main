@@ -1,180 +1,161 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  BookOpen, 
-  Video, 
-  Layers, 
-  Box, 
-  Users, 
-  ArrowUpRight, 
-  Instagram, 
-  Facebook, 
-  Linkedin, 
-  Youtube 
-} from 'lucide-react';
 import FlipibookLogo from '../assets/logo/Flipibook_logo.svg';
+import { Icon } from '@iconify/react';
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-[#0c0d0e] text-white font-sans pt-[6vh] pb-[3vh] px-[5vw] relative overflow-hidden">
+    <footer className="w-full bg-[#222222] text-white font-sans relative overflow-hidden flex flex-col justify-between min-h-[500px]">
       
-      {/* Background Watermark "IDC" - Centered & Half Hidden */}
-      <div className="absolute left-1/2 top-[35%] -translate-x-1/2 -translate-y-1/2 text-[34vw] font-black text-white/[0.03] pointer-events-none select-none tracking-tighter leading-none z-0">
-        IDC
-      </div>
-
-      {/* Top Hero Section inside Footer */}
-      <div className="relative max-w-[85vw] mx-auto py-[8vh] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-[3vw] border-b border-white/10 overflow-hidden">
-
-        {/* Left Side Header */}
-        <div className="relative z-10 max-w-[50vw] space-y-[1.4vh]">
-          <div className="flex items-center gap-[1vw] text-white text-[1.4vw] font-medium tracking-wide w-full">
-            <span className="shrink-0">Let’s Build Your Dream</span>
-            <span className="flex-1 h-[1px] bg-gray-500/80 inline-block align-middle"></span>
-          </div>
-          
-          <h2 className="text-[3.5vw] font-bold text-white tracking-tight leading-none">
-            Interactive Digital Catalogue
-          </h2>
-        </div>
-
-        {/* Right Side Call To Action */}
-        <div className="relative z-10 flex flex-col items-start lg:items-end text-left space-y-[2.5vh]">
-          <p className="text-gray-300 text-[0.88vw] leading-relaxed max-w-[22vw]">
-            Turn your static content into an immersive digital experience with 3D, animations, and smart interactions.
-          </p>
-          
-          <div className="flex items-center gap-[1.5vw]">
-            <Link 
-              to="/editor" 
-              className="inline-flex items-center gap-[0.6vw] text-white hover:text-gray-200 font-medium text-[0.95vw] transition-colors cursor-pointer border-1 border-white/40 px-[1.5vw] py-[1.2vh] rounded-[0.5vw]"
-            >
-              <BookOpen className="w-[1.2vw] h-[1.2vw] min-w-[16px] min-h-[16px]" />
-              <span>Create Flipbook</span>
-            </Link>
-            
-            <button className="inline-flex items-center gap-[0.6vw] bg-white hover:bg-gray-100 text-black font-semibold px-[1.5vw] py-[1.2vh] rounded-[0.5vw] text-[0.95vw] transition-all shadow-md cursor-pointer shrink-0">
-              <Video className="w-[1.2vw] h-[1.2vw] min-w-[16px] min-h-[16px]" />
-              <span>Demo video</span>
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Middle Navigation & Info Grid */}
-      <div className="max-w-[85vw] mx-auto py-[6vh] grid grid-cols-1 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr] gap-[2.5vw] items-start">
+      {/* Main Content Area */}
+      <div className="w-full max-w-[100vw] mx-auto   pl-[2vw] relative z-10 flex flex-col justify-between">
         
-        {/* Col 1: Brand Info */}
-        <div className="space-y-[1.8vh]">
-          <div className="flex items-center gap-[0.5vw]">
-            <img src={FlipibookLogo} alt="Flipibook" className="h-[2.8vw] w-auto object-contain" />
+        {/* Top Header Row with Social Icons & Let's Talk CTA */}
+        <div className="flex flex-col lg:flex-row items-start justify-between gap-[3vw] relative">
+          
+          {/* Left Column: Brand Logo & Headline */}
+          <div className="max-w-[32vw] md:max-w-[28vw] lg:max-w-[24vw] pt-[5vw] md:pt-[3.5vw] space-y-[1.8vw] md:space-y-[1.2vw]">
+            {/* Logo Image */}
+            <div className="flex items-center">
+              <img src={FlipibookLogo} alt="Flipibook Logo" className="h-[2.8vw] min-h-[32px] md:min-h-[40px] w-auto object-contain" />
+            </div>
+
+            {/* Tagline Headline */}
+            <h2 className="text-[1.8vw] sm:text-[1.6vw] md:text-[1.4vw] font-bold text-white tracking-tight uppercase leading-[1.25]">
+              LET&apos;S BUILD YOUR NEXT <br className="hidden sm:inline" />
+              DIGITAL EXPERIENCE
+            </h2>
+
+            {/* Sub-paragraph */}
+            <p className="text-[1vw] sm:text-[0.9vw] md:text-[0.78vw] text-[#a0a0a0] font-normal leading-[1.6]">
+              Turn your ideas into stunning interactive flipbooks <br className="hidden md:inline" />
+              and create a lasting impression.
+            </p>
           </div>
 
-          <h3 className="font-bold text-white text-[1.1vw] leading-snug whitespace-nowrap">
-            Interactive Digital Catalogue
-          </h3>
+          {/* Center Column: Social Links Bar + 3 Info Link Columns */}
+          <div className="flex-1 w-full lg:w-auto flex flex-col justify-between pl-0 lg:pl-[2vw] pr-0 lg:pr-[12vw] space-y-[3vw] lg:space-y-[2.5vw]">
+            
+            {/* Horizontal Social Links Bar */}
+            <div className="flex flex-wrap  items-center pt-[5vw] md:pt-[3.5vw] ml-[3vw]  gap-[1.5vw] sm:gap-[2vw] md:gap-[2.5vw] text-[1.1vw] sm:text-[1vw] md:text-[0.88vw] font-medium text-white">
+              {/* Facebook */}
+              <a href="#" className="flex items-center gap-[0.5vw] hover:text-[#f15a24] transition-colors group">
+                <Icon icon="ic:baseline-facebook" className="text-[1.3vw] sm:text-[1.1vw] md:text-[1.3vw] mt-[0.3vw]" />
+                <span  className='text-[1.3vw] sm:text-[1.1vw] md:text-[1.2vw]'>Facebook</span>
+                 <Icon icon="akar-icons:arrow-up-right" className="text-[0.9vw] sm:text-[0.8vw] md:text-[1.2vw] mt-[0.3vw] text-[#989898] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"/>
+              </a>
 
-          <p className="text-gray-300 text-[0.8vw] leading-relaxed max-w-[16vw]">
-            Create immersive digital catalogue experiences with 3D visualization, AR interaction, multimedia hotspots and smart navigation.
-          </p>
+              <span className="text-[#ffffff] font-light text-[2vw]">|</span>
 
-          <p className="text-[0.82vw] font-bold text-white pt-[0.3vh] whitespace-nowrap">
-            Interactive &nbsp;•&nbsp; Immersive &nbsp;•&nbsp; Intelligent
-          </p>
+              {/* Instagram */}
+              <a href="#" className="flex items-center gap-[0.5vw] hover:text-[#f15a24] transition-colors group">
+                <Icon icon="ri:instagram-line" className="text-[1.3vw] sm:text-[1.1vw] md:text-[1.3vw] mt-[0.3vw]" />
+                <span  className='text-[1.3vw] sm:text-[1.1vw] md:text-[1.2vw]'>Instagram</span>
+                 <Icon icon="akar-icons:arrow-up-right" className="text-[0.9vw] sm:text-[0.8vw] md:text-[1.2vw] mt-[0.3vw] text-[#989898] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"/>
+              </a>
 
-          {/* Social Icons */}
-          <div className="flex items-center gap-[0.8vw] pt-[0.8vh]">
-            <a href="#" className="w-[2.8vw] h-[2.8vw] min-w-[38px] min-h-[38px] rounded-[0.7vw] bg-white text-black flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm">
-              <Instagram className="w-[1.2vw] h-[1.2vw] min-w-[18px] min-h-[18px] text-black" />
-            </a>
-            <a href="#" className="w-[2.8vw] h-[2.8vw] min-w-[38px] min-h-[38px] rounded-[0.7vw] bg-white text-black flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm">
-              <Facebook className="w-[1.2vw] h-[1.2vw] min-w-[18px] min-h-[18px] text-black" />
-            </a>
-            <a href="#" className="w-[2.8vw] h-[2.8vw] min-w-[38px] min-h-[38px] rounded-[0.7vw] bg-white text-black flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm">
-              <Linkedin className="w-[1.2vw] h-[1.2vw] min-w-[18px] min-h-[18px] text-black" />
-            </a>
-            <a href="#" className="w-[2.8vw] h-[2.8vw] min-w-[38px] min-h-[38px] rounded-[0.7vw] bg-white text-black flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm">
-              <Youtube className="w-[1.2vw] h-[1.2vw] min-w-[18px] min-h-[18px] text-black" />
-            </a>
-          </div>
-        </div>
+              <span className="text-[#ffffff] font-light text-[2vw]">|</span>
 
-        {/* Col 2: Product */}
-        <div className="space-y-[1.5vh]">
-          <div className="flex items-center gap-[0.5vw] text-white font-bold text-[1.1vw]">
-            <Layers className="w-[1.1vw] h-[1.1vw] min-w-[15px] min-h-[15px]" />
-            <span>Product</span>
-          </div>
+              {/* LinkedIn */}
+              <a href="#" className="flex items-center gap-[0.5vw] hover:text-[#f15a24] transition-colors group">
+                <Icon icon="mdi:linkedin" className="text-[1.3vw] sm:text-[1.1vw] md:text-[1.3vw] mt-[0.3vw]" />
+                <span  className='text-[1.3vw] sm:text-[1.1vw] md:text-[1.2vw]'>Linked in</span>
+                 <Icon icon="akar-icons:arrow-up-right" className="text-[0.9vw] sm:text-[0.8vw] md:text-[1.2vw] mt-[0.3vw] text-[#989898] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"/>
+              </a>
 
-          <ul className="space-y-[0.9vh] text-[0.82vw] text-gray-400 font-medium">
-            <li>
-              <Link to="/home" className="hover:text-white flex items-center gap-[0.3vw] transition-colors">
-                <span>Home</span>
-                <ArrowUpRight className="w-[0.8vw] h-[0.8vw] min-w-[12px] min-h-[12px]" />
-              </Link>
-            </li>
-            <li><a href="#" className="hover:text-white transition-colors block">Features</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Templates</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Explore</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Pricing</a></li>
-          </ul>
-        </div>
+              <span className="text-[#ffffff] font-light text-[2vw]">|</span>
 
-        {/* Col 3: Experiences */}
-        <div className="space-y-[1.5vh]">
-          <div className="flex items-center gap-[0.5vw] text-white font-bold text-[1.1vw]">
-            <Box className="w-[1.1vw] h-[1.1vw] min-w-[15px] min-h-[15px]" />
-            <span>Experiences</span>
-          </div>
+              {/* YouTube */}
+              <a href="#" className="flex items-center gap-[0.5vw] hover:text-[#f15a24] transition-colors group">
+                <Icon icon="mdi:youtube" className="text-[1.3vw] sm:text-[1.1vw] md:text-[1.3vw] mt-[0.3vw]" />
+                <span className='text-[1.3vw] sm:text-[1.1vw] md:text-[1.2vw]'>YouTube</span>
+                <Icon icon="akar-icons:arrow-up-right" className="text-[0.9vw] sm:text-[0.8vw] md:text-[1.2vw] mt-[0.3vw] text-[#989898] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"/>
+              </a>
+            </div>
 
-          <ul className="space-y-[0.9vh] text-[0.82vw] text-gray-400 font-medium">
-            <li><a href="#" className="hover:text-white transition-colors block">AR Experience</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">360° Product View</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Interactive Hotspots</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">3D Product Showcase</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Multimedia Integration</a></li>
-          </ul>
-        </div>
+            {/* 3 Link Columns Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 w-[54vw] ml-[4vw] gap-[2vw] text-[1vw] sm:text-[0.9vw] md:text-[0.78vw]">
+              
+              {/* Column 1: Main Pages */}
+              <div className="flex flex-col space-y-[0.7vw]">
+                <Link to="/" className="text-[#b0b0b0] hover:text-white underline transition-colors">Home</Link>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Features</a>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Templates</a>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Explore</a>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Pricing</a>
+              </div>
 
-        {/* Col 4: Learn */}
-        <div className="space-y-[1.5vh]">
-          <div className="flex items-center gap-[0.5vw] text-white font-bold text-[1.1vw]">
-            <BookOpen className="w-[1.1vw] h-[1.1vw] min-w-[15px] min-h-[15px]" />
-            <span>Learn</span>
-          </div>
+              {/* Column 2: Contact Info */}
+              <div className="flex flex-col space-y-[0.7vw]">
+                <a href="mailto:info@flipibook-o.com" className="text-[#b0b0b0] hover:text-white underline transition-colors">
+                  info@flipibook-o.com
+                </a>
+                <a href="tel:+917530025147" className="text-[#b0b0b0] hover:text-white underline transition-colors">
+                  +91 75300 25147
+                </a>
+              </div>
 
-          <ul className="space-y-[0.9vh] text-[0.82vw] text-gray-400 font-medium">
-            <li><a href="#" className="hover:text-white transition-colors block">Documentation</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Tutorials</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Help Center</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">FAQs</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Support</a></li>
-          </ul>
-        </div>
+              {/* Column 3: Resource Links */}
+              <div className="flex flex-col space-y-[0.7vw]">
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Documentation</a>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Tutorials</a>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">Help Center</a>
+                <a href="#" className="text-[#b0b0b0] hover:text-white underline transition-colors">FAQs</a>
+              </div>
 
-        {/* Col 5: Company */}
-        <div className="space-y-[1.5vh]">
-          <div className="flex items-center gap-[0.5vw] text-white font-bold text-[1.1vw]">
-            <Users className="w-[1.1vw] h-[1.1vw] min-w-[15px] min-h-[15px]" />
-            <span>Company</span>
+            </div>
+
           </div>
 
-          <ul className="space-y-[0.9vh] text-[0.82vw] text-gray-400 font-medium">
-            <li><Link to="/about" className="hover:text-white transition-colors block">About Us</Link></li>
-            <li><Link to="/contact" className="hover:text-white transition-colors block">Contact Us</Link></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Privacy Policy</a></li>
-            <li><a href="#" className="hover:text-white transition-colors block">Terms & Conditions</a></li>
-          </ul>
+          {/* Right Floating Orange "LET'S TALK" Box */}
+          <a 
+            href="mailto:info@flipibook-o.com"
+            className="absolute top-0 right-0 w-[9vw] sm:w-[7vw] md:w-[9vw] h-[13vw] sm:h-[12.5vw] md:h-[15vw] bg-[#EA7233] hover:bg-[#e04d19] text-white flex flex-col justify-between p-[1.2vw] transition-all duration-300 group shadow-lg z-20 cursor-pointer"
+          >
+            {/* Arrow Top Right */}
+            <div className="flex justify-center ">
+             
+                <Icon icon="bi:arrow-up-right" className="text-[7vw] sm:text-[3vw] md:text-[5vw] "  />
+              
+            </div>
+
+            {/* Text Bottom Left */}
+            <div className="text-[1.2vw] sm:text-[1.05vw] md:text-[1.5vw] font-medium text-center  uppercase ">
+              LET’S <br />
+              TALK
+            </div>
+          </a>
+
         </div>
 
       </div>
 
-      {/* Bottom Copyright Bar */}
-      <div className="max-w-[85vw] mx-auto border-t border-white/10 pt-[2.5vh] text-center">
-        <p className="text-gray-400 text-[0.75vw]">
-          © 2026 IDC Platform. All Rights Reserved. Designed for immersive digital experience
-        </p>
+      {/* Giant Watermark Background Text "FLIPIBOOK" */}
+      <div className="w-full relative overflow-hidden select-none pointer-events-none ">
+        <h1 className="text-[15vw] md:text-[14vw] font-black text-white/[0.04] text-center tracking-[0.02em] leading-none uppercase  whitespace-nowrap">
+          FLIPIBOOK
+        </h1>
+      </div>
+
+      {/* Bottom Copyright & Legal Policy Bar */}
+      <div className="w-full  py-[1.2vw] px-[3vw] relative z-10 bg-[#222222]">
+        <div className="max-w-[94vw] mx-auto flex flex-col sm:flex-row items-center justify-between gap-[1vw] text-[0.95vw] sm:text-[0.85vw] md:text-[0.72vw] text-[#fafafa]">
+          
+          {/* Copyright Left */}
+          <div>
+            Copyright © 2025 <a href="#" className="underline text-gray-200 hover:text-white">Fisto Tech Private Limited</a>. All Rights Reserved.
+          </div>
+
+          {/* Legal Links Right */}
+          <div className="flex items-center gap-[1vw]">
+            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+            <span className="text-[#FFFFFF]">|</span>
+            <a href="#" className="hover:text-white transition-colors">Teams of Use</a>
+            <span className="text-[#FFFFFF]">|</span>
+            <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
+          </div>
+
+        </div>
       </div>
 
     </footer>
