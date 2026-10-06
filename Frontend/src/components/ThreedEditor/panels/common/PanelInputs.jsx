@@ -207,3 +207,35 @@ export function DualAxisInput({
     </div>
   );
 }
+
+export function ToggleSwitch({ checked = false, onChange, disabled = false, title }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => !disabled && onChange && onChange(!checked)}
+      title={title}
+      className={`relative inline-flex items-center w-[2.09vw] h-[1.05vw] cursor-pointer transition-colors focus:outline-none shrink-0 ${
+        disabled ? "opacity-40 cursor-not-allowed" : ""
+      }`}
+    >
+      {/* Pill track / Outline ring */}
+      <span
+        className={`w-full h-[0.85vw] rounded-full border-[0.13vw] transition-colors duration-200 bg-white ${
+          checked ? "border-[#ea543a]" : "border-gray-300"
+        }`}
+      />
+      {/* Thumb / Knob */}
+      <span
+        className={`absolute top-1/2 -translate-y-1/2 w-[1.09vw] h-[1.09vw] rounded-full shadow-md transition-all duration-200 ${
+          checked
+            ? "translate-x-[1.0vw] bg-[#ea543a]"
+            : "translate-x-0 bg-gray-400"
+        }`}
+      />
+    </button>
+  );
+}
+

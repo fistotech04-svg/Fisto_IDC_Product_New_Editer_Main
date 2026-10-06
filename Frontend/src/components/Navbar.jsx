@@ -88,11 +88,33 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
   const isThreedEditor = location.pathname.includes('threed_editor');
   const isCustomizedEditor = location.pathname.includes('customized_editor');
 
-  const handleLinkClick = (e) => {
+  // Custom Leave Confirmation Modal State
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [pendingLeaveAction, setPendingLeaveAction] = useState(null);
+
+  const confirmNavigation = (actionOrPath) => {
     if (hasUnsavedChanges) {
-      if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
-        e.preventDefault();
+      setPendingLeaveAction(() => () => {
+        if (typeof actionOrPath === 'string') {
+          navigate(actionOrPath);
+        } else if (typeof actionOrPath === 'function') {
+          actionOrPath();
+        }
+      });
+      setShowLeaveModal(true);
+    } else {
+      if (typeof actionOrPath === 'string') {
+        navigate(actionOrPath);
+      } else if (typeof actionOrPath === 'function') {
+        actionOrPath();
       }
+    }
+  };
+
+  const handleLinkClick = (e, path) => {
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      confirmNavigation(path);
     }
   };
 
@@ -104,7 +126,7 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
       >
         {/* Left Section - Logo and Navigation */}
         <div className="flex items-center gap-[1.5vw] shrink-0">
-          <Link to="/" className="flex-shrink-0" onClick={handleLinkClick}>
+          <Link to="/" className="flex-shrink-0" onClick={(e) => handleLinkClick(e, '/')}>
             <img 
               className="h-[2.5vw] w-auto object-contain" 
               src={logo} 
@@ -115,14 +137,7 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
           {isThreedEditor && (
             <>
             <button
-              onClick={() => {
-                if (hasUnsavedChanges) {
-                  if (!window.confirm("Leave 3D Editor?\n\nUnsaved changes might be lost.")) {
-                    return;
-                  }
-                }
-                navigate('/my-flipbooks');
-              }}
+              onClick={() => confirmNavigation('/my-flipbooks')}
               className="flex items-center gap-[0.45vw] px-[0.85vw] py-[0.4vw] bg-white hover:bg-gray-50 text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
               title="Go to My Flipbook"
             >
@@ -130,14 +145,7 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
               <span>Go to My Flipbook</span>
             </button>
             <button
-              onClick={() => {
-                if (hasUnsavedChanges) {
-                  if (!window.confirm("Leave 3D Editor?\n\nUnsaved changes might be lost.")) {
-                    return;
-                  }
-                }
-                navigate('/3d-editor');
-              }}
+              onClick={() => confirmNavigation('/3d-editor')}
               className="flex items-center gap-[0.45vw] px-[0.85vw] py-[0.4vw] bg-white hover:bg-gray-50 text-gray-700 font-semibold text-[0.78vw] rounded-[0.5vw] border border-gray-200 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
               title="Go to My Flipbook"
             >
@@ -152,28 +160,28 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
             <div className="hidden lg:flex items-center gap-[1.8vw]">
               <Link 
                 to="/my-flipbooks" 
-                onClick={handleLinkClick}
+                onClick={(e) => handleLinkClick(e, '/my-flipbooks')}
                 className={isActive('/my-flipbooks') ? activeLinkStyle : baseLinkStyle}
               >
                 My Flipbook
               </Link>
               <Link 
                 to="/features" 
-                onClick={handleLinkClick}
+                onClick={(e) => handleLinkClick(e, '/features')}
                 className={`hidden 2xl:block ${isActive('/features') ? activeLinkStyle : baseLinkStyle}`}
               >
                 Features
               </Link>
               <Link 
                 to="/support" 
-                onClick={handleLinkClick}
+                onClick={(e) => handleLinkClick(e, '/support')}
                 className={`hidden 2xl:block ${isActive('/support') ? activeLinkStyle : baseLinkStyle}`}
               >
                 Support
               </Link>
               <Link 
                 to="/help" 
-                onClick={handleLinkClick}
+                onClick={(e) => handleLinkClick(e, '/help')}
                 className={`hidden 2xl:block ${isActive('/help') ? activeLinkStyle : baseLinkStyle}`}
               >
                 Help
@@ -386,12 +394,7 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
               <div className="relative group/tooltip flex items-center ml-[0.2vw]">
             <button 
               onClick={() => {
-                if (hasUnsavedChanges) {
-                  if (!window.confirm("Leave site?\n\nChanges you made may not be saved.")) {
-                    return;
-                  }
-                }
-                navigate(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor');
+                confirmNavigation(isThreedEditor ? (localStorage.getItem('lastEditorPath') || '/editor') : '/editor/threed_editor');
               }}
               className={`flex items-center gap-[0.4vw] px-[1.2vw] cursor-pointer py-[0.6vw] text-white rounded-[0.5vw] transition-all duration-300 active:scale-95
                 ${isThreedEditor 
@@ -656,6 +659,53 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
         currentBook={currentBook}
         isMobileLayout={activeDevice === 'Mobile'}
       />
+
+      {/* ── Custom Unsaved Changes Confirmation Modal ── */}
+      {showLeaveModal && (
+        <div className="fixed inset-0 z-[100000] bg-black/55 backdrop-blur-xs flex items-center justify-center p-[1.5vw] animate-in fade-in duration-150">
+          <div className="bg-white rounded-[1vw] shadow-2xl border border-gray-100 max-w-[420px] w-[26vw] p-[1.4vw] flex flex-col items-center text-center animate-in zoom-in-95 duration-150">
+            {/* Warning Icon Badge */}
+            <div className="w-[3.2vw] h-[3.2vw] rounded-full bg-amber-50 border border-amber-200/70 flex items-center justify-center mb-[0.8vw] shadow-xs">
+              <Icon icon="solar:danger-triangle-bold" className="w-[1.8vw] h-[1.8vw] text-amber-500" />
+            </div>
+
+            {/* Title & Description */}
+            <h3 className="text-[1.05vw] font-bold text-gray-900 mb-[0.3vw]">
+              Unsaved Changes
+            </h3>
+            <p className="text-[0.74vw] text-gray-700 leading-relaxed mb-[1.2vw]">
+              You have unsaved changes in the editor. If you leave now, your recent modifications may be lost.
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-[0.6vw] w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaveModal(false);
+                  setPendingLeaveAction(null);
+                }}
+                className="flex-1 py-[0.55vw] px-[0.8vw] rounded-[0.5vw] bg-gray-100 hover:bg-gray-200 text-gray-700 text-[0.76vw] font-semibold transition-colors cursor-pointer"
+              >
+                Stay on Page
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaveModal(false);
+                  if (pendingLeaveAction) {
+                    pendingLeaveAction();
+                    setPendingLeaveAction(null);
+                  }
+                }}
+                className="flex-1 py-[0.55vw] px-[0.8vw] rounded-[0.5vw] bg-[#ea543a] hover:bg-[#d43d24] text-white text-[0.76vw] font-bold shadow-xs shadow-[#ea543a]/25 transition-all active:scale-95 cursor-pointer"
+              >
+                Leave Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
-import { uploadFileToSupabase, uploadBufferToSupabase, downloadFileFromSupabase, deleteFileFromSupabase, renamePathInSupabase } from "../../config/supabase.js";
+import { uploadFileToSupabase, uploadBufferToSupabase, downloadFileFromSupabase, deleteFileFromSupabase, renamePathInSupabase, getSupabasePublicUrl } from "../../config/supabase.js";
 import { convertWithAssimp, is3DFormat, isGlbFormat, isCadFormat } from "../../utils/assimpConverter.js";
 import { scheduleTempCleanup, scheduleSupabaseCleanup } from "../../utils/tempCleaner.js";
 
@@ -188,21 +188,18 @@ router.post("/upload-texture", (req, res) => {
       const cleanBase = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
       const finalFileName = `${cleanBase}_${Date.now()}${ext}`;
 
-      // Upload to Supabase Storage
+      // Upload exclusively to Supabase Storage
       const destinationPath = `${sanitizedEmail}/3D_Modals/Textures/${finalFileName}`;
       const supabaseUrl = await uploadFileToSupabase(req.file.path, destinationPath);
 
-      let finalUrl = supabaseUrl;
-      if (!finalUrl) {
-        // Fallback to local storage on server
-        const localDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals/Textures`);
-        if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
-        const localPath = path.join(localDir, finalFileName);
-        fs.copyFileSync(req.file.path, localPath);
-        finalUrl = `/uploads/${sanitizedEmail}/3D_Modals/Textures/${finalFileName}`;
+      // Clean up temporary Multer file
+      try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
+
+      if (!supabaseUrl) {
+        return res.status(500).json({ message: "Failed to upload texture to Supabase storage" });
       }
 
-      try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
+      const finalUrl = supabaseUrl;
 
       res.status(200).json({
         success: true,
@@ -250,21 +247,16 @@ router.post("/upload-model", (req, res) => {
       if (isImage) {
         const destinationPath = `${sanitizedEmail}/3D_Modals/Textures/${req.file.filename}`;
         const supabaseUrl = await uploadFileToSupabase(req.file.path, destinationPath);
-        let finalTextureUrl = supabaseUrl;
-
-        if (!finalTextureUrl) {
-          const localDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals/Textures`);
-          if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
-          const localPath = path.join(localDir, req.file.filename);
-          fs.copyFileSync(req.file.path, localPath);
-          finalTextureUrl = `/uploads/${sanitizedEmail}/3D_Modals/Textures/${req.file.filename}`;
-        }
-
+        
         try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
+
+        if (!supabaseUrl) {
+          return res.status(500).json({ message: "Failed to upload texture to Supabase storage" });
+        }
 
         return res.status(200).json({
           message: "Texture uploaded successfully",
-          url: finalTextureUrl,
+          url: supabaseUrl,
           name: req.file.filename
         });
       }
@@ -285,20 +277,20 @@ router.post("/upload-model", (req, res) => {
         fileToUploadPath = convertedGlbPath;
       }
 
-      let relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${finalFilename}`;
-
       // Upload file to Supabase Storage
       const destinationPath = `${sanitizedEmail}/3D_Modals/${finalFilename}`;
       const supabaseUrl = await uploadFileToSupabase(fileToUploadPath, destinationPath);
-      if (supabaseUrl) {
-        relativeUrl = supabaseUrl;
-      } else {
-        // Fallback to local storage if Supabase failed or payload too large
-        const localUploadsDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals`);
-        if (!fs.existsSync(localUploadsDir)) fs.mkdirSync(localUploadsDir, { recursive: true });
-        const localTargetFile = path.join(localUploadsDir, finalFilename);
-        try { fs.copyFileSync(fileToUploadPath, localTargetFile); } catch (e) {}
+      if (!supabaseUrl) {
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch(e) {}
+        }
+        if (convertedGlbPath && fs.existsSync(convertedGlbPath)) {
+          try { fs.unlinkSync(convertedGlbPath); } catch(e) {}
+        }
+        return res.status(500).json({ message: "Failed to upload 3D model to Supabase storage" });
       }
+
+      const relativeUrl = supabaseUrl;
 
       const stats = fs.statSync(fileToUploadPath);
       const type = "glb";
@@ -423,10 +415,27 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
       writeStream.on("finish", async () => {
         try {
           let uploadFilePath = finalPath;
-          let finalFileName = fileName;
+          const ext = path.extname(fileName);
+          const rawBase = path.basename(fileName, ext);
+          const safeBase = rawBase.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
+          const forceNew = req.body.forceNew === "true" || req.body.forceNew === true;
+          
+          let candidateBase = safeBase;
+          // If forceNew is requested or it's a new upload without modelId, ensure unique file name if already exists
+          if (forceNew && !modelId) {
+            let counter = 1;
+            let checkName = `${candidateBase}${ext}`;
+            while (await ThreedModel.findOne({ userEmail: emailId, name: checkName })) {
+              checkName = `${candidateBase}_(${counter})${ext}`;
+              counter++;
+            }
+            candidateBase = path.basename(checkName, ext);
+          }
+
+          let finalFileName = `${candidateBase}${ext}`;
 
           const isConverter = req.body.isConverter === "true" || req.body.isConverter === true;
-          const baseName = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, "_");
+          const baseName = candidateBase;
 
           // Convert to GLB if not already GLB
           if (!isGlbFormat(fileName)) {
@@ -477,26 +486,15 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
           // Saving to permanent user 3D_Modals folder in Supabase
           const destinationPath = `${sanitizedEmail}/3D_Modals/${finalFileName}`;
           const supabaseUrl = await uploadFileToSupabase(uploadFilePath, destinationPath);
-          let modelUrl = supabaseUrl;
-
-          // Always ensure local storage has the newest version of the model file on disk too!
-          const localUploadsDir = path.join(__dirname, `../../uploads/${sanitizedEmail}/3D_Modals`);
-          if (!fs.existsSync(localUploadsDir)) {
-            fs.mkdirSync(localUploadsDir, { recursive: true });
-          }
-          const localTargetFile = path.join(localUploadsDir, finalFileName);
-          try {
-            fs.copyFileSync(uploadFilePath, localTargetFile);
-          } catch (copyErr) {
-            console.warn("[Chunk Upload] Notice copying local copy:", copyErr);
-          }
-
-          if (!modelUrl) {
-            modelUrl = `/uploads/${sanitizedEmail}/3D_Modals/${finalFileName}`;
-          }
 
           // Immediately clean up local temporary directory
           try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+
+          if (!supabaseUrl) {
+            return res.status(500).json({ message: "Failed to upload merged model to Supabase storage" });
+          }
+
+          let modelUrl = supabaseUrl;
 
           let existing = null;
           let interactionExisting = null;
@@ -506,7 +504,7 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
               interactionExisting = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
             }
           }
-          if (!existing && !interactionExisting) {
+          if (!forceNew && !existing && !interactionExisting && !modelId) {
             existing = await ThreedModel.findOne({ userEmail: emailId, name: finalFileName });
           }
 
@@ -694,6 +692,33 @@ router.post("/save-session", async (req, res) => {
   }
 });
 
+// @route   GET /api/3d-models/get-session
+// @desc    Get the saved 3D editor session for a user
+// @access  Public
+router.get("/get-session", async (req, res) => {
+  try {
+    const { emailId } = req.query;
+    if (!emailId) {
+      return res.status(400).json({ message: "Email ID is required" });
+    }
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const sessionPath = `${sanitizedEmail}/3D_Modals/session.json`;
+    const sessionUrl = getSupabaseUrl(sessionPath);
+
+    const response = await fetch(sessionUrl);
+    if (!response.ok) {
+      return res.status(404).json({ message: "No active session found" });
+    }
+
+    const sessionState = await response.json();
+    res.json({ session: sessionState });
+  } catch (error) {
+    console.warn("Notice: No session found or session error:", error.message);
+    res.status(404).json({ message: "No active session found" });
+  }
+});
+
 // @route   POST /api/3d-models/rename-model
 // @desc    Rename a model file in Supabase Storage and DB
 // @access  Public
@@ -739,8 +764,8 @@ router.post("/rename-model", async (req, res) => {
         // Fallback for models stored under 3D_Models
         await renamePathInSupabase(`${sanitizedEmail}/3D_Models/${oldName}`, newSupabasePath);
 
-        const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
-        if (!finalUrl) finalUrl = relativeUrl;
+        const supabaseModelUrl = getSupabasePublicUrl(newSupabasePath);
+        if (!finalUrl) finalUrl = supabaseModelUrl;
 
         let newThumbUrl = dbModel.thumbnailUrl;
         if (dbModel.thumbnailUrl) {
@@ -751,11 +776,11 @@ router.post("/rename-model", async (req, res) => {
           const newThumbPath = `${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
           await renamePathInSupabase(oldThumbPath, newThumbPath);
           await renamePathInSupabase(`${sanitizedEmail}/3D_Models/${oldBase}${thumbExt}`, newThumbPath);
-          newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
+          newThumbUrl = getSupabasePublicUrl(newThumbPath);
         }
 
         dbModel.name = cleanNewName;
-        dbModel.url = relativeUrl;
+        dbModel.url = supabaseModelUrl;
         dbModel.thumbnailUrl = newThumbUrl;
         await dbModel.save();
     } else if (!interactionModel) {
@@ -870,7 +895,7 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
 // @access  Public
 router.post("/save-settings", async (req, res) => {
   try {
-    const { modelId, materialSettings, transformValues, hotspots } = req.body;
+    const { modelId, materialSettings, transformValues, hotspots, sceneModels, models } = req.body;
     if (!modelId) {
       return res.status(400).json({ message: "modelId is required" });
     }
@@ -878,6 +903,8 @@ router.post("/save-settings", async (req, res) => {
     if (materialSettings !== undefined) update.materialSettings = materialSettings;
     if (transformValues !== undefined) update.transformValues = transformValues;
     if (hotspots !== undefined) update.hotspots = Array.isArray(hotspots) ? hotspots : [];
+    if (sceneModels !== undefined) update.sceneModels = Array.isArray(sceneModels) ? sceneModels : [];
+    else if (models !== undefined) update.sceneModels = Array.isArray(models) ? models : [];
 
     let updated = await ThreedModel.findOneAndUpdate(
       { modelId },
@@ -941,6 +968,7 @@ router.get("/get-model/:modelId", async (req, res) => {
         ...modelObj,
         materialSettings: model.materialSettings || null,
         transformValues: model.transformValues || null,
+        sceneModels: Array.isArray(model.sceneModels) ? model.sceneModels : [],
         updatedAt: model.updatedAt || model.createdAt
       });
     }
@@ -961,6 +989,7 @@ router.get("/get-model/:modelId", async (req, res) => {
         hotspots: Array.isArray(interactionModel.hotspots) ? interactionModel.hotspots : [],
         materialSettings: interactionModel.materialSettings || null,
         transformValues: interactionModel.transformValues || null,
+        sceneModels: Array.isArray(interactionModel.sceneModels) ? interactionModel.sceneModels : [],
         updatedAt: interactionModel.updatedAt || interactionModel.createdAt
       });
     }

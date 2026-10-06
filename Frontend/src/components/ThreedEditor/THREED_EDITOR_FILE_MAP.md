@@ -100,8 +100,6 @@ graph TD
   * Animation clip detector with play/pause playback controls.
 * **[`panels/common/PanelInputs.jsx`](file:///d:/Sham/Flipibook/Frontend/src/components/ThreedEditor/panels/common/PanelInputs.jsx)**
   * Shared UI inputs (drag-scrub XYZ inputs, custom range sliders).
-* **[`panels/common/XRayToggleBar.jsx`](file:///d:/Sham/Flipibook/Frontend/src/components/ThreedEditor/panels/common/XRayToggleBar.jsx)**
-  * X-Ray view mode toggle bar.
 
 ---
 

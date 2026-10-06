@@ -120,6 +120,14 @@ const Editor = () => {
   };
 
   const handleExport = () => {
+    if (location.pathname.includes('threed_editor')) {
+      if (exportHandler) {
+        exportHandler();
+      } else {
+        window.dispatchEvent(new CustomEvent('editor-export-3d'));
+      }
+      return;
+    }
     setIsExportModalOpen(true);
     if (exportHandler) {
       exportHandler();
@@ -314,14 +322,20 @@ const Editor = () => {
                           if (m.file instanceof Blob) {
                               return { ...m, url: URL.createObjectURL(m.file) };
                           }
-                          // If it's not a blob, keep the URL that was saved (likely a remote backend URL)
+                          if (typeof m.url === 'string' && m.url.startsWith('blob:')) {
+                              return { ...m, url: null };
+                          }
                           return m;
-                      });
+                      }).filter(m => m && m.url);
                   }
+
+                  const cleanModelUrl = (typeof savedState.modelUrl === 'string' && savedState.modelUrl.startsWith('blob:') && !restoredUrl)
+                      ? null
+                      : (restoredUrl || savedState.modelUrl);
                   
                   setThreedState({
                       ...savedState,
-                      modelUrl: restoredUrl || savedState.modelUrl, // Use saved URL as fallback
+                      modelUrl: cleanModelUrl,
                       models: restoredModels
                   });
               }

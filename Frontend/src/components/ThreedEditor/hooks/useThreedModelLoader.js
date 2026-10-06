@@ -98,12 +98,22 @@ export function useThreedModelLoader({
 
       setModelStats({ fileSize: `${converted.sizeInMB} MB` });
 
+      const offsetIndex = models.length;
+      const initialTransform = offsetIndex === 0
+        ? defaultTransform
+        : {
+            position: { x: (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3.5, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 }
+          };
+
       const newModel = {
         id: modelId,
         url: converted.url,
         file: converted.file,
         type: converted.type || 'glb',
-        name: converted.name
+        name: converted.name,
+        transform: initialTransform
       };
 
       const nextModels = [...models, newModel];
@@ -187,6 +197,15 @@ export function useThreedModelLoader({
       }
     }
 
+    const offsetIndex = models.length;
+    const initialTransform = offsetIndex === 0
+      ? defaultTransform
+      : {
+          position: { x: (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3.5, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 }
+        };
+
     const newModel = {
       id: modelId,
       modelId: model.modelId || modelId,
@@ -194,7 +213,8 @@ export function useThreedModelLoader({
       file: null,
       type: model.type,
       name: model.name.replace(/\.[^/.]+$/, ""),
-      hotspots: modelHotspots
+      hotspots: modelHotspots,
+      transform: initialTransform
     };
 
     const nextModels = [...models, newModel];
@@ -354,7 +374,9 @@ export function useThreedModelLoader({
         hasLocalFiles: false
       };
     }
-    setHasUnsavedChanges(false);
+    if (typeof setHasUnsavedChanges === "function") {
+      setHasUnsavedChanges(false);
+    }
 
     try {
       const storedUser = localStorage.getItem('user');

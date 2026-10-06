@@ -3,7 +3,7 @@ import Texture from "../../models/Texture.js";
 
 export const getCategories = async (req, res) => {
   try {
-    const { email } = req.query;
+    const email = req.query.email || req.query.userEmail;
     if (!email) return res.status(400).json({ message: "User email required" });
 
     const categories = await TextureCategory.find({ userEmail: email }).sort({ name: 1 });
@@ -16,7 +16,8 @@ export const getCategories = async (req, res) => {
 
 export const addCategory = async (req, res) => {
   try {
-    const { name, userEmail } = req.body;
+    const name = (req.body.name || "").trim();
+    const userEmail = req.body.userEmail || req.body.email;
     if (!name || !userEmail) return res.status(400).json({ message: "Name and User Email required" });
 
     // Use findOneAndUpdate with upsert to avoid duplicate errors and just return the existing/new one
@@ -36,7 +37,7 @@ export const addCategory = async (req, res) => {
 export const renameCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const name = (req.body.name || "").trim();
     if (!name) return res.status(400).json({ message: "New name required" });
 
     const category = await TextureCategory.findByIdAndUpdate(id, { name }, { returnDocument: 'after' });

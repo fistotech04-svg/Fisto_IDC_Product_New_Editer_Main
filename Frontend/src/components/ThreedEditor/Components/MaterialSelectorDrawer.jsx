@@ -3,6 +3,8 @@ import { Icon } from "@iconify/react";
 import axios from "axios";
 import { textureData } from "../../../data/textureData";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
+import AddMaterial from "./AddMaterial";
+import AlertModal from "../../../components/AlertModal";
 
 export default function MaterialSelectorDrawer({
   isOpen = false,
@@ -11,112 +13,144 @@ export default function MaterialSelectorDrawer({
   selectedTextureId,
   onSelectColor,
   selectedColor,
+  onOpenAddMaterial,
   refreshTrigger
 }) {
-  const [mainTab, setMainTab] = useState("texture"); // "texture" | "color"
   const [activeTab, setActiveTab] = useState("predefined"); // "predefined" | "uploaded"
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [uploadedTextures, setUploadedTextures] = useState([]);
   const [fetchedCategories, setFetchedCategories] = useState([]);
-  const [selectedColorState, setSelectedColorState] = useState(null);
+  const [isAddingFolder, setIsAddingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [editingFolderName, setEditingFolderName] = useState("");
+  const [activeFolderMenuId, setActiveFolderMenuId] = useState(null);
+  const [deletingFolder, setDeletingFolder] = useState(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [showInternalAddMaterial, setShowInternalAddMaterial] = useState(false);
 
-  const predefinedTextures = textureData;
+  // High-performance direct DOM dragging refs
+  const modalRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const posRef = useRef({ x: 0, y: 0 });
+  const startMouseRef = useRef({ x: 0, y: 0 });
+  const startPosRef = useRef({ x: 0, y: 0 });
+  const rAFRef = useRef(null);
 
-  const colorMaterials = useMemo(() => [
-    { 
-      id: 'c-silver', name: 'Sliver Material', hex: '#c0c0c0', color: '#c0c0c0',
-      normal: 50, roughness: 50, metallic: 80, ao: 50, bump: 50, alpha: 100,
-      light: '#ffffff', dark: '#8a8a8a' 
-    },
-    { 
-      id: 'c-black', name: 'Black Matte', hex: '#111111', color: '#111111',
-      normal: 40, roughness: 85, metallic: 5, ao: 100, bump: 25, alpha: 100,
-      light: '#555555', dark: '#000000' 
-    },
-    { 
-      id: 'c-white', name: 'White Ceramic', hex: '#ffffff', color: '#ffffff',
-      normal: 10, roughness: 15, metallic: 0, ao: 100, bump: 5, alpha: 100,
-      light: '#ffffff', dark: '#cccccc' 
-    },
-    { 
-      id: 'c-gray', name: 'Gray Industrial', hex: '#808080', color: '#808080',
-      normal: 45, roughness: 50, metallic: 45, ao: 90, bump: 20, alpha: 100,
-      light: '#bbbbbb', dark: '#444444' 
-    },
-    { 
-      id: 'c-beige', name: 'Beige Satin', hex: '#d7c4b7', color: '#d7c4b7',
-      normal: 30, roughness: 65, metallic: 10, ao: 95, bump: 15, alpha: 100,
-      light: '#f0e6df', dark: '#a89487' 
-    },
-    { 
-      id: 'c-brown', name: 'Brown Leather', hex: '#653818', color: '#653818',
-      normal: 75, roughness: 70, metallic: 15, ao: 85, bump: 50, alpha: 100,
-      light: '#995d31', dark: '#3b1d08' 
-    },
-    { 
-      id: 'c-red', name: 'Red Coral', hex: '#ec5137', color: '#ec5137',
-      normal: 50, roughness: 50, metallic: 50, ao: 50, bump: 50, alpha: 100,
-      light: '#ff7a63', dark: '#b02a14' 
-    },
-    { 
-      id: 'c-orange', name: 'Orange Amber', hex: '#fb8c00', color: '#fb8c00',
-      normal: 25, roughness: 25, metallic: 20, ao: 95, bump: 10, alpha: 100,
-      light: '#ffad42', dark: '#bb4d00' 
-    },
-    { 
-      id: 'c-yellow', name: 'Yellow Neon', hex: '#fdd835', color: '#fdd835',
-      normal: 10, roughness: 20, metallic: 10, ao: 100, bump: 5, alpha: 100,
-      light: '#fff263', dark: '#c49000' 
-    },
-    { 
-      id: 'c-green', name: 'Green Emerald', hex: '#43a047', color: '#43a047',
-      normal: 40, roughness: 30, metallic: 75, ao: 90, bump: 25, alpha: 100,
-      light: '#6abf69', dark: '#00600f' 
-    },
-    { 
-      id: 'c-blue', name: 'Blue Metallic', hex: '#1e88e5', color: '#1e88e5',
-      normal: 35, roughness: 25, metallic: 80, ao: 95, bump: 15, alpha: 100,
-      light: '#63a4ff', dark: '#004ba0' 
-    },
-    { 
-      id: 'c-navy', name: 'Navy Steel', hex: '#0d1b2a', color: '#0d1b2a',
-      normal: 50, roughness: 28, metallic: 88, ao: 100, bump: 30, alpha: 100,
-      light: '#2c3e50', dark: '#04080e' 
-    },
-    { 
-      id: 'c-purple', name: 'Purple Velvet', hex: '#8e24aa', color: '#8e24aa',
-      normal: 70, roughness: 80, metallic: 10, ao: 85, bump: 55, alpha: 100,
-      light: '#ae52d4', dark: '#4a0072' 
-    },
-    { 
-      id: 'c-gold', name: 'Gold Polished', hex: '#d4af37', color: '#d4af37',
-      normal: 10, roughness: 8, metallic: 96, ao: 100, bump: 5, alpha: 100,
-      light: '#ffe082', dark: '#997a15' 
-    },
-    { 
-      id: 'c-bronze', name: 'Bronze Vintage', hex: '#cd7f32', color: '#cd7f32',
-      normal: 65, roughness: 38, metallic: 88, ao: 90, bump: 40, alpha: 100,
-      light: '#ffa500', dark: '#8b4513' 
-    }
+  // Predefined categories from the reference UI
+  const predefinedCategoryList = useMemo(() => [
+    "All", "Metal", "Rock", "Floor", "Wall", "Glass", "Plastic", 
+    "Wood", "Cloth", "Rubber", "Paper", "Fiber", "Skin", "X-Ray"
   ], []);
 
+  // Set default category when activeTab changes
+  useEffect(() => {
+    if (activeTab === "predefined") {
+      setSelectedCategory("All");
+    } else {
+      if (fetchedCategories.length > 0) {
+        setSelectedCategory(fetchedCategories[0].name);
+      } else {
+        setSelectedCategory("");
+      }
+    }
+  }, [activeTab, fetchedCategories]);
+
+  // Smooth Hardware-Accelerated Dragging
+  const handleMouseDownHeader = (e) => {
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    
+    isDraggingRef.current = true;
+    startMouseRef.current = { x: e.clientX, y: e.clientY };
+    startPosRef.current = { x: posRef.current.x, y: posRef.current.y };
+    
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current) return;
+
+      const deltaX = e.clientX - startMouseRef.current.x;
+      const deltaY = e.clientY - startMouseRef.current.y;
+      
+      posRef.current = {
+        x: startPosRef.current.x + deltaX,
+        y: startPosRef.current.y + deltaY
+      };
+
+      if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
+      
+      rAFRef.current = requestAnimationFrame(() => {
+        if (modalRef.current) {
+          modalRef.current.style.transform = `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)`;
+        }
+      });
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("mouseup", handleMouseUp);
+
+    const handleClickOutsideFolderMenu = (e) => {
+      if (!e.target.closest('.folder-menu-container') && !e.target.closest('.folder-menu-btn')) {
+        setActiveFolderMenuId(null);
+      }
+    };
+    window.addEventListener("mousedown", handleClickOutsideFolderMenu);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousedown", handleClickOutsideFolderMenu);
+      if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, []);
+
+  const getUserEmail = () => {
+    try {
+      const stored = localStorage.getItem("user") || localStorage.getItem("user_profile");
+      const u = stored ? JSON.parse(stored) : null;
+      return u?.emailId || u?.email || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  // Fetch uploaded textures
   const fetchUploadedTextures = useCallback(async () => {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user?.emailId) return;
+    const email = getUserEmail();
+    if (!email) return;
 
     try {
-      const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/textures/get?email=${user.emailId}`);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const response = await axios.get(`${backendUrl}/api/textures/get?email=${email}`);
       if (response.data.textures) {
-        const mapped = response.data.textures.map(t => ({
-          id: t._id,
-          name: t.materialName,
-          category: typeof t.materialCategory === 'object' ? t.materialCategory?.name : (t.materialCategory || "Custom"),
-          thumb: t.maps.preview || t.maps.base,
-          maps: t.maps,
-          isUploaded: true
-        }));
+        const mapped = response.data.textures.map(t => {
+          const firstAvailableMap = t.maps ? Object.values(t.maps).find(url => Boolean(url)) : null;
+          const previewUrl = t.maps?.preview || t.maps?.base || firstAvailableMap;
+          return {
+            id: t._id,
+            name: t.materialName,
+            category: typeof t.materialCategory === 'object' ? t.materialCategory?.name : (t.materialCategory || "Texture 1"),
+            thumb: previewUrl,
+            preview: previewUrl,
+            maps: t.maps || {},
+            isUploaded: true
+          };
+        });
         setUploadedTextures(mapped);
       }
     } catch (error) {
@@ -124,286 +158,656 @@ export default function MaterialSelectorDrawer({
     }
   }, []);
 
+  // Fetch user categories / folders
   const fetchCategories = useCallback(async () => {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user?.emailId) return;
+    const email = getUserEmail();
+    if (!email) return;
 
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${user.emailId}`);
+      const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${email}`);
       if (response.data.categories) {
         setFetchedCategories(response.data.categories);
+        if (response.data.categories.length > 0 && activeTab === "uploaded") {
+          setSelectedCategory(prev => {
+            const exists = response.data.categories.some(c => c.name.toLowerCase() === prev.toLowerCase());
+            return exists ? prev : response.data.categories[0].name;
+          });
+        }
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
-    if (isOpen && (activeTab === "uploaded" || refreshTrigger)) {
+    if (isOpen) {
       fetchUploadedTextures();
       fetchCategories();
     }
-  }, [isOpen, activeTab, fetchUploadedTextures, fetchCategories, refreshTrigger]);
+  }, [isOpen, fetchUploadedTextures, fetchCategories, refreshTrigger]);
 
-  const currentTextures = activeTab === "predefined" ? predefinedTextures : uploadedTextures;
-
-  const categories = useMemo(() => {
-    const counts = {};
-    currentTextures.forEach(t => {
-      const cat = t.category || "General";
-      counts[cat] = (counts[cat] || 0) + 1;
-    });
-
-    const allCategoryNames = new Set();
-    if (activeTab === "uploaded") {
-      fetchedCategories.forEach(c => allCategoryNames.add(c.name));
+  // Handle Add Folder creation
+  const handleCreateFolder = async (e) => {
+    e?.preventDefault();
+    const folderName = newFolderName.trim();
+    if (!folderName) {
+      setIsAddingFolder(false);
+      return;
     }
-    Object.keys(counts).forEach(name => allCategoryNames.add(name));
 
-    const realTextureCount = currentTextures.filter(t => t.id !== "none").length;
-    const finalObj = { All: realTextureCount };
-    Array.from(allCategoryNames).sort().forEach(name => {
-      if (name !== "All") {
-        finalObj[name] = counts[name] || 0;
+    const email = getUserEmail();
+    if (!email) return;
+
+    try {
+      setIsCreatingFolder(true);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      await axios.post(`${backendUrl}/api/textures/categories/add`, {
+        name: folderName,
+        userEmail: email
+      });
+      setNewFolderName("");
+      setIsAddingFolder(false);
+      await fetchCategories();
+      setSelectedCategory(folderName);
+    } catch (err) {
+      console.error("Error creating folder:", err);
+      setFetchedCategories(prev => [...prev, { name: folderName, _id: 'local_' + Date.now() }]);
+      setSelectedCategory(folderName);
+      setNewFolderName("");
+      setIsAddingFolder(false);
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
+  // Handle Rename Folder
+  const handleRenameFolder = async (folderId, newName) => {
+    const cleanName = (newName || "").trim();
+    if (!cleanName || !folderId) {
+      setEditingFolderId(null);
+      setEditingFolderName("");
+      return;
+    }
+
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      await axios.put(`${backendUrl}/api/textures/categories/rename/${folderId}`, {
+        name: cleanName
+      });
+      setEditingFolderId(null);
+      setEditingFolderName("");
+      await fetchCategories();
+      await fetchUploadedTextures();
+      setSelectedCategory(cleanName);
+    } catch (err) {
+      console.error("Error renaming folder:", err);
+      setEditingFolderId(null);
+    }
+  };
+
+  // Handle Delete Folder
+  const handleDeleteFolder = async () => {
+    if (!deletingFolder) return;
+    setIsDeletingFolder(true);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      await axios.delete(`${backendUrl}/api/textures/categories/delete/${deletingFolder._id}`);
+      setDeletingFolder(null);
+      await fetchCategories();
+      await fetchUploadedTextures();
+      setSelectedCategory(prev => {
+        const remaining = fetchedCategories.filter(c => c._id !== deletingFolder._id);
+        return remaining.length > 0 ? remaining[0].name : "";
+      });
+    } catch (err) {
+      console.error("Error deleting folder:", err);
+    } finally {
+      setIsDeletingFolder(false);
+    }
+  };
+
+  // Uploaded category folder list (only real backend categories)
+  const uploadedCategoryList = useMemo(() => {
+    return fetchedCategories.map(c => c.name);
+  }, [fetchedCategories]);
+
+  // Map category aliases to textureData categories
+  const categoryAliasMap = useMemo(() => ({
+    "metal": ["metal", "metallic", "iron", "copper", "bronze", "silver", "gold", "steel"],
+    "rock": ["rock", "stone", "concrete", "marble", "granite"],
+    "floor": ["floor", "tiles", "brick", "paving", "ground"],
+    "wall": ["wall", "plaster", "concrete", "paint"],
+    "glass": ["glass", "transparent", "crystal"],
+    "plastic": ["plastic", "synthetic", "pvc", "acrylic"],
+    "wood": ["wood", "bark", "plank", "timber"],
+    "cloth": ["cloth", "fabric", "textile", "cotton", "linen", "leather"],
+    "rubber": ["rubber", "tire", "latex", "silicone"],
+    "paper": ["paper", "cardboard"],
+    "fiber": ["fiber", "carbon", "cloth", "fabric"],
+    "skin": ["skin", "organic", "flesh", "leather"],
+    "x-ray": ["xray", "x-ray", "transparent", "glass"]
+  }), []);
+
+  // Dedicated X-Ray Material Preset Definition
+  const xrayMaterialPreset = useMemo(() => ({
+    id: "mat_xray_preset",
+    name: "X-Ray",
+    category: "X-Ray",
+    isXray: true,
+    isPredefinedPreset: true,
+    presetType: "xray",
+    color: "#5ec4e0",
+    emissiveColor: "#3a8fb0",
+    emissiveIntensity: 100,
+    roughness: 42,
+    metallic: 0,
+    alpha: 42,
+    transparent: true,
+    preview: null,
+    maps: {}
+  }), []);
+
+  // Material list builder
+  const activeMaterialsList = useMemo(() => {
+    if (activeTab === "predefined") {
+      const lowerCat = selectedCategory.toLowerCase();
+
+      // Dedicated X-Ray Category -> Return ONLY the single X-Ray material
+      if (lowerCat === "x-ray" || lowerCat === "xray") {
+        return [xrayMaterialPreset];
       }
-    });
 
-    return finalObj;
-  }, [currentTextures, fetchedCategories, activeTab]);
+      // "All" Category -> Return all textureData + X-Ray preset
+      if (lowerCat === "all") {
+        const nonNoneTextures = textureData.filter(t => t.id !== "none");
+        return [...nonNoneTextures, xrayMaterialPreset];
+      }
 
-  const filteredTextures = useMemo(() => {
-    let list = currentTextures.filter(t => t.id !== "none");
-    if (selectedCategory !== "All") {
-      list = list.filter(t => (t.category || "General").toLowerCase() === selectedCategory.toLowerCase());
+      const matchingAliases = categoryAliasMap[lowerCat] || [lowerCat];
+      
+      let found = textureData.filter(t => {
+        if (t.id === "none") return false;
+        const itemCat = (t.category || "").toLowerCase();
+        const itemName = (t.name || "").toLowerCase();
+        return matchingAliases.some(alias => itemCat.includes(alias) || itemName.includes(alias));
+      });
+
+      if (found.length < 8) {
+        const standardNames = ["Sliver", "Iron", "Copper", "Bronze", "Steel", "Chrome", "Titanium", "Gold", "Brass", "Nickel", "Cobalt", "Platinum"];
+        const placeholderCards = standardNames.slice(0, 12).map((matName, idx) => ({
+          id: `pred_${lowerCat}_${idx}`,
+          name: matName,
+          category: selectedCategory,
+          preview: null,
+          isPredefinedPreset: true,
+          presetType: matName.toLowerCase(),
+          maps: {}
+        }));
+        
+        if (found.length > 0) {
+          return found;
+        }
+        return placeholderCards;
+      }
+      return found;
+    } else {
+      const userList = uploadedTextures.filter(t => {
+        const tCat = (t.category || "").toLowerCase();
+        return tCat === selectedCategory.toLowerCase();
+      });
+      return userList;
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(t => (t.name || "").toLowerCase().includes(q));
-    }
-    return list;
-  }, [currentTextures, selectedCategory, searchQuery]);
+  }, [activeTab, selectedCategory, uploadedTextures, categoryAliasMap, xrayMaterialPreset]);
 
-  const filteredColors = useMemo(() => {
-    if (!searchQuery.trim()) return colorMaterials;
+  // Filtered by Search Query
+  const displayedMaterials = useMemo(() => {
+    if (!searchQuery.trim()) return activeMaterialsList;
     const q = searchQuery.toLowerCase();
-    return colorMaterials.filter(c => c.name.toLowerCase().includes(q) || c.hex.toLowerCase().includes(q));
-  }, [colorMaterials, searchQuery]);
+    return activeMaterialsList.filter(m => (m.name || "").toLowerCase().includes(q));
+  }, [activeMaterialsList, searchQuery]);
+
+  // Sphere preview styling generator
+  const getSphereGradient = (name = "", presetType = "") => {
+    const n = (name + " " + presetType).toLowerCase();
+    if (n.includes("x-ray") || n.includes("xray")) {
+      return "radial-gradient(circle at 35% 30%, #e0f7fa 0%, #00e5ff 40%, #0052cc 80%, #001033 100%)";
+    }
+    if (n.includes("sliver") || n.includes("silver") || n.includes("chrome") || n.includes("platinum")) {
+      return "radial-gradient(circle at 30% 28%, #ffffff 0%, #d4d4d8 25%, #71717a 65%, #18181b 100%)";
+    }
+    if (n.includes("iron") || n.includes("steel") || n.includes("titanium") || n.includes("black")) {
+      return "radial-gradient(circle at 32% 30%, #71717a 0%, #3f3f46 35%, #18181b 75%, #09090b 100%)";
+    }
+    if (n.includes("copper") || n.includes("amber") || n.includes("orange")) {
+      return "radial-gradient(circle at 30% 28%, #fca5a5 0%, #991b1b 30%, #450a0a 75%, #1c0505 100%)";
+    }
+    if (n.includes("bronze") || n.includes("brass") || n.includes("gold")) {
+      return "radial-gradient(circle at 30% 28%, #d97706 0%, #78350f 35%, #451a03 75%, #1e0b02 100%)";
+    }
+    return "radial-gradient(circle at 30% 28%, #e4e4e7 0%, #71717a 40%, #27272a 80%, #09090b 100%)";
+  };
+
+  const handleDragStart = (e, item) => {
+    e.dataTransfer.setData("application/json", JSON.stringify(item));
+    e.dataTransfer.effectAllowed = "copy";
+  };
 
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="absolute top-0 left-[15.5vw] min-w-[280px] max-w-[320px] w-[20vw] h-full bg-white z-40 border-r border-gray-200 shadow-2xl flex flex-col select-none font-sans animate-in slide-in-from-left duration-200"
-      style={{ left: "max(15.5vw, 210px)" }}
-    >
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between px-[1vw] py-[0.75vw] border-b border-gray-200 bg-white shrink-0">
-        <div className="flex items-center gap-[0.5vw]">
-          <div className="w-[1.8vw] h-[1.8vw] rounded-[0.4vw] bg-[#ea543a]/10 text-[#ea543a] flex items-center justify-center">
-            <Icon icon="icon-park-outline:material-two" className="w-[1.05vw] h-[1.05vw]" />
-          </div>
-          <h3 className="text-[0.85vw] font-bold text-gray-900">Material Library</h3>
-        </div>
-        <button
-          onClick={onClose}
-          className="w-[1.6vw] h-[1.6vw] rounded-[0.35vw] flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+    <>
+      <div 
+        ref={modalRef}
+        className="absolute w-[30.8vw] min-w-[415px] max-w-[495px] max-h-[52vh] bg-white rounded-[1.1vw] shadow-[0_12px_40px_rgba(0,0,0,0.14)] border border-gray-100 z-50 flex flex-col overflow-hidden font-sans select-none will-change-transform animate-in fade-in zoom-in-95 duration-150"
+        style={{ 
+          right: "max(24vw, 320px)",
+          top: "6.5vw",
+          transform: `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)`
+        }}
+      >
+        {/* Top Drag Handle Indicator & Header Area (Draggable) */}
+        <div 
+          onMouseDown={handleMouseDownHeader}
+          className="cursor-grab active:cursor-grabbing select-none bg-white hover:bg-gray-50/50 transition-colors"
         >
-          <Icon icon="ic:round-close" className="w-[1.1vw] h-[1.1vw]" />
-        </button>
-      </div>
+          <div className="w-full flex justify-center pt-[0.2vw] pb-0 shrink-0">
+            <Icon 
+              icon="material-symbols-light:drag-handle" 
+              className="w-[1.5vw] h-[1.1vw] text-gray-400 hover:text-gray-600 transition-colors pointer-events-none" 
+            />
+          </div>
 
-      {/* ── Mode Switcher (Texture vs Color) ── */}
-      <div className="px-[1vw] pt-[0.8vw] pb-[0.4vw] flex flex-col gap-[0.6vw] bg-gray-50/60 border-b border-gray-100 shrink-0">
-        <div className="grid grid-cols-2 bg-gray-200/70 p-[0.2vw] rounded-[0.5vw] text-[0.72vw]">
-          <button
-            onClick={() => setMainTab("texture")}
-            className={`py-[0.35vw] text-center font-bold rounded-[0.4vw] transition-all cursor-pointer ${
-              mainTab === "texture"
-                ? "bg-white text-[#ea543a] shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Texture Material
-          </button>
-          <button
-            onClick={() => setMainTab("color")}
-            className={`py-[0.35vw] text-center font-bold rounded-[0.4vw] transition-all cursor-pointer ${
-              mainTab === "color"
-                ? "bg-white text-[#ea543a] shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Color Material
-          </button>
+          {/* Header */}
+          <div className="px-[1.1vw] pt-[0.1vw] pb-[0.45vw] flex items-start justify-between shrink-0">
+            <div className="flex flex-col pointer-events-none">
+              <h2 className="text-[0.95vw] font-bold text-gray-900 tracking-tight leading-none">
+                Materials
+              </h2>
+              <p className="text-[0.62vw] text-gray-400 font-normal mt-[0.2vw]">
+                Drag and Drop Material to your Model
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-700 p-[0.2vw] rounded-full hover:bg-gray-100 transition-colors cursor-pointer pointer-events-auto"
+              aria-label="Close"
+            >
+              <Icon icon="ic:round-close" className="w-[0.95vw] h-[0.95vw]" />
+            </button>
+          </div>
         </div>
 
-        {/* Texture source switch: Predefined vs Uploaded */}
-        {mainTab === "texture" && (
-          <div className="flex items-center gap-[0.4vw]">
+        {/* Tabs: Predefined Materials | Uploaded Materials */}
+        <div className="px-[1.1vw] border-b border-gray-200/80 shrink-0">
+          <div className="flex items-center">
             <button
               onClick={() => setActiveTab("predefined")}
-              className={`flex-1 py-[0.25vw] text-[0.68vw] font-semibold rounded-[0.35vw] border transition-colors cursor-pointer ${
+              className={`relative flex-1 py-[0.45vw] text-center text-[0.72vw] font-medium transition-colors cursor-pointer ${
                 activeTab === "predefined"
-                  ? "bg-[#ea543a] text-white border-[#ea543a]"
-                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                  ? "text-[#ea543a] font-semibold"
+                  : "text-gray-500 hover:text-gray-800"
               }`}
             >
-              Default Library
+              Predefined Materials
+              {activeTab === "predefined" && (
+                <span className="absolute bottom-0 left-0 right-0 h-[0.14vw] bg-[#ea543a] rounded-t-full" />
+              )}
             </button>
+
             <button
               onClick={() => setActiveTab("uploaded")}
-              className={`flex-1 py-[0.25vw] text-[0.68vw] font-semibold rounded-[0.35vw] border transition-colors cursor-pointer ${
+              className={`relative flex-1 py-[0.45vw] text-center text-[0.72vw] font-medium transition-colors cursor-pointer ${
                 activeTab === "uploaded"
-                  ? "bg-[#ea543a] text-white border-[#ea543a]"
-                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                  ? "text-[#ea543a] font-semibold"
+                  : "text-gray-500 hover:text-gray-800"
               }`}
             >
-              My Uploads
+              Uploaded Materials
+              {activeTab === "uploaded" && (
+                <span className="absolute bottom-0 left-0 right-0 h-[0.14vw] bg-[#ea543a] rounded-t-full" />
+              )}
             </button>
           </div>
-        )}
-
-        {/* Search Box */}
-        <div className="relative">
-          <Icon icon="solar:magnifer-linear" className="absolute left-[0.6vw] top-1/2 -translate-y-1/2 w-[0.85vw] h-[0.85vw] text-gray-400" />
-          <input
-            type="text"
-            placeholder={mainTab === "texture" ? "Search textures..." : "Search colors..."}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-[1.8vw] pr-[0.8vw] py-[0.35vw] bg-white border border-gray-200 rounded-[0.45vw] text-[0.72vw] text-gray-800 placeholder-gray-400 outline-none focus:border-[#ea543a]"
-          />
         </div>
-      </div>
 
-      {/* ── Category Filter Pills (Textures only) ── */}
-      {mainTab === "texture" && (
-        <div className="flex items-center gap-[0.3vw] px-[1vw] py-[0.5vw] overflow-x-auto border-b border-gray-100 shrink-0 custom-scrollbar">
-          {Object.keys(categories).map((catName) => {
-            const isSel = selectedCategory.toLowerCase() === catName.toLowerCase();
-            return (
-              <button
-                key={catName}
-                onClick={() => setSelectedCategory(catName)}
-                className={`px-[0.6vw] py-[0.18vw] rounded-full text-[0.65vw] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                  isSel
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {catName} ({categories[catName]})
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Materials Grid ── */}
-      <div className="flex-1 overflow-y-auto p-[1vw] custom-scrollbar">
-        {mainTab === "color" ? (
-          <div className="grid grid-cols-3 gap-[0.75vw]">
-            {filteredColors.map((col) => {
-              const activeColorVal = selectedColorState || selectedColor;
-              const isSelected = activeColorVal && activeColorVal.toLowerCase() === col.hex.toLowerCase();
-              const isMetallic = col.metallic >= 70;
-              const isRough = col.roughness >= 70;
-
-              const sphereBg = isMetallic
-                ? `radial-gradient(circle at 28% 22%, #ffffff 0%, ${col.light} 28%, ${col.hex} 60%, ${col.dark} 100%)`
-                : isRough
-                ? `radial-gradient(circle at 45% 45%, ${col.light} 0%, ${col.hex} 70%, ${col.dark} 100%)`
-                : `radial-gradient(circle at 35% 30%, ${col.light}, ${col.hex} 55%, ${col.dark} 100%)`;
-
-              return (
-                <div
-                  key={col.id}
-                  onClick={() => {
-                    setSelectedColorState(col.hex);
-                    onSelectColor && onSelectColor(col);
-                  }}
-                  className={`flex flex-col items-center gap-[0.3vw] p-[0.4vw] rounded-[0.6vw] border transition-all cursor-pointer group ${
-                    isSelected
-                      ? "border-[#ea543a] bg-[#ea543a]/5 shadow-sm"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/80"
-                  }`}
-                >
-                  <div
-                    className="w-[3.6vw] h-[3.6vw] rounded-full shadow-md transition-transform group-hover:scale-105"
-                    style={{ background: sphereBg }}
-                  />
-                  <span className={`text-[0.65vw] font-semibold text-center w-full truncate ${
-                    isSelected ? "text-[#ea543a]" : "text-gray-700"
-                  }`}>
-                    {col.name}
-                  </span>
-                </div>
-              );
-            })}
+        {/* Search Bar */}
+        <div className="px-[1.1vw] pt-[0.6vw] pb-[0.5vw] shrink-0">
+          <div className="relative flex items-center">
+            <Icon 
+              icon="solar:magnifer-linear" 
+              className="absolute left-[0.65vw] w-[0.8vw] h-[0.8vw] text-gray-400 pointer-events-none" 
+            />
+            <input
+              type="text"
+              placeholder="Search Material..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-[1.8vw] pr-[0.8vw] py-[0.38vw] bg-gray-50/80 border border-gray-200/90 rounded-[0.45vw] text-[0.68vw] text-gray-800 placeholder-gray-400 outline-none focus:border-[#ea543a] focus:bg-white transition-all"
+            />
           </div>
-        ) : (
-          <>
-            {filteredTextures.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full py-[3vw] text-gray-400 gap-[0.4vw]">
-                <Icon icon="solar:box-minimalistic-linear" className="w-[2vw] h-[2vw] opacity-40" />
-                <span className="text-[0.75vw] font-medium">No materials found</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-[0.75vw]">
-                {filteredTextures.map((item) => {
-                  const isSelected = selectedTextureId === item.id;
-                  const imageSrc = resolveUploadsPath(item.preview || item.thumb);
+        </div>
 
+        {/* Main Content Area: Left Sidebar (Categories) + Right Grid (Materials) */}
+        <div 
+          className="flex-1 min-h-[220px] max-h-[38vh] h-[36vh] flex overflow-hidden border-t border-gray-100"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {/* Left Vertical Categories Column */}
+          <div 
+            className="w-[6.8vw] min-w-[90px] max-w-[110px] h-auto max-h-[35vh] overflow-y-auto overflow-x-hidden overscroll-contain border-r border-gray-100 py-[0.3vw] flex flex-col shrink-0 custom-scrollbar"
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-[0.15vw] flex-1">
+              {activeTab === "predefined" ? (
+                predefinedCategoryList.map((catName) => {
+                  const isSelected = selectedCategory.toLowerCase() === catName.toLowerCase();
                   return (
-                    <div
-                      key={item.id}
-                      onClick={() => onSelectTexture && onSelectTexture(item)}
-                      className={`flex flex-col items-center gap-[0.3vw] p-[0.4vw] rounded-[0.6vw] border transition-all cursor-pointer group ${
-                        isSelected
-                          ? "border-[#ea543a] bg-[#ea543a]/5 shadow-sm"
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/80"
-                      }`}
-                    >
-                      <div className="w-[3.6vw] h-[3.6vw] rounded-full overflow-hidden shadow-md bg-gray-200 transition-transform group-hover:scale-105">
-                        {imageSrc ? (
-                          <img
-                            src={imageSrc}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-tr from-gray-700 via-gray-400 to-gray-200" />
-                        )}
-                      </div>
-                      <span className={`text-[0.65vw] font-semibold text-center w-full truncate ${
-                        isSelected ? "text-[#ea543a]" : "text-gray-700"
-                      }`}>
-                        {item.name}
-                      </span>
+                    <div key={catName} className="relative px-[0.45vw]">
+                      <button
+                        onClick={() => setSelectedCategory(catName)}
+                        className={`w-full text-left px-[0.6vw] py-[0.36vw] rounded-[0.35vw] text-[0.7vw] font-medium transition-all cursor-pointer truncate ${
+                          isSelected
+                            ? "bg-[#fff1ed] text-[#ea543a] font-semibold border-l-[0.18vw] border-[#ea543a]"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
+                      >
+                        {catName}
+                      </button>
                     </div>
                   );
-                })}
+                })
+              ) : (
+                fetchedCategories.map((cat) => {
+                  const isSelected = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+                  const isEditing = editingFolderId === cat._id;
+                  const isMenuOpen = activeFolderMenuId === cat._id;
+
+                  return (
+                    <div key={cat._id || cat.name} className="relative px-[0.45vw] group/folder">
+                      {isEditing ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleRenameFolder(cat._id, editingFolderName);
+                          }}
+                          className="flex items-center gap-[0.15vw] py-[0.2vw]"
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingFolderName}
+                            onChange={(e) => setEditingFolderName(e.target.value)}
+                            className="w-full px-[0.3vw] py-[0.2vw] text-[0.65vw] border border-[#ea543a] rounded-[0.2vw] outline-none"
+                          />
+                          <button
+                            type="submit"
+                            className="p-[0.15vw] text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                            title="Save"
+                          >
+                            <Icon icon="solar:check-read-linear" className="w-[0.75vw] h-[0.75vw]" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingFolderId(null);
+                              setEditingFolderName("");
+                            }}
+                            className="p-[0.15vw] text-gray-400 hover:text-gray-600 cursor-pointer"
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="relative flex items-center">
+                          <button
+                            onClick={() => setSelectedCategory(cat.name)}
+                            className={`w-full text-left pl-[0.6vw] pr-[1.4vw] py-[0.36vw] rounded-[0.35vw] text-[0.7vw] font-medium transition-all cursor-pointer truncate ${
+                              isSelected
+                                ? "bg-[#fff1ed] text-[#ea543a] font-semibold border-l-[0.18vw] border-[#ea543a]"
+                                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            }`}
+                            title={cat.name}
+                          >
+                            {cat.name}
+                          </button>
+
+                          {/* 3-dots folder options menu button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveFolderMenuId(isMenuOpen ? null : cat._id);
+                            }}
+                            className={`folder-menu-btn absolute right-[0.2vw] p-[0.15vw] rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 cursor-pointer transition-opacity ${
+                              isMenuOpen ? "opacity-100" : "opacity-0 group-hover/folder:opacity-100"
+                            }`}
+                            title="Folder options"
+                          >
+                            <Icon icon="solar:menu-dots-bold" className="w-[0.65vw] h-[0.65vw]" />
+                          </button>
+
+                          {/* Options dropdown - positioned inside sidebar bounds */}
+                          {isMenuOpen && (
+                            <div className="folder-menu-container absolute right-[0.2vw] top-full mt-[0.15vw] z-50 bg-white border border-gray-200/90 rounded-[0.4vw] shadow-[0_4px_16px_rgba(0,0,0,0.15)] py-[0.2vw] w-[5.2vw] min-w-[70px] animate-in fade-in zoom-in-95 duration-100">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveFolderMenuId(null);
+                                  setEditingFolderId(cat._id);
+                                  setEditingFolderName(cat.name);
+                                }}
+                                className="w-full text-left px-[0.45vw] py-[0.28vw] text-[0.6vw] text-gray-700 hover:bg-gray-50 flex items-center gap-[0.3vw] cursor-pointer"
+                              >
+                                <Icon icon="solar:pen-linear" className="w-[0.68vw] h-[0.68vw] text-gray-500" />
+                                <span>Rename</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveFolderMenuId(null);
+                                  setDeletingFolder(cat);
+                                }}
+                                className="w-full text-left px-[0.45vw] py-[0.28vw] text-[0.6vw] text-red-600 hover:bg-red-50 flex items-center gap-[0.3vw] cursor-pointer"
+                              >
+                                <Icon icon="solar:trash-bin-trash-linear" className="w-[0.68vw] h-[0.68vw] text-red-500" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+              {activeTab === "uploaded" && fetchedCategories.length === 0 && (
+                <div className="px-[0.5vw] py-[1vw] text-center text-[0.58vw] text-gray-400">
+                  No folders yet. Click + Add Folder below.
+                </div>
+              )}
+            </div>
+
+            {/* Add Folder Button in Uploaded Materials Tab */}
+            {activeTab === "uploaded" && (
+              <div className="p-[0.35vw] pt-[0.5vw] border-t border-gray-100 mt-auto shrink-0">
+                {isAddingFolder ? (
+                  <form onSubmit={handleCreateFolder} className="flex flex-col gap-[0.2vw]">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Folder Name"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      className="w-full px-[0.3vw] py-[0.18vw] text-[0.6vw] border border-[#ea543a] rounded-[0.2vw] outline-none"
+                      disabled={isCreatingFolder}
+                    />
+                    <div className="flex items-center gap-[0.15vw]">
+                      <button
+                        type="submit"
+                        disabled={isCreatingFolder}
+                        className="flex-1 py-[0.15vw] bg-[#ea543a] text-white text-[0.58vw] rounded-[0.2vw] font-bold cursor-pointer"
+                      >
+                        {isCreatingFolder ? "Adding..." : "Add"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingFolder(false);
+                          setNewFolderName("");
+                        }}
+                        className="px-[0.2vw] py-[0.15vw] text-gray-500 hover:text-gray-800 text-[0.58vw] cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingFolder(true)}
+                    className="w-full flex items-center gap-[0.2vw] px-[0.35vw] py-[0.3vw] text-[#ea543a] hover:bg-[#fff1ed] rounded-[0.3vw] text-[0.62vw] font-semibold transition-colors cursor-pointer"
+                  >
+                    <Icon icon="ic:round-plus" className="w-[0.75vw] h-[0.75vw]" />
+                    <span>Add Folder</span>
+                  </button>
+                )}
               </div>
             )}
-          </>
-        )}
+          </div>
+
+          {/* Right Materials Grid (4 Columns) */}
+          <div 
+            className="flex-1 h-auto max-h-[35vh] min-w-0 overflow-y-auto overscroll-contain px-[0.7vw] py-[0.5vw] custom-scrollbar"
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <div className="grid grid-cols-4 gap-x-[0.45vw] gap-y-[0.55vw]">
+              {/* First Item: Upload Button Box in Uploaded Materials */}
+              {activeTab === "uploaded" && (
+                <div
+                  onClick={() => {
+                    if (onOpenAddMaterial) onOpenAddMaterial(selectedCategory);
+                    else setShowInternalAddMaterial(true);
+                  }}
+                  className="flex flex-col items-center gap-[0.25vw] group cursor-pointer"
+                >
+                  <div className="w-[3.3vw] h-[3.3vw] min-w-[42px] min-h-[42px] rounded-[0.6vw] border-[0.1vw] border-dashed border-gray-300 hover:border-[#ea543a] bg-gray-50 hover:bg-[#fff1ed]/40 flex items-center justify-center transition-all group-hover:scale-105 shadow-2xs">
+                    <Icon 
+                      icon="solar:upload-linear" 
+                      className="w-[1.05vw] h-[1.05vw] min-w-[15px] min-h-[15px] text-gray-400 group-hover:text-[#ea543a] transition-colors" 
+                    />
+                  </div>
+                  <span className="text-[0.58vw] font-medium text-gray-600 group-hover:text-[#ea543a] text-center truncate w-full px-[0.1vw]">
+                    Upload
+                  </span>
+                </div>
+              )}
+
+              {/* Material Cards */}
+              {displayedMaterials.map((item) => {
+                const isSelected = selectedTextureId === item.id;
+                const imageSrc = item.preview ? resolveUploadsPath(item.preview) : (item.thumb ? resolveUploadsPath(item.thumb) : null);
+                const sphereGradient = getSphereGradient(item.name, item.presetType);
+
+                return (
+                  <div
+                    key={item.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, item)}
+                    onClick={() => onSelectTexture && onSelectTexture(item)}
+                    className="flex flex-col items-center gap-[0.25vw] group cursor-pointer"
+                  >
+                    <div 
+                      className={`w-[3.3vw] h-[3.3vw] min-w-[42px] min-h-[42px] rounded-[0.6vw] overflow-hidden bg-gray-100 border border-gray-200/60 flex items-center justify-center transition-all group-hover:scale-105 relative ${
+                        isSelected 
+                          ? "ring-[0.14vw] ring-[#ea543a] ring-offset-1 border-[#ea543a]" 
+                          : "hover:border-gray-300 hover:shadow-xs"
+                      }`}
+                    >
+                      {imageSrc ? (
+                        <img
+                          src={imageSrc}
+                          alt={item.name}
+                          className="w-full h-full object-cover p-[0.1vw]"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div 
+                          className="w-full h-full rounded-[0.5vw]" 
+                          style={{ background: sphereGradient }}
+                        />
+                      )}
+                    </div>
+                    <span 
+                      title={item.name}
+                      className={`text-[0.58vw] font-medium text-center w-full truncate px-[0.1vw] transition-colors ${
+                        isSelected ? "text-[#ea543a] font-semibold" : "text-gray-700 group-hover:text-gray-900"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {displayedMaterials.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full py-[2vw] text-gray-400 gap-[0.3vw]">
+                <Icon icon="solar:box-minimalistic-linear" className="w-[1.8vw] h-[1.8vw] opacity-40" />
+                <span className="text-[0.65vw] font-medium">No materials in this category</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <style>{`
+          .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+          }
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+          }
+        `}</style>
       </div>
 
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 0.25vw;
-          height: 0.25vw;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e2e8f0;
-          border-radius: 9999px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-      `}</style>
-    </div>
+      {showInternalAddMaterial && (
+        <AddMaterial
+          isOpen={showInternalAddMaterial}
+          initialCategory={selectedCategory}
+          onClose={() => setShowInternalAddMaterial(false)}
+          onUpdateSuccess={() => {
+            fetchUploadedTextures();
+            fetchCategories();
+          }}
+        />
+      )}
+
+      {/* Delete Folder Confirmation Alert */}
+      {deletingFolder && (
+        <AlertModal
+          isOpen={!!deletingFolder}
+          type="error"
+          title="Delete Folder?"
+          message={`Are you sure you want to delete the folder "${deletingFolder.name}" and all materials inside it? This action cannot be undone.`}
+          confirmText="Delete Folder"
+          cancelText="Cancel"
+          showCancel={true}
+          onConfirm={handleDeleteFolder}
+          onClose={() => setDeletingFolder(null)}
+          isLoading={isDeletingFolder}
+        />
+      )}
+    </>
   );
 }

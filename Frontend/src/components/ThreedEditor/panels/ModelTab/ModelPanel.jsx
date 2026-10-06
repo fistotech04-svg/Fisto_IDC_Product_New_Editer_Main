@@ -3,7 +3,8 @@ import { Icon } from "@iconify/react";
 import { resolveUploadsPath } from "../../../../utils/supabaseUtils";
 import { textureData } from "../../../../data/textureData";
 import ColorPicker from "../../ColorPicker";
-import { AxisInput, SliderRow, DualAxisInput } from "../common/PanelInputs";
+import { AxisInput, SliderRow, DualAxisInput, ToggleSwitch } from "../common/PanelInputs";
+import FloorPresetSelector from "../../Components/FloorPresetSelector";
 
 export function ModelPanel({
   // Position & View transforms
@@ -26,7 +27,8 @@ export function ModelPanel({
   onUpdateMaterialSetting,
   selectedTextureId,
   onOpenMaterialDrawer,
-  selectedMaterial
+  selectedMaterial,
+  onMapUpload
 }) {
   const [isUniformScale, setIsUniformScale] = useState(true);
   const [colorMode, setColorMode] = useState("HEX");
@@ -36,18 +38,24 @@ export function ModelPanel({
   const [isScaleLinked, setIsScaleLinked] = useState(true);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const colorPickerContainerRef = useRef(null);
+  const [isFloorColorPickerOpen, setIsFloorColorPickerOpen] = useState(false);
+  const floorColorPickerRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (colorPickerContainerRef.current && !colorPickerContainerRef.current.contains(e.target)) {
         setIsColorPickerOpen(false);
       }
+      if (floorColorPickerRef.current && !floorColorPickerRef.current.contains(e.target)) {
+        setIsFloorColorPickerOpen(false);
+      }
     };
-    if (isColorPickerOpen) {
+    if (isColorPickerOpen || isFloorColorPickerOpen) {
       document.addEventListener("mousedown", handleOutsideClick);
     }
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isColorPickerOpen]);
+  }, [isColorPickerOpen, isFloorColorPickerOpen]);
 
   const radToDeg = (rad) => {
     const r = Number(rad) || 0;
@@ -66,6 +74,10 @@ export function ModelPanel({
 
   // Resolve thumbnail / sphere preview
   const activeMaterialPreview = (() => {
+    const rawMap = materialSettings?.maps?.map || materialSettings?.maps?.base;
+    if (rawMap && rawMap !== "existing") {
+      return resolveUploadsPath(rawMap);
+    }
     if (materialSettings?.appliedTexture?.preview) {
       return resolveUploadsPath(materialSettings.appliedTexture.preview);
     }
@@ -93,6 +105,29 @@ export function ModelPanel({
     (typeof selectedMaterial === "string"
       ? selectedMaterial
       : selectedMaterial?.name || selectedMaterial?.material || "Sliver Material");
+
+  // Check if current material contains an image/texture
+  const hasImageTexture = Boolean(
+    (materialSettings?.maps?.map && materialSettings.maps.map !== "existing") ||
+    (materialSettings?.maps && (materialSettings.maps.base || materialSettings.maps.diffuse)) ||
+    materialSettings?.appliedTexture?.map ||
+    materialSettings?.appliedTexture?.preview ||
+    activeMaterialPreview
+  );
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file && onMapUpload) {
+      onMapUpload("map", file);
+    }
+    e.target.value = "";
+  };
+
+  // Check if a model, mesh, or material is selected
+  const hasSelection = Boolean(
+    selectedMaterial &&
+    (typeof selectedMaterial === "string" ? selectedMaterial.trim() !== "" : true)
+  );
 
   return (
     <div className="flex flex-col gap-[1.3vw]">
@@ -194,8 +229,11 @@ export function ModelPanel({
         </div>
       </div>
 
-      {/* ── 2. MATERIAL SECTION ── */}
-      <div className="flex flex-col gap-[0.75vw]">
+      {/* ── 2. MATERIAL & 3. TEXTURE PLACEMENT SECTIONS (Only show when a model/mesh/material is selected) ── */}
+      {hasSelection && (
+        <>
+          {/* ── 2. MATERIAL SECTION ── */}
+          <div className="flex flex-col gap-[0.75vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.82vw] font-bold text-gray-900">Material</span>
           <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
@@ -230,13 +268,35 @@ export function ModelPanel({
             <span className="text-[0.85vw] font-bold text-gray-800 truncate">
               {materialDisplayName}
             </span>
-            <button
-              type="button"
-              onClick={() => onOpenMaterialDrawer && onOpenMaterialDrawer()}
-              className="w-fit px-[0.7vw] py-[0.25vw] bg-white hover:bg-gray-50 border border-gray-200 rounded-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-2xs cursor-pointer"
-            >
-              Change Material
-            </button>
+            <div className="flex items-center gap-[0.4vw] flex-wrap">
+              <button
+                type="button"
+                onClick={() => onOpenMaterialDrawer && onOpenMaterialDrawer()}
+                className="w-fit px-[0.6vw] py-[0.25vw] bg-white hover:bg-gray-50 border border-gray-200 rounded-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-2xs cursor-pointer"
+              >
+                Change Material
+              </button>
+
+              {hasImageTexture && (
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="w-fit px-[0.6vw] py-[0.25vw] bg-white hover:bg-orange-50/50 border border-gray-200 hover:border-[#ea543a] rounded-[0.4vw] text-[0.7vw] font-semibold text-[#ea543a] transition-colors shadow-2xs cursor-pointer flex items-center gap-[0.25vw]"
+                  title="Replace Image Texture"
+                >
+                  <Icon icon="solar:gallery-edit-linear" className="w-[0.85vw] h-[0.85vw] shrink-0" />
+                  <span>Replace Image</span>
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageFileChange}
+            />
           </div>
         </div>
 
@@ -442,8 +502,10 @@ export function ModelPanel({
           />
         </div>
       </div>
+    </>
+  )}
 
-      {/* ── 4. VIEW SECTION ── */}
+  {/* ── 4. VIEW SECTION ── */}
       <div className="flex flex-col gap-[0.75vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.82vw] font-bold text-gray-900">View</span>
@@ -453,19 +515,11 @@ export function ModelPanel({
         {/* Auto Rotate Toggle */}
         <div className="flex items-center justify-between py-[0.1vw]">
           <span className="text-[0.78vw] font-medium text-gray-800">Auto Rotate</span>
-          <button
-            type="button"
-            onClick={() => setAutoRotate && setAutoRotate(!autoRotate)}
-            className={`w-[2.4vw] h-[1.3vw] rounded-full flex items-center px-[0.18vw] transition-colors cursor-pointer ${
-              autoRotate ? "bg-[#ea543a]" : "bg-gray-300"
-            }`}
-          >
-            <div
-              className={`w-[0.9vw] h-[0.9vw] rounded-full bg-white transition-transform ${
-                autoRotate ? "translate-x-[1.1vw]" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={!!autoRotate}
+            onChange={(val) => setAutoRotate && setAutoRotate(val)}
+            title="Auto Rotate"
+          />
         </div>
 
         {/* Rotate Speed */}
@@ -489,40 +543,26 @@ export function ModelPanel({
           </div>
         </div>
 
+        <FloorPresetSelector materialSettings={materialSettings} onUpdateMaterialSetting={onUpdateMaterialSetting} />
+
         {/* Show Grid Lines */}
         <div className="flex items-center justify-between py-[0.1vw]">
           <span className="text-[0.78vw] font-medium text-gray-800">Show Grid Lines</span>
-          <button
-            type="button"
-            onClick={() => setShowGridLines && setShowGridLines(!showGridLines)}
-            className={`w-[2.4vw] h-[1.3vw] rounded-full flex items-center px-[0.18vw] transition-colors cursor-pointer ${
-              showGridLines ? "bg-[#ea543a]" : "bg-gray-300"
-            }`}
-          >
-            <div
-              className={`w-[0.9vw] h-[0.9vw] rounded-full bg-white transition-transform ${
-                showGridLines ? "translate-x-[1.1vw]" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={!!showGridLines}
+            onChange={(val) => setShowGridLines && setShowGridLines(val)}
+            title="Show Grid Lines"
+          />
         </div>
 
         {/* Show Axis */}
         <div className="flex items-center justify-between py-[0.1vw]">
           <span className="text-[0.78vw] font-medium text-gray-800">Show Axis</span>
-          <button
-            type="button"
-            onClick={() => setShowAxis && setShowAxis(!showAxis)}
-            className={`w-[2.4vw] h-[1.3vw] rounded-full flex items-center px-[0.18vw] transition-colors cursor-pointer ${
-              showAxis ? "bg-[#ea543a]" : "bg-gray-300"
-            }`}
-          >
-            <div
-              className={`w-[0.9vw] h-[0.9vw] rounded-full bg-white transition-transform ${
-                showAxis ? "translate-x-[1.1vw]" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={!!showAxis}
+            onChange={(val) => setShowAxis && setShowAxis(val)}
+            title="Show Axis"
+          />
         </div>
       </div>
     </div>

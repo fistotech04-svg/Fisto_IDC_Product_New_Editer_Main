@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { GizmoHelper, useGizmoContext } from "@react-three/drei";
@@ -139,7 +139,7 @@ function CustomGizmoView() {
   };
 
   return (
-    <group scale={62}>
+    <group scale={52.7}>
       {/* â”€â”€ 1. Metallic Center Pivot Cube (Click to Reset to Isometric View) â”€â”€ */}
       <mesh
         scale={centerHovered ? [0.36, 0.36, 0.36] : [0.3, 0.3, 0.3]}

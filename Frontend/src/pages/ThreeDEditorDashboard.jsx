@@ -264,6 +264,7 @@ export default function ThreeDEditorDashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
+  const [duplicateConfirm, setDuplicateConfirm] = useState(null); // { file, displayName }
 
   // Rename modal
   const [renamingModel, setRenamingModel] = useState(null);
@@ -526,13 +527,7 @@ export default function ThreeDEditorDashboard() {
     }
   };
 
-  const handleUploadSubmit = async (e) => {
-    e.preventDefault();
-    if (!uploadFile) {
-      setUploadError('Please select a 3D model file (.glb, .gltf, .obj, .fbx, .stl)');
-      return;
-    }
-
+  const executeUpload = async (fileToUpload, displayName, forceNew = false) => {
     const storedUser = localStorage.getItem('user') || localStorage.getItem('user_profile');
     if (!storedUser) {
       setUploadError('User session missing. Please log in.');
@@ -550,11 +545,14 @@ export default function ThreeDEditorDashboard() {
       formData.append('uploadId', uploadId);
       formData.append('chunkIndex', '0');
       formData.append('totalChunks', '1');
-      formData.append('fileName', uploadFile.name);
+      formData.append('fileName', fileToUpload.name);
       formData.append('emailId', u.emailId);
-      formData.append('chunk', uploadFile);
-      if (modelNameInput.trim()) {
-        formData.append('displayName', modelNameInput.trim());
+      formData.append('chunk', fileToUpload);
+      if (forceNew) {
+        formData.append('forceNew', 'true');
+      }
+      if (displayName && displayName.trim()) {
+        formData.append('displayName', displayName.trim());
       }
 
       const res = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, formData, {
@@ -568,6 +566,7 @@ export default function ThreeDEditorDashboard() {
       setIsUploadModalOpen(false);
       setUploadFile(null);
       setModelNameInput('');
+      setDuplicateConfirm(null);
       fetchModels();
 
       const newModelId = res.data?.modelId || res.data?.model?.modelId;
@@ -580,6 +579,41 @@ export default function ThreeDEditorDashboard() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      setUploadError('Please select a 3D model file (.glb, .gltf, .obj, .fbx, .stl)');
+      return;
+    }
+
+    const cleanInputName = modelNameInput.trim().toLowerCase();
+    const rawFileName = uploadFile.name.toLowerCase();
+    const cleanFileName = uploadFile.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+
+    // Check if a model with the same file name or title already exists in the user's collection
+    const existingMatch = models.find((m) => {
+      const mName = (m.name || '').toLowerCase();
+      const mDisplay = (m.displayName || '').toLowerCase();
+      const mBaseName = mName.replace(/\.[^/.]+$/, '');
+      return (
+        mName === rawFileName ||
+        mBaseName === cleanFileName ||
+        (cleanInputName && (mDisplay === cleanInputName || mBaseName === cleanInputName))
+      );
+    });
+
+    if (existingMatch) {
+      setDuplicateConfirm({
+        file: uploadFile,
+        displayName: modelNameInput.trim(),
+        existingName: existingMatch.displayName || existingMatch.name
+      });
+      return;
+    }
+
+    await executeUpload(uploadFile, modelNameInput.trim(), false);
   };
 
   const handleRenameSubmit = async () => {
@@ -1491,6 +1525,26 @@ export default function ThreeDEditorDashboard() {
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeletingModel(null)}
           loading={isDeleting}
+        />
+      )}
+
+      {/* DUPLICATE MODEL CONFIRMATION ALERT */}
+      {duplicateConfirm && (
+        <AlertModal
+          isOpen={!!duplicateConfirm}
+          type="warning"
+          title="Model Already Exists"
+          message={`A 3D model named "${duplicateConfirm.existingName}" already exists in your workspace.\n\nDo you want to add it again as a new model?`}
+          confirmText="Add as New Model"
+          cancelText="Cancel"
+          showCancel={true}
+          onConfirm={() => {
+            const { file, displayName } = duplicateConfirm;
+            setDuplicateConfirm(null);
+            executeUpload(file, displayName, true);
+          }}
+          onClose={() => setDuplicateConfirm(null)}
+          isLoading={isUploading}
         />
       )}
     </div>

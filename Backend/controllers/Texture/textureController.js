@@ -33,21 +33,9 @@ export const addTexture = async (req, res) => {
         return res.status(400).json({ message: "No texture maps uploaded" });
       }
 
-      // Required maps check for direct upload
-      const requiredMaps = ["base", "metallic", "roughness", "normal"];
-      for (const map of requiredMaps) {
-        if (!req.files[map]) {
-          return res.status(400).json({ message: `${map} map is required` });
-        }
-      }
-
-      const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
-      const sanitizedMaterialName = materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const relativeBaseDir = `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}`;
-      
       const mapKeys = ["preview", "base", "metallic", "roughness", "normal", "ao", "displacement", "opacity", "emissive"];
       for (const key of mapKeys) {
-        if (req.files[key]) {
+        if (req.files && req.files[key]) {
           const file = req.files[key][0];
           const destPath = `${sanitizedEmail}/Texture/${sanitizedMaterialName}/${file.filename}`;
           const supabaseUrl = await uploadFileToSupabase(file.path, destPath);
@@ -58,11 +46,10 @@ export const addTexture = async (req, res) => {
       }
     }
 
-
-    // Verify required maps exist in mappedUrls
-    const requiredMapsList = ["base", "metallic", "roughness", "normal"];
-    for (const m of requiredMapsList) {
-        if (!mappedUrls[m]) return res.status(400).json({ message: `Required map '${m}' is missing` });
+    // Ensure at least one map or preview exists
+    const hasAtLeastOneMap = Object.values(mappedUrls).some(url => Boolean(url));
+    if (!hasAtLeastOneMap) {
+      return res.status(400).json({ message: "Please upload at least one texture map" });
     }
 
     // Resolve materialCategory (Name or Nanoid) to Nanoid

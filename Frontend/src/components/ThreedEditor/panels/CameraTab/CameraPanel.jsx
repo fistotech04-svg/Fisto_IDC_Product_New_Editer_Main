@@ -1,6 +1,8 @@
-﻿import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
+import * as THREE from "three";
 import ColorPicker from "../../ColorPicker";
+import { AxisInput } from "../common/PanelInputs";
 
 export const CAMERA_BG_PRESETS = [
   { id: "transparent", type: "pattern", value: "transparent" },
@@ -13,15 +15,15 @@ export const CAMERA_BG_PRESETS = [
 ];
 
 export const CAMERA_FRAME_OPTIONS = [
-  { id: "frame_1_1_a", ratio: "1 : 1", aspect: 1 / 1 },
-  { id: "frame_2_1_a", ratio: "2 : 1", aspect: 2 / 1 },
-  { id: "frame_4_5_a", ratio: "4 : 5", aspect: 4 / 5 },
-  { id: "frame_1_1_b", ratio: "1 : 1", aspect: 1 / 1 },
-  { id: "frame_2_1_b", ratio: "2 : 1", aspect: 2 / 1 },
-  { id: "frame_4_5_b", ratio: "4 : 5", aspect: 4 / 5 },
-  { id: "frame_1_1_c", ratio: "1 : 1", aspect: 1 / 1 },
-  { id: "frame_2_1_c", ratio: "2 : 1", aspect: 2 / 1 },
-  { id: "frame_4_5_c", ratio: "4 : 5", aspect: 4 / 5 },
+  { id: "frame_1_1_a", ratio: "1:1", aspect: 1 / 1 },
+  { id: "frame_2_1_a", ratio: "2:1", aspect: 2 / 1 },
+  { id: "frame_4_5_a", ratio: "4:5", aspect: 4 / 5 },
+  { id: "frame_1_1_b", ratio: "1:1", aspect: 1 / 1 },
+  { id: "frame_2_1_b", ratio: "2:1", aspect: 2 / 1 },
+  { id: "frame_4_5_b", ratio: "4:5", aspect: 4 / 5 },
+  { id: "frame_1_1_c", ratio: "1:1", aspect: 1 / 1 },
+  { id: "frame_2_1_c", ratio: "2:1", aspect: 2 / 1 },
+  { id: "frame_4_5_c", ratio: "4:5", aspect: 4 / 5 },
 ];
 
 export function CameraPanel({
@@ -29,9 +31,9 @@ export function CameraPanel({
   onUpdateMaterialSetting,
   cameraPosition = { x: 0, y: 0, z: 0 },
   onChangeCameraPosition,
-  cameraBgType = "transparent",
+  cameraBgType = "solid",
   onChangeCameraBgType,
-  cameraBgColor = "#F3F3F3",
+  cameraBgColor = "#FFFFFF",
   onChangeCameraBgColor,
   cameraBgOpacity = 100,
   onChangeCameraBgOpacity,
@@ -65,7 +67,7 @@ export function CameraPanel({
 
   return (
     <div className="flex flex-col gap-[1.3vw] font-sans select-none pb-[1vw]">
-      {/* â”€â”€ 1. CAMERA ANGLE SECTION â”€â”€ */}
+      {/* ── 1. CAMERA ANGLE SECTION ── */}
       <div className="flex flex-col gap-[0.75vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.88vw] font-semibold text-gray-900 tracking-tight whitespace-nowrap">
@@ -79,32 +81,30 @@ export function CameraPanel({
             Position
           </span>
 
-          <div className="flex items-center gap-[0.45vw] flex-1">
-            {[
-              { axis: "X", val: posX },
-              { axis: "Y", val: posY },
-              { axis: "Z", val: posZ },
-            ].map(({ axis, val }) => (
-              <div
-                key={axis}
-                className="flex-1 flex items-center justify-between bg-[#f3f4f6] hover:bg-[#eaecef] rounded-[0.4vw] px-[0.55vw] py-[0.38vw] transition-colors"
-              >
-                <span className="text-[0.72vw] font-medium text-gray-600 select-none">
-                  {axis}
-                </span>
-                <input
-                  type="text"
-                  readOnly
-                  value={Math.round(val)}
-                  className="w-[1.8vw] text-right bg-transparent border-none outline-none text-[0.75vw] font-semibold text-gray-800 pointer-events-none"
-                />
-              </div>
-            ))}
+          <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
+            <AxisInput
+              axis="X"
+              value={posX}
+              onChange={(v) => onChangeCameraPosition?.("x", v)}
+              step={0.5}
+            />
+            <AxisInput
+              axis="Y"
+              value={posY}
+              onChange={(v) => onChangeCameraPosition?.("y", v)}
+              step={0.5}
+            />
+            <AxisInput
+              axis="Z"
+              value={posZ}
+              onChange={(v) => onChangeCameraPosition?.("z", v)}
+              step={0.5}
+            />
           </div>
         </div>
       </div>
 
-      {/* â”€â”€ 2. BACKGROUND SECTION â”€â”€ */}
+      {/* ── 2. BACKGROUND SECTION ── */}
       <div className="flex flex-col gap-[0.85vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.88vw] font-semibold text-gray-900 tracking-tight whitespace-nowrap">
@@ -121,7 +121,7 @@ export function CameraPanel({
               (isTransparent && cameraBgType === "transparent") ||
               (!isTransparent &&
                 cameraBgType === "solid" &&
-                cameraBgColor.toUpperCase() === preset.value.toUpperCase());
+                cameraBgColor?.toUpperCase() === preset.value?.toUpperCase());
 
             return (
               <button
@@ -137,7 +137,7 @@ export function CameraPanel({
                 }}
                 className={`w-[2.35vw] h-[2.35vw] rounded-[0.5vw] border transition-all cursor-pointer relative shrink-0 active:scale-95 ${
                   isSelected
-                    ? "border-[#ea543a] ring-2 ring-[#ea543a]/25 shadow-xs"
+                    ? "border-[#EC5137] ring-2 ring-[#EC5137]/25 shadow-xs"
                     : "border-gray-200/90 hover:border-gray-300 hover:shadow-2xs"
                 }`}
                 style={
@@ -178,24 +178,44 @@ export function CameraPanel({
               className="w-[3.8vw] h-[1.95vw] rounded-[0.4vw] border border-gray-200 cursor-pointer shadow-2xs shrink-0 relative overflow-hidden transition-all active:scale-95 hover:border-gray-300"
               style={{
                 backgroundColor:
-                  cameraBgType === "transparent" ? "#F3F3F3" : cameraBgColor,
+                  cameraBgType === "transparent" ? "#FFFFFF" : (cameraBgColor || "#FFFFFF"),
                 opacity: (cameraBgOpacity ?? 100) / 100,
               }}
               title="Click to open color picker"
             />
 
             {/* Hex + Opacity input box */}
-            <div className="flex-1 flex items-center justify-between bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[1.95vw] focus-within:border-[#ea543a] transition-colors">
+            <div className="flex-1 flex items-center justify-between bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] h-[1.95vw] focus-within:border-[#EC5137] transition-colors">
               <input
                 type="text"
-                value={(cameraBgColor || "#F3F3F3").toUpperCase()}
+                value={
+                  colorMode === "RGB"
+                    ? (() => {
+                        try {
+                          const c = new THREE.Color(cameraBgColor || "#FFFFFF");
+                          return `${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}`;
+                        } catch {
+                          return (cameraBgColor || "#FFFFFF").toUpperCase();
+                        }
+                      })()
+                    : (cameraBgColor || "#FFFFFF").toUpperCase()
+                }
                 onChange={(e) => {
                   let val = e.target.value.trim();
-                  if (!val.startsWith("#")) val = `#${val}`;
-                  onChangeCameraBgType?.("solid");
-                  onChangeCameraBgColor?.(val);
+                  if (colorMode === "RGB") {
+                    const parts = val.split(",").map((p) => parseInt(p.trim(), 10));
+                    if (parts.length === 3 && parts.every((n) => !isNaN(n) && n >= 0 && n <= 255)) {
+                      const hex = `#${((1 << 24) + (parts[0] << 16) + (parts[1] << 8) + parts[2]).toString(16).slice(1).toUpperCase()}`;
+                      onChangeCameraBgType?.("solid");
+                      onChangeCameraBgColor?.(hex);
+                    }
+                  } else {
+                    if (!val.startsWith("#")) val = `#${val}`;
+                    onChangeCameraBgType?.("solid");
+                    onChangeCameraBgColor?.(val);
+                  }
                 }}
-                className="w-[4.8vw] text-[0.74vw] font-medium text-gray-800 bg-transparent outline-none uppercase font-mono"
+                className="w-[5.2vw] text-[0.74vw] font-medium text-gray-800 bg-transparent outline-none uppercase font-mono"
               />
               <span className="text-[0.72vw] font-semibold text-gray-500">
                 {cameraBgOpacity ?? 100}%
@@ -228,7 +248,7 @@ export function CameraPanel({
                       }}
                       className={`w-full text-left px-[0.6vw] py-[0.25vw] text-[0.7vw] hover:bg-gray-50 transition-colors cursor-pointer ${
                         colorMode === mode
-                          ? "font-bold text-[#ea543a]"
+                          ? "font-bold text-[#EC5137]"
                           : "text-gray-700"
                       }`}
                     >
@@ -243,7 +263,7 @@ export function CameraPanel({
             {showColorPicker && (
               <div className="absolute right-0 top-full mt-[0.4vw] z-50 shadow-2xl rounded-xl">
                 <ColorPicker
-                  color={cameraBgColor || "#F3F3F3"}
+                  color={cameraBgColor || "#FFFFFF"}
                   onChange={(c) => {
                     onChangeCameraBgType?.("solid");
                     onChangeCameraBgColor?.(c);
@@ -258,7 +278,7 @@ export function CameraPanel({
         </div>
       </div>
 
-      {/* â”€â”€ 3. FRAME SECTION â”€â”€ */}
+      {/* ── 3. FRAME SECTION ── */}
       <div className="flex flex-col gap-[0.85vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.88vw] font-semibold text-gray-900 tracking-tight whitespace-nowrap">
@@ -270,7 +290,9 @@ export function CameraPanel({
         {/* 3x3 Aspect Ratio Cards Grid */}
         <div className="grid grid-cols-3 gap-[0.55vw]">
           {CAMERA_FRAME_OPTIONS.map((frame) => {
-            const isSelected = selectedFrameId === frame.id;
+            const isSelected =
+              selectedFrameId === frame.id ||
+              (frame.id === "frame_2_1_a" && (selectedFrameId === "frame_2_1" || selectedFrameId === "frame_2_1_a"));
 
             return (
               <button
@@ -279,30 +301,28 @@ export function CameraPanel({
                 onClick={() => onSelectFrameId?.(frame.id)}
                 className={`flex flex-col items-center justify-between p-[0.55vw] rounded-[0.55vw] transition-all cursor-pointer bg-white ${
                   isSelected
-                    ? "border border-gray-100 shadow-[0_0.2vw_0.8vw_rgba(0,0,0,0.08)] ring-1 ring-gray-100"
+                    ? "border border-gray-100 shadow-[0_0.2vw_0.8vw_rgba(0,0,0,0.08)] ring-1 ring-[#EC5137]/30"
                     : "hover:bg-gray-50/70"
                 }`}
               >
                 {/* Frame Dashed Card Area */}
-                <div
-                  className={`w-full aspect-square rounded-[0.35vw] flex items-center justify-center p-[0.3vw]`}
-                >
+                <div className="w-full aspect-square rounded-[0.35vw] flex items-center justify-center p-[0.3vw]">
                   <div
                     className={`flex items-center justify-center border transition-all ${
                       isSelected
-                        ? "border-dashed border-[#ea543a] bg-transparent"
+                        ? "border-dashed border-[#EC5137] bg-transparent"
                         : "border-dashed border-gray-300"
                     }`}
                     style={{
-                      width: frame.ratio === "2 : 1" ? "100%" : frame.ratio === "4 : 5" ? "76%" : "84%",
-                      height: frame.ratio === "2 : 1" ? "68%" : frame.ratio === "4 : 5" ? "95%" : "84%",
+                      width: frame.ratio === "2:1" ? "100%" : frame.ratio === "4:5" ? "76%" : "84%",
+                      height: frame.ratio === "2:1" ? "68%" : frame.ratio === "4:5" ? "95%" : "84%",
                       borderRadius: "0.2vw",
                     }}
                   >
                     <Icon
-                      icon="solar:camera-outline"
-                      className={`w-[1.1vw] h-[1.1vw] transition-colors ${
-                        isSelected ? "text-[#ea543a]" : "text-gray-300"
+                      icon="ant-design:instagram-outlined"
+                      className={`w-[1.25vw] h-[1.25vw] transition-colors ${
+                        isSelected ? "text-[#EC5137]" : "text-gray-300"
                       }`}
                     />
                   </div>
@@ -310,7 +330,7 @@ export function CameraPanel({
 
                 {/* Aspect ratio label */}
                 <span
-                  className={`text-[0.68vw] font-medium mt-[0.35vw] transition-colors ${
+                  className={`text-[0.72vw] font-medium mt-[0.35vw] transition-colors ${
                     isSelected ? "text-gray-900 font-semibold" : "text-gray-600"
                   }`}
                 >

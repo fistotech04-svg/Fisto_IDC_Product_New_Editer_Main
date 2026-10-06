@@ -277,6 +277,12 @@ const GenericModel = React.memo(React.forwardRef(({
                 }
                 const mats = Array.isArray(child.material) ? child.material : [child.material];
                 mats.forEach((mat) => {
+                    if (mat && typeof mat.customProgramCacheKey !== 'function' && mat.customProgramCacheKey !== undefined) {
+                        delete mat.customProgramCacheKey;
+                    }
+                    if (mat && typeof mat.onBeforeCompile !== 'function' && mat.onBeforeCompile !== undefined) {
+                        delete mat.onBeforeCompile;
+                    }
                     if (!mat.userData.origTexturesSnap) {
                         const snap = {};
                         TEX_KEYS.forEach(k => { if (mat[k]) snap[k] = mat[k]; });
@@ -290,18 +296,19 @@ const GenericModel = React.memo(React.forwardRef(({
                         mat.userData.originalAlphaMap = mat.alphaMap;
                         mat.userData.originalBumpMap = mat.bumpMap;
                         mat.userData.originalDisplacementMap = mat.displacementMap;
-                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
+                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((child.name || '') + '_' + (mat.name || ''));
                         const hasAlphaMap = Boolean(mat.alphaMap);
                         const hasCutout = (mat.alphaTest !== undefined && mat.alphaTest > 0) || isLikelyCutout;
                         const isExplicitlyPartialOpacity = (mat.opacity !== undefined && mat.opacity < 0.999);
+                        const isGLTFTransparent = Boolean(mat.transparent);
 
-                        const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap;
+                        const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap || (isGLTFTransparent && !hasCutout) || (isLikelyCutout && Boolean(mat.map));
                         mat.transparent = isTrulyTransparent;
-                        mat.depthWrite = true;
+                        mat.depthWrite = !isTrulyTransparent;
 
                         if (hasCutout) {
-                            mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.5;
-                            mat.transparent = false;
+                            mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.05;
+                            mat.transparent = true;
                             mat.depthWrite = true;
                         }
 
@@ -366,7 +373,7 @@ const GenericModel = React.memo(React.forwardRef(({
 
     // 0. Apply Texture to Selected Material
     useEffect(() => {
-        if (!selectedTexture || !scene || xrayMode) return;
+        if (!selectedTexture || !scene || xrayMode || selectedTexture.isXray) return;
 
         const resolveUrl = (url) => {
             if (!url) return null;
@@ -803,6 +810,9 @@ const GenericModel = React.memo(React.forwardRef(({
                             if (mat.map !== loadedMaps.map) mat.map = loadedMaps.map;
                             if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
                             mat.userData.manualMaps.map = newMapsList.map;
+                            mat.transparent = true;
+                            mat.alphaTest = Math.max(0.05, mat.alphaTest || 0);
+                            mat.depthWrite = true;
                         } else if (newMapsList.map === null) {
                             mat.map = null;
                             if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
@@ -1276,18 +1286,19 @@ const GenericModel = React.memo(React.forwardRef(({
                             processedMaterials.set(m.uuid, uniqueName);
                             usedNames.add(uniqueName);
 
-                            const isLikelyCutoutM = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
+                            const isLikelyCutoutM = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((child.name || '') + '_' + (m.name || ''));
                             const hasAlphaMapM = Boolean(m.alphaMap);
                             const hasCutoutM = (m.alphaTest !== undefined && m.alphaTest > 0) || isLikelyCutoutM;
                             const isExplicitlyPartialOpacityM = (m.opacity !== undefined && m.opacity < 0.999);
-                            const isTrulyTransparentM = isExplicitlyPartialOpacityM || hasAlphaMapM;
+                            const isGLTFTransparentM = Boolean(m.transparent);
+                            const isTrulyTransparentM = isExplicitlyPartialOpacityM || hasAlphaMapM || (isGLTFTransparentM && !hasCutoutM) || (isLikelyCutoutM && Boolean(m.map));
 
                             m.transparent = isTrulyTransparentM;
-                            m.depthWrite = true;
+                            m.depthWrite = !isTrulyTransparentM;
 
                             if (hasCutoutM) {
-                                m.alphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : 0.5;
-                                m.transparent = false;
+                                m.alphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : 0.05;
+                                m.transparent = true;
                                 m.depthWrite = true;
                             }
 
@@ -1692,6 +1703,57 @@ const GenericModel = React.memo(React.forwardRef(({
                         childMatNames.some(mName => xrayMaterials.has(mName));
                 }
 
+                // Also check if applied texture is X-Ray preset
+                if (!isXrayMesh) {
+                    const lookupKeys = [
+                        child.uuid,
+                        child.userData?.meshUuid,
+                        child.userData?.initialUuid,
+                        child.name,
+                        child.userData?.initialName,
+                        ...childMatNames
+                    ].filter(Boolean);
+
+                    let customSetting = null;
+                    if (customizedMaterials) {
+                        for (const k of lookupKeys) {
+                            if (customizedMaterials[k]) {
+                                customSetting = customizedMaterials[k];
+                                break;
+                            }
+                        }
+                        if (!customSetting && customizedMaterials['__ALL__']) {
+                            const allEntry = customizedMaterials['__ALL__'];
+                            const allowList = Array.isArray(allEntry.__meshes__) ? allEntry.__meshes__ : null;
+                            if (!allowList) {
+                                customSetting = allEntry;
+                            } else {
+                                const inList = lookupKeys.some(k => allowList.includes(k));
+                                if (inList) customSetting = allEntry;
+                            }
+                        }
+                    }
+
+                    if (customSetting?.appliedTexture?.isXray) {
+                        isXrayMesh = true;
+                    } else if (materialSettings?.appliedTexture?.isXray) {
+                        const selMat = selectedMaterial;
+                        const isExplicitAll = Boolean(selMat && (selMat.isAll || selMat.name === 'All Meshes'));
+                        if (isExplicitAll) {
+                            isXrayMesh = true;
+                        } else if (selMat) {
+                            const targetMeshes = resolveTargetMeshes(selMat);
+                            if (targetMeshes && targetMeshes.includes(child)) {
+                                isXrayMesh = true;
+                            }
+                        }
+                    }
+                }
+
+                if (isXrayMesh && !xrayMode && (!xrayMaterials || xrayMaterials.size === 0)) {
+                    ensureMeshUniqueMaterial(child);
+                }
+
                 const mats = Array.isArray(child.material) ? child.material : [child.material];
                 mats.forEach((m) => {
                     if (!m) return;
@@ -1745,8 +1807,12 @@ const GenericModel = React.memo(React.forwardRef(({
                         m.map = backup.map;
                         m.roughnessMap = backup.roughnessMap;
                         m.metalnessMap = backup.metalnessMap;
-                        m.onBeforeCompile = backup.onBeforeCompile;
-                        m.customProgramCacheKey = backup.customProgramCacheKey;
+                        m.onBeforeCompile = typeof backup.onBeforeCompile === 'function' ? backup.onBeforeCompile : null;
+                        if (typeof backup.customProgramCacheKey === 'function') {
+                            m.customProgramCacheKey = backup.customProgramCacheKey;
+                        } else {
+                            delete m.customProgramCacheKey;
+                        }
                         m.needsUpdate = true;
                         delete m.userData.__xrayBackup;
                     }
@@ -1774,8 +1840,12 @@ const GenericModel = React.memo(React.forwardRef(({
                                 m.map = backup.map;
                                 m.roughnessMap = backup.roughnessMap;
                                 m.metalnessMap = backup.metalnessMap;
-                                m.onBeforeCompile = backup.onBeforeCompile;
-                                m.customProgramCacheKey = backup.customProgramCacheKey;
+                                m.onBeforeCompile = typeof backup.onBeforeCompile === 'function' ? backup.onBeforeCompile : null;
+                                if (typeof backup.customProgramCacheKey === 'function') {
+                                    m.customProgramCacheKey = backup.customProgramCacheKey;
+                                } else {
+                                    delete m.customProgramCacheKey;
+                                }
                                 m.needsUpdate = true;
                                 delete m.userData.__xrayBackup;
                             }
@@ -1784,7 +1854,7 @@ const GenericModel = React.memo(React.forwardRef(({
                 });
             }
         };
-    }, [scene, xrayMode, xrayMaterials]);
+    }, [scene, xrayMode, xrayMaterials, materialSettings?.appliedTexture, customizedMaterials, selectedMaterial, modelName]);
 
     const prevTransformTargetRef = React.useRef(null);
     const lastTransformResetKeyRef = React.useRef(resetKey);

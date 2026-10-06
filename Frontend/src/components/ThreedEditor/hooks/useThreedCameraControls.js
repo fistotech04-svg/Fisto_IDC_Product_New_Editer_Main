@@ -19,7 +19,7 @@ export function useThreedCameraControls({
   const onResetSceneTransformsRef = useRef(onResetSceneTransforms);
   onResetSceneTransformsRef.current = onResetSceneTransforms;
 
-  const frameModelFullView = useCallback((bounds, animate = false) => {
+  const frameModelFullView = useCallback((bounds, animate = false, customPadding = null) => {
     if (bounds) {
       latestModelBoundsRef.current = bounds;
     }
@@ -42,10 +42,11 @@ export function useThreedCameraControls({
 
       let box = new THREE.Box3();
       if (sceneWrapperRef.current) {
+        try { sceneWrapperRef.current.updateMatrixWorld(true); } catch (err) { void err; }
         sceneWrapperRef.current.traverse((child) => {
           if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
             if (!child.geometry.boundingBox) {
-              try { child.geometry.computeBoundingBox(); } catch (_) { }
+              try { child.geometry.computeBoundingBox(); } catch (err) { void err; }
             }
             if (child.geometry.boundingBox) {
               try {
@@ -53,25 +54,30 @@ export function useThreedCameraControls({
                 if (!geomBox.isEmpty() && isFinite(geomBox.min.x)) {
                   box.union(geomBox);
                 }
-              } catch (_) { }
+              } catch (err) { void err; }
             }
           }
         });
       }
 
-      if (!box.isEmpty() && isFinite(box.min.x)) {
+            if (!box.isEmpty() && isFinite(box.min.x)) {
         const center = new THREE.Vector3();
         const size = new THREE.Vector3();
         box.getCenter(center);
         box.getSize(size);
         target.copy(center);
-        radius = Math.max(0.8, size.length() / 2);
+
+        // Tight framing: use largest extent
+        const maxExtent = Math.max(size.x, size.y, size.z);
+        radius = Math.max(1.2, maxExtent / 2);
       } else if (bounds) {
         const h = bounds.height || (bounds.size?.y ? bounds.size.y * (bounds.targetScale || 1) : 2.0);
-        const w = bounds.width || (bounds.size?.x ? bounds.size.x * (bounds.targetScale || 1) : 2.0);
-        const d = bounds.depth || (bounds.size?.z ? bounds.size.z * (bounds.targetScale || 1) : 2.0);
+        const w = bounds.width  || (bounds.size?.x ? bounds.size.x * (bounds.targetScale || 1) : 2.0);
+        const d = bounds.depth  || (bounds.size?.z ? bounds.size.z * (bounds.targetScale || 1) : 2.0);
         target.set(0, Math.max(0.2, h / 2), 0);
-        radius = Math.max(0.8, Math.sqrt(w * w + h * h + d * d) / 2);
+
+        const maxExtent = Math.max(w, h, d);
+        radius = Math.max(1.2, maxExtent / 2);
       }
 
       // 2. Compute optimal camera framing distance
@@ -84,12 +90,14 @@ export function useThreedCameraControls({
       const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
       const hFOVRad = Math.atan(Math.tan(vFOVRad) * aspect);
 
-      const distV = radius / Math.sin(vFOVRad);
-      const distH = radius / Math.sin(hFOVRad);
+      // Frame model: Both initial load and reset use the exact same comfortable framing (PADDING 1.15)
+      const distV = radius / Math.tan(vFOVRad);
+      const distH = radius / Math.tan(hFOVRad);
       const fitDistance = Math.max(distV, distH);
 
-      const PADDING = 1.08;
-      const distance = Math.max(2.2, Math.min(fitDistance * PADDING, 50));
+      const PADDING = typeof customPadding === "number" ? customPadding : 1.15;
+      const minDistance = 2.6;
+      const distance = Math.max(minDistance, Math.min(fitDistance * PADDING, 35));
 
       // 3. 3/4 elevated perspective
       const phi = THREE.MathUtils.degToRad(66);
@@ -173,7 +181,7 @@ export function useThreedCameraControls({
 
   const handleResetView = useCallback(() => {
     if (typeof frameModelFullViewRef.current === 'function') {
-      frameModelFullViewRef.current(latestModelBoundsRef.current, true);
+      frameModelFullViewRef.current(latestModelBoundsRef.current, true, 1.15);
     } else if (controlsRef.current) {
       controlsRef.current.reset();
       setTargetPosition?.({ x: 0, y: 0, z: 0 });
@@ -200,7 +208,7 @@ export function useThreedCameraControls({
       if (cameraInstanceRef.current) {
         cameraInstanceRef.current.up.set(0, 1, 0);
       }
-      const dist = 5.5;
+      const dist = 3.5;
       if (mode === "front") {
         controlsRef.current.object.position.set(0, 0, dist);
       } else if (mode === "top") {
@@ -208,7 +216,7 @@ export function useThreedCameraControls({
       } else if (mode === "right") {
         controlsRef.current.object.position.set(dist, 0, 0);
       } else if (mode === "perspective") {
-        controlsRef.current.object.position.set(3.5, 3.2, 5.0);
+        controlsRef.current.object.position.set(2.0, 1.8, 2.7);
       }
       controlsRef.current.target.set(0, 0, 0);
       controlsRef.current.update();

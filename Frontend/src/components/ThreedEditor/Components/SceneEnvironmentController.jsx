@@ -55,7 +55,7 @@ export function safelyRestoreSkeletonBindPose(skeleton) {
 
 // Controller to ensure environment lighting, background opacity (mingled with gray color), blur, and rotation
 // update in real-time across every frame so drei re-renders cannot override user settings.
-export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBlur = 0, reflection = 50, isCapturing = false, customBgColor = null }) {
+export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, worldBlur = 0, reflection = 50, isCapturing = false, isCameraTab = false, customBgColor = null }) {
   const { scene } = useThree();
   const rotRef = useRef(0);
 
@@ -86,7 +86,7 @@ export function SceneEnvironmentController({ envRotation = 0, worldOpacity = 0, 
   useFrame(() => {
     if (!scene) return;
 
-    if (isCapturing) {
+    if (isCapturing || isCameraTab) {
       if (scene.background) scene.background = null;
       return;
     }

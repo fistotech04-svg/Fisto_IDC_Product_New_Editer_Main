@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import ColorPicker from "../../ColorPicker";
 import { AxisInput } from "../common/PanelInputs";
 import { builtInHdris } from "../../../../data/hdriData";
+import FloorPresetSelector from "../../Components/FloorPresetSelector";
 
 // Reusable Slider Component styled with editable Axis-like input pill
 const LightingSlider = ({
@@ -198,6 +199,8 @@ export function LightingPanel({
   // State for Color Picker popover
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const colorPickerContainerRef = useRef(null);
+  const [isFloorColorPickerOpen, setIsFloorColorPickerOpen] = useState(false);
+  const floorColorPickerRef = useRef(null);
 
   // Close color picker on outside click
   useEffect(() => {
@@ -205,12 +208,15 @@ export function LightingPanel({
       if (colorPickerContainerRef.current && !colorPickerContainerRef.current.contains(e.target)) {
         setIsColorPickerOpen(false);
       }
+      if (floorColorPickerRef.current && !floorColorPickerRef.current.contains(e.target)) {
+        setIsFloorColorPickerOpen(false);
+      }
     };
-    if (isColorPickerOpen) {
+    if (isColorPickerOpen || isFloorColorPickerOpen) {
       document.addEventListener("mousedown", handleOutsideClick);
     }
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isColorPickerOpen]);
+  }, [isColorPickerOpen, isFloorColorPickerOpen]);
 
   // Current values
   const lightColor = currentControls.lightColor || "#EC5137";
@@ -610,6 +616,9 @@ export function LightingPanel({
           />
         </div>
       </div>
+
+      {/* ── 3. SECTION: FLOOR & REFLECTION ── */}
+      <FloorPresetSelector materialSettings={currentControls} onUpdateMaterialSetting={handleUpdate} />
     </div>
   );
 }

@@ -13,14 +13,10 @@ Frontend/src/components/ThreedEditor/
 ├── ThreedEditor.jsx             # Main Container, Scene Graph, Canvas & Central State
 ├── ThreedRightpanel.jsx         # Right Sidebar: Transforms (Move/Rotate/Scale), Material & Texture Controls
 ├── LeftSidebar.jsx              # Left Navigation: Mode/Tab Switcher (Models, Materials, Environment, etc.)
-├── TopToolbar.jsx               # Top Bar: File operations, undo/redo, camera view presets, export trigger
-├── EditorToolbar.jsx            # Transform Mode Bar: Translate, Rotate, Scale gizmo mode toggles
-├── CanvasFloatingToolbar.jsx    # Overlay Toolbar on Canvas: Shading modes, wireframe, grid toggles
+├── CanvasFloatingToolbar.jsx    # Overlay Toolbar on Canvas: Shading modes, wireframe, grid, gizmo mode toggles
 ├── BottomGalleryTray.jsx        # Bottom Drawer: Asset / Material / HDR preview cards
-├── TextureGalleryBar.jsx        # Texture selection and quick swap tray
 ├── MaterialList.jsx             # Hierarchy tree / list of materials and sub-meshes with visibility/lock
 ├── ColorPicker.jsx              # Custom color picker popup
-├── EditorInfoBox.jsx            # Polycount, vertices, mesh count badge
 ├── panels/                      # Modular tab panels (Model, Materials, Textures, Lighting, Camera, Hotspots, Animation)
 ├── hooks/
 │   └── useModalHistory.js       # Undo / Redo stack manager with snapshot deep-diffing

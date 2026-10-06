@@ -386,6 +386,7 @@ export async function captureCameraSnapshot({
   solidColor = "#FFFFFF",
   bgOpacity = 100,
   customImage = null,
+  aspectRatio = null,
   setIsCapturing
 }) {
   if (!gl || !camera) {
@@ -401,21 +402,33 @@ export async function captureCameraSnapshot({
     const dpr = gl.getPixelRatio();
     const origW = domCanvas.width / dpr;
     const origH = domCanvas.height / dpr;
-    const ratio = origW / origH;
+    const targetRatio = (typeof aspectRatio === "number" && aspectRatio > 0) ? aspectRatio : (origW / origH);
+    const ratio = targetRatio;
 
     const CAPTURE_PX = 2048;
-    const capW = ratio >= 1 ? CAPTURE_PX : Math.round(CAPTURE_PX * ratio);
-    const capH = ratio >= 1 ? Math.round(CAPTURE_PX / ratio) : CAPTURE_PX;
+    const capW = targetRatio >= 1 ? CAPTURE_PX : Math.round(CAPTURE_PX * targetRatio);
+    const capH = targetRatio >= 1 ? Math.round(CAPTURE_PX / targetRatio) : CAPTURE_PX;
 
     const prevClearAlpha = gl.getClearAlpha ? gl.getClearAlpha() : 1;
     const prevClearColor = new THREE.Color();
     if (gl.getClearColor) gl.getClearColor(prevClearColor);
+
+    const prevAspect = camera?.aspect;
+    if (camera?.isPerspectiveCamera && typeof targetRatio === "number") {
+      camera.aspect = targetRatio;
+      camera.updateProjectionMatrix();
+    }
 
     gl.setClearAlpha(0);
     gl.setPixelRatio(1);
     gl.setSize(capW, capH, false);
 
     const targetScene = scene || gl.scene;
+    const prevSceneBg = targetScene ? targetScene.background : null;
+    if (targetScene && bgType === "transparent") {
+      targetScene.background = null;
+    }
+
     if (targetScene) {
       gl.render(targetScene, camera);
     }
@@ -472,6 +485,13 @@ export async function captureCameraSnapshot({
     gl.setPixelRatio(dpr);
     gl.setSize(origW, origH, false);
     if (gl.setClearColor) gl.setClearColor(prevClearColor, prevClearAlpha);
+    if (camera?.isPerspectiveCamera && typeof prevAspect === "number") {
+      camera.aspect = prevAspect;
+      camera.updateProjectionMatrix();
+    }
+    if (targetScene && prevSceneBg) {
+      targetScene.background = prevSceneBg;
+    }
     if (targetScene) gl.render(targetScene, camera);
 
     return dataUrl;
