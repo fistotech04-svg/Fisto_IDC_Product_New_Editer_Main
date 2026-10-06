@@ -1,4 +1,4 @@
-﻿import React, { Suspense } from "react";
+import React, { Suspense } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { TransformControls, Environment } from "@react-three/drei";
@@ -91,7 +91,7 @@ export default function ThreedCanvasViewport({
     <div className={`flex-1 h-full w-full relative ${isPlacingHotspot ? "cursor-crosshair" : navMode === "pan" ? "cursor-grab active:cursor-grabbing" : ""}`}>
       {!isSyncing && (
         <Canvas
-          camera={{ position: [2.2, 1.9, 3.0], fov: 45, near: 0.05, far: 1000 }}
+          camera={{ position: [2.0, 1.8, 2.7], fov: 45, near: 0.05, far: 1000 }}
           onPointerDown={handleCanvasPointerDown}
           onPointerMissed={handlePointerMissed}
           dpr={[1, 1.5]}
@@ -213,7 +213,7 @@ export default function ThreedCanvasViewport({
             />
           )}
 
-          {!settings.base && !isCapturing && (
+          {!settings.base && (
             <mesh
               rotation={[-Math.PI / 2, 0, 0]}
               position={[0, -0.003, 0]}
@@ -246,7 +246,7 @@ export default function ThreedCanvasViewport({
             </mesh>
           )}
 
-          {settings.base && !isCapturing && (
+          {settings.base && (
             <mesh
               rotation={[-Math.PI / 2, 0, 0]}
               position={[0, -0.005, 0]}

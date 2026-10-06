@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "@iconify/react";
 import { X, Upload, Check, AlertCircle, Edit3, ChevronDown } from "lucide-react";
 import axios from "axios";
@@ -35,11 +36,11 @@ const MapUploadBox = ({ label, id, maps, setMaps, setMapFiles, mapMenuOpen, setM
 
   return (
     <div className="flex flex-col items-center relative w-full">
-      <input 
-        type="file" 
+      <input
+        type="file"
         id={`file-input-${id}`}
         ref={fileInputRef}
-        className="hidden" 
+        className="hidden"
         accept="image/*"
         onChange={(e) => {
           if (e.target.files[0]) {
@@ -49,94 +50,94 @@ const MapUploadBox = ({ label, id, maps, setMaps, setMapFiles, mapMenuOpen, setM
           }
         }}
       />
-      <div 
+      <div
         onClick={() => {
           if (!hasTexture) fileInputRef.current?.click();
         }}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        className={`w-full ${isSmall ? 'h-[5.8vw]' : 'h-[6.5vw]'} border-[0.08vw] border-dashed ${hasTexture ? 'border-transparent' : 'border-gray-300'} rounded-[0.5vw] bg-white flex flex-col items-center justify-between py-[0.5vw] px-[0.4vw] hover:bg-gray-50/80 ${hasTexture ? 'hover:border-transparent cursor-default' : 'hover:border-[#5d5efc] cursor-pointer'} transition-all group relative ${hasTexture ? '' : 'overflow-hidden'} shadow-sm ${isDragging ? 'border-[#5d5efc] bg-indigo-50/50 ring-1 ring-[#5d5efc]/20' : ''}`}
+        className={`w-full ${isSmall ? 'h-[6.6vw]' : 'h-[7.2vw]'} border-[0.09vw] border-dashed ${hasTexture ? 'border-transparent' : 'border-gray-300'} rounded-[0.6vw] bg-white flex flex-col items-center justify-between py-[0.6vw] px-[0.4vw] hover:bg-gray-50/80 ${hasTexture ? 'hover:border-transparent cursor-default' : 'hover:border-[#5d5efc] cursor-pointer'} transition-all group relative ${hasTexture ? '' : 'overflow-hidden'} shadow-sm ${isDragging ? 'border-[#5d5efc] bg-indigo-50/50 ring-1 ring-[#5d5efc]/20' : ''}`}
       >
         {hasTexture ? (
-           <>
-             {/* Texture Preview */}
-             <img 
-               src={maps[id]} 
-               alt={label} 
-               className="absolute inset-0 w-full h-full object-cover rounded-[0.45vw]" 
-               onLoad={() => setLoadingMaps?.(prev => ({ ...prev, [id]: false }))}
-             />
-             
-             {/* Loading Overlay */}
-             {loadingMaps?.[id] && (
-               <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-30 rounded-[0.45vw] border-[0.08vw] border-gray-100">
-                  <div className="w-[0.9vw] h-[0.9vw] border-[0.12vw] border-gray-200 border-t-[#5d5efc] rounded-full animate-spin shadow-sm" />
-               </div>
-             )}
-             
-             {/* Black Gradient Shadow at bottom */}
-             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10 rounded-[0.45vw]" />
-             
-             {/* White Label at bottom */}
-             <div className="absolute bottom-[0.4vw] left-0 right-0 px-[0.3vw] flex items-center justify-center z-20">
-                <span className="text-[0.52vw] font-bold text-white tracking-tight drop-shadow-sm uppercase text-center truncate">{label}</span>
-             </div>
+          <>
+            {/* Texture Preview */}
+            <img
+              src={maps[id]}
+              alt={label}
+              className="absolute inset-0 w-full h-full object-cover rounded-[0.55vw]"
+              onLoad={() => setLoadingMaps?.(prev => ({ ...prev, [id]: false }))}
+            />
 
-             {/* Three Dots Toggle - Only on Hover */}
-             <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMapMenuOpen(mapMenuOpen === id ? null : id);
-                }}
-                className={`absolute top-[0.3vw] right-[0.3vw] w-[1.1vw] h-[1.1vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-all z-30 shadow-sm menu-toggle-btn ${mapMenuOpen === id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-             >
-                <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.75vw" />
-             </button>
+            {/* Loading Overlay */}
+            {loadingMaps?.[id] && (
+              <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-30 rounded-[0.55vw] border-[0.09vw] border-gray-100">
+                <div className="w-[1.1vw] h-[1.1vw] border-[0.14vw] border-gray-200 border-t-[#5d5efc] rounded-full animate-spin shadow-sm" />
+              </div>
+            )}
 
-             {/* Map Context Menu */}
-             {mapMenuOpen === id && (
-               <div className="absolute top-[1.6vw] right-[0.3vw] bg-white rounded-[0.4vw] shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.2vw] px-[0.15vw] min-w-[5.8vw] z-[40] map-menu-container animate-in fade-in zoom-in duration-150">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                      setMapMenuOpen(null);
-                    }}
-                    className="w-full flex items-center gap-[0.3vw] cursor-pointer px-[0.4vw] py-[0.25vw] hover:bg-gray-50 rounded-[0.3vw] text-gray-700 transition-colors group/item"
-                  >
-                    <Icon icon="ix:replace" className="w-[0.75vw] h-[0.75vw] text-[#5d5efc]" />
-                    <span className="text-[0.5vw] font-semibold text-gray-600">Replace Map</span>
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMaps(prev => ({ ...prev, [id]: null }));
-                      setMapFiles(prev => ({ ...prev, [id]: null }));
-                      setMapMenuOpen(null);
-                    }}
-                    className="w-full flex items-center gap-[0.3vw] cursor-pointer px-[0.4vw] py-[0.25vw] hover:bg-red-50 rounded-[0.3vw] text-red-500 transition-colors border-t border-gray-50 mt-[0.1vw]"
-                  >
-                    <Icon icon="solar:trash-bin-trash-linear" className="w-[0.75vw] h-[0.75vw]" />
-                    <span className="text-[0.5vw] font-semibold">Clear Map</span>
-                  </button>
-               </div>
-             )}
-           </>
+            {/* Black Gradient Shadow at bottom */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10 rounded-[0.55vw]" />
+
+            {/* White Label at bottom */}
+            <div className="absolute bottom-[0.5vw] left-0 right-0 px-[0.4vw] flex items-center justify-center z-20">
+              <span className="text-[0.58vw] font-bold text-white tracking-tight drop-shadow-sm uppercase text-center truncate">{label}</span>
+            </div>
+
+            {/* Three Dots Toggle - Only on Hover */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMapMenuOpen(mapMenuOpen === id ? null : id);
+              }}
+              className={`absolute top-[0.4vw] right-[0.4vw] w-[1.2vw] h-[1.2vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-all z-30 shadow-sm menu-toggle-btn ${mapMenuOpen === id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+            >
+              <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.85vw" />
+            </button>
+
+            {/* Map Context Menu */}
+            {mapMenuOpen === id && (
+              <div className="absolute top-[1.8vw] right-[0.4vw] bg-white rounded-[0.5vw] shadow-[0_6px_25px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.25vw] px-[0.15vw] min-w-[6.4vw] z-[40] map-menu-container animate-in fade-in zoom-in duration-150">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                    setMapMenuOpen(null);
+                  }}
+                  className="w-full flex items-center gap-[0.4vw] cursor-pointer px-[0.5vw] py-[0.3vw] hover:bg-gray-50 rounded-[0.35vw] text-gray-700 transition-colors group/item"
+                >
+                  <Icon icon="ix:replace" className="w-[0.85vw] h-[0.85vw] text-[#5d5efc]" />
+                  <span className="text-[0.56vw] font-semibold text-gray-600">Replace Map</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMaps(prev => ({ ...prev, [id]: null }));
+                    setMapFiles(prev => ({ ...prev, [id]: null }));
+                    setMapMenuOpen(null);
+                  }}
+                  className="w-full flex items-center gap-[0.4vw] cursor-pointer px-[0.5vw] py-[0.3vw] hover:bg-red-50 rounded-[0.35vw] text-red-500 transition-colors border-t border-gray-50 mt-[0.1vw]"
+                >
+                  <Icon icon="solar:trash-bin-trash-linear" className="w-[0.85vw] h-[0.85vw]" />
+                  <span className="text-[0.56vw] font-semibold">Clear Map</span>
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {/* Label inside the box at the top */}
-            <div className="text-[0.62vw] font-bold text-gray-900 flex items-center gap-[0.15vw] z-10 text-center">
+            <div className="text-[0.68vw] font-bold text-gray-900 flex items-center gap-[0.2vw] z-10 text-center">
               {label} {isRequired && <span className="text-red-500">*</span>}
             </div>
-            
-            <div className="flex flex-col items-center gap-[0.2vw] z-10">
-              <Icon icon="heroicons:arrow-up-tray-20-solid" width="1vw" className="text-gray-400 group-hover:text-[#5d5efc] transition-colors" />
+
+            <div className="flex flex-col items-center gap-[0.25vw] z-10">
+              <Icon icon="heroicons:arrow-up-tray-20-solid" width="1.15vw" className="text-gray-400 group-hover:text-[#5d5efc] transition-colors" />
             </div>
 
             <div className="flex flex-col items-center z-10 text-center leading-tight">
-              <span className="text-[0.46vw] font-medium text-gray-500">Click to <span className="text-[#5d5efc] font-bold">Upload</span> JPG/PNG</span>
-              <span className="text-[0.4vw] text-gray-400 font-medium">(2048px rec.)</span>
+              <span className="text-[0.5vw] font-medium text-gray-500">Click to <span className="text-[#5d5efc] font-bold">Upload</span> JPG/PNG</span>
+              <span className="text-[0.44vw] text-gray-400 font-medium">(2048px recommended)</span>
             </div>
           </>
         )}
@@ -162,7 +163,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
     if (editData && isOpen) {
       setMaterialName(editData.name || "");
       setCategory(editData.category || "");
-      
+
       const resolvedMaps = {};
       const initialLoading = {};
       Object.keys(editData.maps || {}).forEach(key => {
@@ -171,32 +172,32 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
           initialLoading[key] = true;
         }
       });
-      
+
       setLoadingMaps(initialLoading);
-      
+
       setMaps({
         preview: null, base: null, metallic: null, roughness: null, normal: null,
         ao: null, displacement: null, opacity: null, emissive: null,
         ...resolvedMaps
       });
-      
+
       // Reset map files as we start with existing URLs
       setMapFiles({
         preview: null, base: null, metallic: null, roughness: null, normal: null,
         ao: null, displacement: null, opacity: null, emissive: null
       });
     } else if (!editData && isOpen) {
-       // Reset for New Material mode
-       setMaterialName("");
-       setCategory("");
-       setMaps({
-         preview: null, base: null, metallic: null, roughness: null, normal: null,
-         ao: null, displacement: null, opacity: null, emissive: null
-       });
-       setMapFiles({
-         preview: null, base: null, metallic: null, roughness: null, normal: null,
-         ao: null, displacement: null, opacity: null, emissive: null
-       });
+      // Reset for New Material mode
+      setMaterialName("");
+      setCategory("");
+      setMaps({
+        preview: null, base: null, metallic: null, roughness: null, normal: null,
+        ao: null, displacement: null, opacity: null, emissive: null
+      });
+      setMapFiles({
+        preview: null, base: null, metallic: null, roughness: null, normal: null,
+        ao: null, displacement: null, opacity: null, emissive: null
+      });
     }
   }, [editData, isOpen]);
 
@@ -262,28 +263,28 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
     let finalUrl = null;
 
     for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
 
-        const formData = new FormData();
-        formData.append("chunkIndex", i);
-        formData.append("totalChunks", totalChunks);
-        formData.append("uploadId", uploadId);
-        formData.append("fileName", file.name);
-        formData.append("userEmail", email);
-        formData.append("materialName", material);
-        formData.append("fieldName", field);
-        formData.append("chunk", chunk);
+      const formData = new FormData();
+      formData.append("chunkIndex", i);
+      formData.append("totalChunks", totalChunks);
+      formData.append("uploadId", uploadId);
+      formData.append("fileName", file.name);
+      formData.append("userEmail", email);
+      formData.append("materialName", material);
+      formData.append("fieldName", field);
+      formData.append("chunk", chunk);
 
-        const response = await axios.post(`${backendUrl}/api/textures/upload-chunk`, formData);
-        
-        if (i === totalChunks - 1) {
-            if (!response.data.url) {
-                throw new Error(`Server did not return a URL for field ${field}`);
-            }
-            finalUrl = response.data.url;
+      const response = await axios.post(`${backendUrl}/api/textures/upload-chunk`, formData);
+
+      if (i === totalChunks - 1) {
+        if (!response.data.url) {
+          throw new Error(`Server did not return a URL for field ${field}`);
         }
+        finalUrl = response.data.url;
+      }
     }
     return finalUrl;
   };
@@ -292,96 +293,96 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
     const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
     const email = user?.emailId;
-    
+
     if (!email) {
-        toast.error("User session not found. Please login again.");
-        return;
+      toast.error("User session not found. Please login again.");
+      return;
     }
 
     if (!materialName.trim()) {
-        toast.error("Please enter a material name.");
-        return;
+      toast.error("Please enter a material name.");
+      return;
     }
 
     if (!category.trim()) {
-        toast.error("Please enter a material category.");
-        return;
+      toast.error("Please enter a material category.");
+      return;
     }
 
     // Required Surface Maps check (Allow existing maps in Edit mode)
     const requiredMaps = ["base", "metallic", "roughness", "normal"];
     const missingMaps = requiredMaps.filter(m => !mapFiles[m] && !maps[m]);
-    
+
     if (missingMaps.length > 0) {
-        toast.error(`Please upload all required surface maps: ${missingMaps.join(", ").toUpperCase()}`);
-        return;
+      toast.error(`Please upload all required surface maps: ${missingMaps.join(", ").toUpperCase()}`);
+      return;
     }
-    
+
     // Check if Edit mode has changes or new maps
     if (editData && !materialName.trim() && !category.trim() && Object.keys(mapFiles).every(k => !mapFiles[k])) {
-        onClose();
-        return;
+      onClose();
+      return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
-        const newlyUploadedMaps = {};
-        const mapKeysToUpload = Object.keys(mapFiles).filter(key => mapFiles[key]);
-        
-        // Parallelized upload for all provided files to maximize bandwidth usage
-        const uploadPromises = mapKeysToUpload.map(async (key) => {
-            try {
-                const url = await uploadFileInChunks(mapFiles[key], key, email, materialName, key);
-                return { key, url };
-            } catch (err) {
-                console.error(`Failed to upload ${key}:`, err);
-                throw err; // Re-throw to be caught by the outer catch
-            }
-        });
+      const newlyUploadedMaps = {};
+      const mapKeysToUpload = Object.keys(mapFiles).filter(key => mapFiles[key]);
 
-        const results = await Promise.all(uploadPromises);
-        results.forEach(res => {
-            newlyUploadedMaps[res.key] = res.url;
-        });
-
-        const finalMaps = editData 
-            ? { ...editData.maps, ...newlyUploadedMaps }
-            : newlyUploadedMaps;
-
-        if (editData) {
-            // UPDATE existing material
-            const response = await axios.put(`${backendUrl}/api/textures/update/${editData.id}`, {
-                materialName,
-                materialCategory: category,
-                maps: newlyUploadedMaps // Only send the new maps to the update endpoint (which merges them)
-            });
-
-            if (response.status === 200) {
-                toast.success("Material updated successfully!");
-                if (onUpdateSuccess) onUpdateSuccess();
-                onClose();
-            }
-        } else {
-            // ADD new material
-            const response = await axios.post(`${backendUrl}/api/textures/add`, {
-                userEmail: email,
-                materialName,
-                materialCategory: category,
-                maps: finalMaps
-            });
-
-            if (response.status === 201) {
-                toast.success("Material created successfully!");
-                if (onUpdateSuccess) onUpdateSuccess();
-                onClose();
-            }
+      // Parallelized upload for all provided files to maximize bandwidth usage
+      const uploadPromises = mapKeysToUpload.map(async (key) => {
+        try {
+          const url = await uploadFileInChunks(mapFiles[key], key, email, materialName, key);
+          return { key, url };
+        } catch (err) {
+          console.error(`Failed to upload ${key}:`, err);
+          throw err; // Re-throw to be caught by the outer catch
         }
+      });
+
+      const results = await Promise.all(uploadPromises);
+      results.forEach(res => {
+        newlyUploadedMaps[res.key] = res.url;
+      });
+
+      const finalMaps = editData
+        ? { ...editData.maps, ...newlyUploadedMaps }
+        : newlyUploadedMaps;
+
+      if (editData) {
+        // UPDATE existing material
+        const response = await axios.put(`${backendUrl}/api/textures/update/${editData.id}`, {
+          materialName,
+          materialCategory: category,
+          maps: newlyUploadedMaps // Only send the new maps to the update endpoint (which merges them)
+        });
+
+        if (response.status === 200) {
+          toast.success("Material updated successfully!");
+          if (onUpdateSuccess) onUpdateSuccess();
+          onClose();
+        }
+      } else {
+        // ADD new material
+        const response = await axios.post(`${backendUrl}/api/textures/add`, {
+          userEmail: email,
+          materialName,
+          materialCategory: category,
+          maps: finalMaps
+        });
+
+        if (response.status === 201) {
+          toast.success("Material created successfully!");
+          if (onUpdateSuccess) onUpdateSuccess();
+          onClose();
+        }
+      }
     } catch (error) {
-        console.error("Upload Error:", error);
-        toast.error(error.response?.data?.message || "Operation failed. Please try again.");
+      console.error("Upload Error:", error);
+      toast.error(error.response?.data?.message || "Operation failed. Please try again.");
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -390,306 +391,307 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
   const [showBottomShadow, setShowBottomShadow] = useState(false);
 
   const handleScroll = () => {
-      if (!scrollRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      setShowTopShadow(scrollTop > 10);
-      setShowBottomShadow(scrollHeight > scrollTop + clientHeight + 10);
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    setShowTopShadow(scrollTop > 10);
+    setShowBottomShadow(scrollHeight > scrollTop + clientHeight + 10);
   };
 
   useEffect(() => {
-      const handleClickOutside = (e) => {
-          if (mapMenuOpen && !e.target.closest('.map-menu-container') && !e.target.closest('.menu-toggle-btn')) {
-              setMapMenuOpen(null);
-          }
-          if (isCategoryDropdownOpen && !e.target.closest('.category-dropdown-container')) {
-              setIsCategoryDropdownOpen(false);
-          }
-      };
-      window.addEventListener('mousedown', handleClickOutside);
-      return () => {
-          window.removeEventListener('mousedown', handleClickOutside);
-          window.removeEventListener('resize', handleScroll);
-      };
+    const handleClickOutside = (e) => {
+      if (mapMenuOpen && !e.target.closest('.map-menu-container') && !e.target.closest('.menu-toggle-btn')) {
+        setMapMenuOpen(null);
+      }
+      if (isCategoryDropdownOpen && !e.target.closest('.category-dropdown-container')) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', handleScroll);
+    };
   }, [isOpen, mapMenuOpen, isCategoryDropdownOpen]);
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[1vw]">
-      <div className="bg-white w-[42vw] max-w-[620px] max-h-[86vh] rounded-[0.8vw] shadow-[0_20px_50px_rgba(0,0,0,0.25)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
-        
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[1vw]">
+      <div className="bg-white w-[46vw] max-w-[720px] max-h-[86vh] rounded-[1vw] shadow-[0_20px_50px_rgba(0,0,0,0.25)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
+
         {/* Header - Fixed */}
-        <div className="px-[1.4vw] pt-[1vw] pb-[0.7vw] flex items-start justify-between border-b border-gray-100">
+        <div className="px-[1.6vw] pt-[1.2vw] pb-[0.8vw] flex items-start justify-between border-b border-gray-100">
           <div className="flex flex-col gap-[0.2vw] flex-1">
-            <div className="flex items-center gap-[0.6vw]">
-                <h2 className="text-[1.05vw] font-bold text-gray-900 tracking-tight whitespace-nowrap">{editData ? "Edit Material" : "Add New Material"}</h2>
-                <div className="h-[0.08vw] bg-gray-100 flex-1"></div>
+            <div className="flex items-center gap-[0.8vw]">
+              <h2 className="text-[1.15vw] font-bold text-gray-900 tracking-tight whitespace-nowrap">{editData ? "Edit Material" : "Add New Material"}</h2>
+              <div className="h-[0.09vw] bg-gray-100 flex-1"></div>
             </div>
-            <p className="text-[0.62vw] text-gray-500 font-medium">{editData ? "Update the texture maps or details of this material." : "Upload texture maps to create a new material."}</p>
+            <p className="text-[0.68vw] text-gray-500 font-medium">{editData ? "Update the texture maps or details of this material." : "Upload texture maps to create a new material."}</p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="w-[1.5vw] h-[1.5vw] rounded-full border border-red-200 text-red-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all ml-[1.5vw] shrink-0"
+            className="w-[1.7vw] h-[1.7vw] rounded-full border border-red-200 text-red-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all ml-[1.6vw] shrink-0"
           >
-            <X size="0.85vw" />
+            <X size="0.95vw" />
           </button>
         </div>
 
         {/* Scrollable Content Container with relative wrapper for shadows */}
         <div className="flex-1 relative flex flex-col overflow-hidden">
-            {/* Top Shadow - Subtle Visibility */}
-            <div className={`absolute top-0 left-0 right-0 h-[1.5vw] bg-gradient-to-b from-black/5 via-black/5 to-transparent z-20 pointer-events-none transition-opacity duration-300 ${showTopShadow ? 'opacity-100' : 'opacity-0'}`} />
+          {/* Top Shadow - Subtle Visibility */}
+          <div className={`absolute top-0 left-0 right-0 h-[1.8vw] bg-gradient-to-b from-black/5 via-black/5 to-transparent z-20 pointer-events-none transition-opacity duration-300 ${showTopShadow ? 'opacity-100' : 'opacity-0'}`} />
 
-            {/* Scrollable Content Area */}
-            <div 
-                ref={scrollRef}
-                onScroll={handleScroll}
-                className="flex-1 overflow-y-auto custom-scrollbar px-[1.4vw] py-[0.9vw] flex flex-col gap-[0.85vw]"
-            >
-          
-          {/* Top Section: Preview & Settings */}
-          <div className="flex gap-[1vw] bg-gray-100/90 p-[0.8vw] rounded-[0.6vw] border border-gray-200/80">
-            {/* Main Preview Upload */}
-            <div className="flex flex-col gap-[0.3vw] shrink-0">
-                <span className="text-[0.62vw] font-bold text-gray-900">Material Preview</span>
-                <input 
-                  type="file" 
+          {/* Scrollable Content Area */}
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto custom-scrollbar px-[1.6vw] py-[1vw] flex flex-col gap-[1vw]"
+          >
+
+            {/* Top Section: Preview & Settings */}
+            <div className="flex gap-[1.2vw] bg-gray-100/90 p-[0.9vw] rounded-[0.7vw] border border-gray-200/80">
+              {/* Main Preview Upload */}
+              <div className="flex flex-col gap-[0.35vw] shrink-0">
+                <span className="text-[0.68vw] font-bold text-gray-900">Material Preview</span>
+                <input
+                  type="file"
                   id="preview-upload"
-                  className="hidden" 
+                  className="hidden"
                   accept="image/*"
                   onChange={(e) => {
                     if (e.target.files[0]) {
-                        handleMapUpload('preview', e.target.files[0]);
-                        e.target.value = null;
+                      handleMapUpload('preview', e.target.files[0]);
+                      e.target.value = null;
                     }
                   }}
                 />
-                <div 
-                    onClick={() => {
-                        if (!maps.preview) document.getElementById('preview-upload').click();
-                    }}
-                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsPreviewDragging(true); }}
-                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsPreviewDragging(false); }}
-                    onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsPreviewDragging(false);
-                        const file = e.dataTransfer.files[0];
-                        if (file && file.type.startsWith('image/')) {
-                            handleMapUpload('preview', file);
-                        }
-                    }}
-                    className={`w-[7.2vw] h-[6vw] border-[0.08vw] border-dashed ${maps.preview ? 'border-transparent' : 'border-gray-400'} rounded-[0.5vw] bg-white flex flex-col items-center justify-center gap-[0.4vw] ${maps.preview ? 'hover:border-transparent cursor-default' : 'hover:border-[#5d5efc] cursor-pointer'} transition-all group shadow-sm relative overflow-hidden ${isPreviewDragging ? 'border-[#5d5efc] bg-indigo-50/50 ring-1 ring-[#5d5efc]/20' : ''}`}
+                <div
+                  onClick={() => {
+                    if (!maps.preview) document.getElementById('preview-upload').click();
+                  }}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsPreviewDragging(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsPreviewDragging(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsPreviewDragging(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                      handleMapUpload('preview', file);
+                    }
+                  }}
+                  className={`w-[8vw] h-[6.8vw] border-[0.09vw] border-dashed ${maps.preview ? 'border-transparent' : 'border-gray-400'} rounded-[0.6vw] bg-white flex flex-col items-center justify-center gap-[0.45vw] ${maps.preview ? 'hover:border-transparent cursor-default' : 'hover:border-[#5d5efc] cursor-pointer'} transition-all group shadow-sm relative overflow-hidden ${isPreviewDragging ? 'border-[#5d5efc] bg-indigo-50/50 ring-1 ring-[#5d5efc]/20' : ''}`}
                 >
-                    {maps.preview ? (
-                        <>
-                            <img 
-                                src={maps.preview} 
-                                alt="Preview" 
-                                className="absolute inset-0 w-full h-full object-cover rounded-[0.45vw]" 
-                                onLoad={() => setLoadingMaps(prev => ({ ...prev, preview: false }))}
-                            />
+                  {maps.preview ? (
+                    <>
+                      <img
+                        src={maps.preview}
+                        alt="Preview"
+                        className="absolute inset-0 w-full h-full object-cover rounded-[0.55vw]"
+                        onLoad={() => setLoadingMaps(prev => ({ ...prev, preview: false }))}
+                      />
 
-                            {/* Loading Overlay */}
-                            {loadingMaps.preview && (
-                                <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-30 rounded-[0.45vw] border-[0.08vw] border-gray-100">
-                                    <div className="w-[1vw] h-[1vw] border-[0.12vw] border-gray-200 border-t-[#5d5efc] rounded-full animate-spin shadow-sm" />
-                                </div>
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10" />
-                            <div className="absolute bottom-[0.4vw] left-0 right-0 px-[0.3vw] flex items-center justify-center z-20">
-                                <span className="text-[0.52vw] font-bold text-white tracking-tight drop-shadow-sm uppercase">Main Preview</span>
-                            </div>
+                      {/* Loading Overlay */}
+                      {loadingMaps.preview && (
+                        <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-30 rounded-[0.55vw] border-[0.09vw] border-gray-100">
+                          <div className="w-[1.2vw] h-[1.2vw] border-[0.14vw] border-gray-200 border-t-[#5d5efc] rounded-full animate-spin shadow-sm" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10" />
+                      <div className="absolute bottom-[0.5vw] left-0 right-0 px-[0.4vw] flex items-center justify-center z-20">
+                        <span className="text-[0.58vw] font-bold text-white tracking-tight drop-shadow-sm uppercase">Main Preview</span>
+                      </div>
 
-                            {/* Three Dots Toggle - Only on Hover */}
-                            <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setMapMenuOpen(mapMenuOpen === 'preview' ? null : 'preview');
-                                }}
-                                className={`absolute top-[0.3vw] right-[0.3vw] w-[1.1vw] h-[1.1vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-all z-30 shadow-sm menu-toggle-btn ${mapMenuOpen === 'preview' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                            >
-                                <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.75vw" />
-                            </button>
+                      {/* Three Dots Toggle - Only on Hover */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMapMenuOpen(mapMenuOpen === 'preview' ? null : 'preview');
+                        }}
+                        className={`absolute top-[0.4vw] right-[0.4vw] w-[1.2vw] h-[1.2vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-all z-30 shadow-sm menu-toggle-btn ${mapMenuOpen === 'preview' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                      >
+                        <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.85vw" />
+                      </button>
 
-                            {/* Map Context Menu (Rendered INSIDE the box) */}
-                            {mapMenuOpen === 'preview' && (
-                                <div className="absolute top-[1.6vw] right-[0.3vw] bg-white rounded-[0.4vw] shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.2vw] px-[0.15vw] min-w-[5.8vw] z-[40] map-menu-container animate-in fade-in zoom-in duration-150">
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      document.getElementById('preview-upload').click();
-                                      setMapMenuOpen(null);
-                                    }}
-                                    className="w-full flex items-center gap-[0.3vw] cursor-pointer px-[0.4vw] py-[0.25vw] hover:bg-gray-50 rounded-[0.3vw] text-gray-700 transition-colors group/item"
-                                  >
-                                    <Icon icon="ix:replace" className="w-[0.75vw] h-[0.75vw] text-[#5d5efc]" />
-                                    <span className="text-[0.5vw] font-semibold text-gray-600">Replace Map</span>
-                                  </button>
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setMaps(prev => ({ ...prev, preview: null }));
-                                      setMapFiles(prev => ({ ...prev, preview: null }));
-                                      setMapMenuOpen(null);
-                                    }}
-                                    className="w-full flex items-center gap-[0.3vw] cursor-pointer px-[0.4vw] py-[0.25vw] hover:bg-red-50 rounded-[0.3vw] text-red-500 transition-colors border-t border-gray-50 mt-[0.1vw]"
-                                  >
-                                    <Icon icon="solar:trash-bin-trash-linear" className="w-[0.75vw] h-[0.75vw]" />
-                                    <span className="text-[0.5vw] font-semibold">Clear Map</span>
-                                  </button>
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <div className="flex flex-col items-center">
-                                <span className="text-[0.45vw] font-medium text-gray-500">Drag & Drop or <span className="text-[#5d5efc] font-bold">Upload</span></span>
-                            </div>
-                            <Icon icon="heroicons:arrow-up-tray-20-solid" width="1.1vw" className="text-gray-400 group-hover:text-[#5d5efc] transition-all" />
-                            <span className="text-[0.38vw] text-gray-400 font-bold uppercase tracking-wider">Supported File: JPG, PNG</span>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Basic Info */}
-            <div className="flex-1 flex flex-col gap-[0.5vw] justify-center">
-                <div className="flex flex-col gap-[0.25vw]">
-                    <span className="text-[0.62vw] font-bold text-gray-900">Material Name</span>
-                    <div className="relative group">
-                        <input 
-                            type="text" 
-                            placeholder="Enter Texture Name"
-                            value={materialName}
-                            onChange={(e) => setMaterialName(e.target.value)}
-                            className="w-full bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.45vw] text-[0.62vw] font-semibold text-gray-800 outline-none focus:border-[#5d5efc] transition-all shadow-sm group-hover:border-gray-300"
-                        />
-                        <Edit3 size="0.75vw" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-gray-600 transition-all" />
-                    </div>
-                </div>
-
-                <div className="flex flex-col gap-[0.25vw]">
-                    <span className="text-[0.62vw] font-bold text-gray-900">Material Category</span>
-                    <div className="relative group category-dropdown-container">
-                        <input 
-                            type="text" 
-                            placeholder="Enter Category (e.g., Bike Texture)"
-                            value={category}
-                            onFocus={() => setIsCategoryDropdownOpen(true)}
-                            onChange={(e) => {
-                                setCategory(e.target.value);
-                                setIsCategoryDropdownOpen(true);
-                            }}
-                            className="w-full bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.45vw] pr-[2vw] text-[0.62vw] font-semibold text-gray-800 outline-none focus:border-[#5d5efc] transition-all shadow-sm group-hover:border-gray-300"
-                        />
-                        <button 
+                      {/* Map Context Menu (Rendered INSIDE the box) */}
+                      {mapMenuOpen === 'preview' && (
+                        <div className="absolute top-[1.8vw] right-[0.4vw] bg-white rounded-[0.5vw] shadow-[0_6px_25px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.25vw] px-[0.15vw] min-w-[6.4vw] z-[40] map-menu-container animate-in fade-in zoom-in duration-150">
+                          <button
                             onClick={(e) => {
-                                e.preventDefault();
-                                setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+                              e.stopPropagation();
+                              document.getElementById('preview-upload').click();
+                              setMapMenuOpen(null);
                             }}
-                            className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-all cursor-pointer flex items-center justify-center h-full"
-                        >
-                            <ChevronDown size="0.8vw" className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {/* Dropdown List */}
-                        {isCategoryDropdownOpen && existingCategories.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-[0.3vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-[0_8px_25px_rgba(0,0,0,0.1)] z-50 max-h-[9vw] overflow-y-auto custom-scrollbar flex flex-col py-[0.3vw] animate-in fade-in slide-in-from-top-2 duration-200">
-                                {existingCategories
-                                    .filter(c => typeof c === 'string' && c.toLowerCase().includes(category.toLowerCase()))
-                                    .map((cat, idx) => (
-                                        <button 
-                                            key={idx}
-                                            onClick={() => {
-                                                setCategory(cat);
-                                                setIsCategoryDropdownOpen(false);
-                                            }}
-                                            className="w-full text-left px-[0.7vw] py-[0.4vw] hover:bg-gray-50 text-[0.6vw] font-medium text-gray-600 transition-colors"
-                                        >
-                                            {cat}
-                                        </button>
-                                    ))
-                                }
-                                {existingCategories.filter(c => typeof c === 'string' && c.toLowerCase().includes(category.toLowerCase())).length === 0 && (
-                                    <div className="px-[0.7vw] py-[0.4vw] text-[0.55vw] text-gray-400 italic">
-                                        Type to create new: "{category}"
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                            className="w-full flex items-center gap-[0.4vw] cursor-pointer px-[0.5vw] py-[0.3vw] hover:bg-gray-50 rounded-[0.35vw] text-gray-700 transition-colors group/item"
+                          >
+                            <Icon icon="ix:replace" className="w-[0.85vw] h-[0.85vw] text-[#5d5efc]" />
+                            <span className="text-[0.56vw] font-semibold text-gray-600">Replace Map</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMaps(prev => ({ ...prev, preview: null }));
+                              setMapFiles(prev => ({ ...prev, preview: null }));
+                              setMapMenuOpen(null);
+                            }}
+                            className="w-full flex items-center gap-[0.4vw] cursor-pointer px-[0.5vw] py-[0.3vw] hover:bg-red-50 rounded-[0.35vw] text-red-500 transition-colors border-t border-gray-50 mt-[0.1vw]"
+                          >
+                            <Icon icon="solar:trash-bin-trash-linear" className="w-[0.85vw] h-[0.85vw]" />
+                            <span className="text-[0.56vw] font-semibold">Clear Map</span>
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-col items-center">
+                        <span className="text-[0.5vw] font-medium text-gray-500">Drag & Drop or <span className="text-[#5d5efc] font-bold">Upload</span></span>
+                      </div>
+                      <Icon icon="heroicons:arrow-up-tray-20-solid" width="1.25vw" className="text-gray-400 group-hover:text-[#5d5efc] transition-all" />
+                      <span className="text-[0.42vw] text-gray-400 font-bold uppercase tracking-wider">Supported File: JPG, PNG</span>
+                    </>
+                  )}
                 </div>
-            </div>
-          </div>
+              </div>
 
-          {/* Notes Alert */}
-          <div className="bg-red-50/60 border border-red-100 py-[0.45vw] px-[0.8vw] rounded-[0.4vw] flex items-center gap-[0.5vw]">
-            <AlertCircle size="0.8vw" className="text-red-500 shrink-0" />
-            <p className="text-[0.55vw] font-medium text-gray-600 leading-tight">
-                <span className="font-bold text-red-500 uppercase tracking-tight mr-[0.3vw]">Notes:</span>
+              {/* Basic Info */}
+              <div className="flex-1 flex flex-col gap-[0.6vw] justify-center">
+                <div className="flex flex-col gap-[0.3vw]">
+                  <span className="text-[0.68vw] font-bold text-gray-900">Material Name</span>
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      placeholder="Enter Texture Name"
+                      value={materialName}
+                      onChange={(e) => setMaterialName(e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded-[0.45vw] px-[0.7vw] py-[0.5vw] text-[0.68vw] font-semibold text-gray-800 outline-none focus:border-[#5d5efc] transition-all shadow-sm group-hover:border-gray-300"
+                    />
+                    <Edit3 size="0.85vw" className="absolute right-[0.7vw] top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-gray-600 transition-all" />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-[0.3vw]">
+                  <span className="text-[0.68vw] font-bold text-gray-900">Material Category</span>
+                  <div className="relative group category-dropdown-container">
+                    <input
+                      type="text"
+                      placeholder="Enter Category (e.g., Bike Texture)"
+                      value={category}
+                      onFocus={() => setIsCategoryDropdownOpen(true)}
+                      onChange={(e) => {
+                        setCategory(e.target.value);
+                        setIsCategoryDropdownOpen(true);
+                      }}
+                      className="w-full bg-white border border-gray-200 rounded-[0.45vw] px-[0.7vw] py-[0.5vw] pr-[2.2vw] text-[0.68vw] font-semibold text-gray-800 outline-none focus:border-[#5d5efc] transition-all shadow-sm group-hover:border-gray-300"
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+                      }}
+                      className="absolute right-[0.7vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-all cursor-pointer flex items-center justify-center h-full"
+                    >
+                      <ChevronDown size="0.9vw" className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown List */}
+                    {isCategoryDropdownOpen && existingCategories.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-[0.35vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-[0_8px_25px_rgba(0,0,0,0.1)] z-50 max-h-[10vw] overflow-y-auto custom-scrollbar flex flex-col py-[0.35vw] animate-in fade-in slide-in-from-top-2 duration-200">
+                        {existingCategories
+                          .filter(c => typeof c === 'string' && c.toLowerCase().includes(category.toLowerCase()))
+                          .map((cat, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setCategory(cat);
+                                setIsCategoryDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-[0.8vw] py-[0.45vw] hover:bg-gray-50 text-[0.65vw] font-medium text-gray-600 transition-colors"
+                            >
+                              {cat}
+                            </button>
+                          ))
+                        }
+                        {existingCategories.filter(c => typeof c === 'string' && c.toLowerCase().includes(category.toLowerCase())).length === 0 && (
+                          <div className="px-[0.8vw] py-[0.45vw] text-[0.6vw] text-gray-400 italic">
+                            Type to create new: "{category}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes Alert */}
+            <div className="bg-red-50/60 border border-red-100 py-[0.5vw] px-[0.9vw] rounded-[0.45vw] flex items-center gap-[0.55vw]">
+              <AlertCircle size="0.9vw" className="text-red-500 shrink-0" />
+              <p className="text-[0.62vw] font-medium text-gray-600 leading-tight">
+                <span className="font-bold text-red-500 uppercase tracking-tight mr-[0.35vw]">Notes:</span>
                 Upload the correct texture maps in their respective slots to achieve accurate material appearance.
-            </p>
-          </div>
-
-          {/* Surface Maps Section */}
-          <div className="flex flex-col gap-[0.6vw]">
-            <div className="flex items-center gap-[0.4vw]">
-                <h3 className="text-[0.75vw] font-bold text-gray-900 tracking-tight">Surface Maps</h3>
-                <span className="text-red-500 text-[0.75vw] font-bold">*</span>
-                <div className="h-[0.08vw] flex-1 bg-gray-100 ml-[0.3vw]"></div>
+              </p>
             </div>
-            <div className="grid grid-cols-4 gap-[0.8vw]">
+
+            {/* Surface Maps Section */}
+            <div className="flex flex-col gap-[0.7vw]">
+              <div className="flex items-center gap-[0.45vw]">
+                <h3 className="text-[0.85vw] font-bold text-gray-900 tracking-tight">Surface Maps</h3>
+                <span className="text-red-500 text-[0.85vw] font-bold">*</span>
+                <div className="h-[0.09vw] flex-1 bg-gray-100 ml-[0.35vw]"></div>
+              </div>
+              <div className="grid grid-cols-4 gap-[0.9vw]">
                 <MapUploadBox label="Base Map" id="base" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
                 <MapUploadBox label="Metallic Map" id="metallic" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
                 <MapUploadBox label="Roughness Map" id="roughness" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
                 <MapUploadBox label="Normal Map" id="normal" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
+              </div>
             </div>
-          </div>
 
-          {/* Advanced Maps Section */}
-          <div className="flex flex-col gap-[0.6vw]">
-             <div className="flex items-center gap-[0.4vw]">
-                <h3 className="text-[0.75vw] font-bold text-gray-900 tracking-tight">Advanced Maps <span className="text-gray-400 font-medium text-[0.62vw]">(Optional)</span></h3>
-                <div className="h-[0.08vw] flex-1 bg-gray-100 ml-[0.3vw]"></div>
-             </div>
-             <div className="grid grid-cols-4 gap-[0.8vw]">
+            {/* Advanced Maps Section */}
+            <div className="flex flex-col gap-[0.7vw]">
+              <div className="flex items-center gap-[0.45vw]">
+                <h3 className="text-[0.85vw] font-bold text-gray-900 tracking-tight">Advanced Maps <span className="text-gray-400 font-medium text-[0.68vw]">(Optional)</span></h3>
+                <div className="h-[0.09vw] flex-1 bg-gray-100 ml-[0.35vw]"></div>
+              </div>
+              <div className="grid grid-cols-4 gap-[0.9vw]">
                 <MapUploadBox label="A/O Map" id="ao" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
                 <MapUploadBox label="Displacement" id="displacement" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
                 <MapUploadBox label="Opacity Map" id="opacity" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
                 <MapUploadBox label="Emissive Map" id="emissive" isSmall maps={maps} setMaps={setMaps} setMapFiles={setMapFiles} mapMenuOpen={mapMenuOpen} setMapMenuOpen={setMapMenuOpen} handleMapUpload={handleMapUpload} loadingMaps={loadingMaps} setLoadingMaps={setLoadingMaps} />
+              </div>
             </div>
-          </div>
 
-          {/* Bottom Shadow - Corrected Position & Subtle Visibility */}
-          <div className={`absolute bottom-0 left-0 right-0 h-[1.5vw] bg-gradient-to-t from-black/10 via-black/5 to-transparent z-20 pointer-events-none transition-opacity duration-300 ${showBottomShadow ? 'opacity-100' : 'opacity-0'}`} />
-        </div>
+            {/* Bottom Shadow - Corrected Position & Subtle Visibility */}
+            <div className={`absolute bottom-0 left-0 right-0 h-[1.8vw] bg-gradient-to-t from-black/10 via-black/5 to-transparent z-20 pointer-events-none transition-opacity duration-300 ${showBottomShadow ? 'opacity-100' : 'opacity-0'}`} />
+          </div>
         </div>
 
         {/* Footer Area - Fixed */}
-        <div className="px-[1.4vw] py-[0.8vw] flex items-center justify-center gap-[1vw] border-t border-gray-100 bg-white">
-            <button 
-                onClick={onClose}
-                className="flex-1 flex items-center cursor-pointer justify-center gap-[0.4vw] py-[0.55vw] border-[0.08vw] border-gray-800 rounded-[0.4vw] text-[0.68vw] font-bold text-gray-800 hover:bg-gray-50 transition-all shadow-sm"
-            >
-                <X size="0.8vw" />
-                Cancel
-            </button>
-            <button 
-                onClick={handleAddMaterial}
-                disabled={isSubmitting}
-                className={`flex-1 flex items-center cursor-pointer justify-center gap-[0.5vw] py-[0.55vw] bg-black text-white rounded-[0.4vw] text-[0.68vw] font-bold hover:bg-zinc-800 transition-all shadow-md ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                {isSubmitting ? (
-                    <Icon icon="line-md:loading-twotone-loop" width="0.9vw" />
-                ) : (
-                    <Check size="0.85vw" />
-                )}
-                {isSubmitting ? (editData ? "Updating..." : "Creating...") : (editData ? "Update Material" : "Add Material")}
-            </button>
+        <div className="px-[1.6vw] py-[0.9vw] flex items-center justify-center gap-[1.2vw] border-t border-gray-100 bg-white">
+          <button
+            onClick={onClose}
+            className="flex-1 flex items-center cursor-pointer justify-center gap-[0.45vw] py-[0.62vw] border-[0.09vw] border-gray-800 rounded-[0.45vw] text-[0.74vw] font-bold text-gray-800 hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <X size="0.9vw" />
+            Cancel
+          </button>
+          <button
+            onClick={handleAddMaterial}
+            disabled={isSubmitting}
+            className={`flex-1 flex items-center cursor-pointer justify-center gap-[0.6vw] py-[0.62vw] bg-black text-white rounded-[0.45vw] text-[0.74vw] font-bold hover:bg-zinc-800 transition-all shadow-md ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {isSubmitting ? (
+              <Icon icon="line-md:loading-twotone-loop" width="1vw" />
+            ) : (
+              <Check size="0.95vw" />
+            )}
+            {isSubmitting ? (editData ? "Updating..." : "Creating...") : (editData ? "Update Material" : "Add Material")}
+          </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

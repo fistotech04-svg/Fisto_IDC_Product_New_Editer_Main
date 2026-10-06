@@ -67,18 +67,17 @@ export function useThreedCameraControls({
         box.getSize(size);
         target.copy(center);
 
-        // ✅ Tight framing: use half of the largest extent, not the AABB diagonal.
+        // Tight framing: use largest extent
         const maxExtent = Math.max(size.x, size.y, size.z);
-        radius = Math.max(0.8, maxExtent / 2);
+        radius = Math.max(1.2, maxExtent / 2);
       } else if (bounds) {
         const h = bounds.height || (bounds.size?.y ? bounds.size.y * (bounds.targetScale || 1) : 2.0);
         const w = bounds.width  || (bounds.size?.x ? bounds.size.x * (bounds.targetScale || 1) : 2.0);
         const d = bounds.depth  || (bounds.size?.z ? bounds.size.z * (bounds.targetScale || 1) : 2.0);
         target.set(0, Math.max(0.2, h / 2), 0);
 
-        // ✅ Same fix here for consistency.
         const maxExtent = Math.max(w, h, d);
-        radius = Math.max(0.8, maxExtent / 2);
+        radius = Math.max(1.2, maxExtent / 2);
       }
 
       // 2. Compute optimal camera framing distance
@@ -91,13 +90,13 @@ export function useThreedCameraControls({
       const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
       const hFOVRad = Math.atan(Math.tan(vFOVRad) * aspect);
 
-      // Frame model tighter and nearer to comfortably occupy the viewport
+      // Frame model nicely near the viewport without clipping inside meshes
       const distV = radius / Math.tan(vFOVRad);
       const distH = radius / Math.tan(hFOVRad);
       const fitDistance = Math.max(distV, distH);
 
-      const PADDING = 0.5;
-      const distance = Math.max(1.8, Math.min(fitDistance * PADDING, 25));
+      const PADDING = 0.85;
+      const distance = Math.max(2.0, Math.min(fitDistance * PADDING, 25));
 
       // 3. 3/4 elevated perspective
       const phi = THREE.MathUtils.degToRad(66);
@@ -208,7 +207,7 @@ export function useThreedCameraControls({
       if (cameraInstanceRef.current) {
         cameraInstanceRef.current.up.set(0, 1, 0);
       }
-      const dist = 5.5;
+      const dist = 3.5;
       if (mode === "front") {
         controlsRef.current.object.position.set(0, 0, dist);
       } else if (mode === "top") {
@@ -216,7 +215,7 @@ export function useThreedCameraControls({
       } else if (mode === "right") {
         controlsRef.current.object.position.set(dist, 0, 0);
       } else if (mode === "perspective") {
-        controlsRef.current.object.position.set(3.5, 3.2, 5.0);
+        controlsRef.current.object.position.set(2.0, 1.8, 2.7);
       }
       controlsRef.current.target.set(0, 0, 0);
       controlsRef.current.update();

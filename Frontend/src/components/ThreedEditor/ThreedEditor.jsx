@@ -12,7 +12,6 @@ import RightPanel from "./ThreedRightpanel";
 import LeftSidebar from "./LeftSidebar";
 import MaterialSelectorDrawer from "./Components/MaterialSelectorDrawer";
 import CanvasFloatingToolbar from "./CanvasFloatingToolbar";
-import BottomGalleryTray from "./BottomGalleryTray";
 import CameraBottomTray from "./Components/CameraBottomTray";
 import { GlobalLoader } from "./Components/GlobalLoader";
 import Export3DModal from "./Components/Export3DModal";
@@ -2811,69 +2810,6 @@ export default function ThreedEditor() {
               modelName={modelName}
             />
           )}
-
-          {/* Bottom Material / Texture Gallery Swatches */}
-          <BottomGalleryTray
-            isVisible={activeLeftTab === "textures"}
-            onSelectTexture={handleSelectTexture}
-            selectedTextureId={selectedTextureId}
-            onSelectColor={(colorData) => {
-              if (typeof colorData === 'object') {
-                setMaterialSettings(prev => {
-                  const next = {
-                    ...prev,
-                    color: colorData.color || colorData.hex || prev.color,
-                    metallic: colorData.metallic !== undefined ? colorData.metallic : prev.metallic,
-                    roughness: colorData.roughness !== undefined ? colorData.roughness : prev.roughness,
-                    normal: colorData.normal !== undefined ? colorData.normal : prev.normal,
-                    ao: colorData.ao !== undefined ? colorData.ao : prev.ao,
-                    bump: colorData.bump !== undefined ? colorData.bump : prev.bump,
-                    emissiveColor: colorData.emissiveColor || '#000000',
-                    emissiveIntensity: colorData.emissiveIntensity !== undefined ? colorData.emissiveIntensity : 0,
-                    useFactorColor: true,
-                    lastChangedProp: 'color'
-                  };
-                  const curSel = stateRef.current.selectedMaterial;
-                  const targetKeys = getMaterialTargetKeys(curSel);
-                  let nextCustomMap = customizedMaterialsRef.current || {};
-                  if (targetKeys.length > 0) {
-                    nextCustomMap = { ...nextCustomMap };
-                    targetKeys.forEach(tKey => {
-                      const prevCustom = nextCustomMap[tKey] || {};
-                      nextCustomMap[tKey] = {
-                        ...prevCustom,
-                        color: next.color,
-                        metallic: next.metallic,
-                        roughness: next.roughness,
-                        normal: next.normal,
-                        ao: next.ao,
-                        bump: next.bump,
-                        emissiveColor: next.emissiveColor,
-                        emissiveIntensity: next.emissiveIntensity,
-                        useFactorColor: true,
-                        ...(prevCustom.maps !== undefined ? { maps: prevCustom.maps } : {}),
-                        ...(prevCustom.appliedTexture !== undefined ? { appliedTexture: prevCustom.appliedTexture } : {}),
-                      };
-                    });
-
-                    customizedMaterialsRef.current = nextCustomMap;
-                    setCustomizedMaterials(nextCustomMap);
-                  }
-                  const snapshot = buildSnapshot({
-                    materialSettings: next,
-                    customizedMaterials: nextCustomMap
-                  });
-                  commitHistoryDebounced(snapshot, 500);
-                  return { ...next };
-                });
-              } else {
-                handleMaterialUIUpdate('color', colorData);
-              }
-            }}
-            selectedColor={materialSettings?.color}
-            onAddMaterialClick={() => setShowAddMaterialModal(true)}
-            refreshTrigger={materialRefreshKey}
-          />
         </div>
 
         {/* Right Settings Panel (Model / Materials / Environment / Hotspots) */}

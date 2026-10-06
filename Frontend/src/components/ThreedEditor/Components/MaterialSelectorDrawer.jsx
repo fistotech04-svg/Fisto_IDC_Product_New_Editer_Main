@@ -328,9 +328,10 @@ export default function MaterialSelectorDrawer({
     <>
       <div 
         ref={modalRef}
-        className="absolute top-[2.8vw] w-[30.8vw] min-w-[415px] max-w-[495px] max-h-[52vh] bg-white rounded-[1.1vw] shadow-[0_12px_40px_rgba(0,0,0,0.14)] border border-gray-100 z-50 flex flex-col overflow-hidden font-sans select-none will-change-transform animate-in fade-in zoom-in-95 duration-150"
+        className="absolute w-[30.8vw] min-w-[415px] max-w-[495px] max-h-[52vh] bg-white rounded-[1.1vw] shadow-[0_12px_40px_rgba(0,0,0,0.14)] border border-gray-100 z-50 flex flex-col overflow-hidden font-sans select-none will-change-transform animate-in fade-in zoom-in-95 duration-150"
         style={{ 
-          left: "max(15.5vw, 210px)",
+          right: "max(24vw, 320px)",
+          top: "6.5vw",
           transform: `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)`
         }}
       >

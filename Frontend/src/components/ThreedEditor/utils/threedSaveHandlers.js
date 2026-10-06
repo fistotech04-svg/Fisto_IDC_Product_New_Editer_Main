@@ -181,11 +181,18 @@ export async function executeSave3D({
             mat.alphaMap = null;
             mat.aoMap = null;
           } else {
-            const isTrans = mat.opacity < 0.99 || !!mat.alphaMap;
+            const isCutoutName = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((obj.name || '') + '_' + (mat.name || ''));
+            const isTrans = Boolean(mat.transparent || (mat.opacity !== undefined && mat.opacity < 0.999) || mat.alphaMap || isCutoutName);
             mat.transparent = isTrans;
             mat.depthWrite = !isTrans;
+            if (mat.alphaTest > 0) {
+              // keep existing alphaTest
+            } else if (isTrans && isCutoutName) {
+              mat.alphaTest = 0.05;
+            } else {
+              mat.alphaTest = 0;
+            }
           }
-          mat.alphaTest = 0;
           if (mat.envMap) mat.envMap = null;
           delete mat.customProgramCacheKey;
           delete mat.onBeforeCompile;

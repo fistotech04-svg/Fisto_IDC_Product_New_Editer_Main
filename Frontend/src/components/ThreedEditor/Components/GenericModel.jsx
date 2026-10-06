@@ -296,18 +296,19 @@ const GenericModel = React.memo(React.forwardRef(({
                         mat.userData.originalAlphaMap = mat.alphaMap;
                         mat.userData.originalBumpMap = mat.bumpMap;
                         mat.userData.originalDisplacementMap = mat.displacementMap;
-                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
+                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((child.name || '') + '_' + (mat.name || ''));
                         const hasAlphaMap = Boolean(mat.alphaMap);
                         const hasCutout = (mat.alphaTest !== undefined && mat.alphaTest > 0) || isLikelyCutout;
                         const isExplicitlyPartialOpacity = (mat.opacity !== undefined && mat.opacity < 0.999);
+                        const isGLTFTransparent = Boolean(mat.transparent);
 
-                        const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap;
+                        const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap || (isGLTFTransparent && !hasCutout) || (isLikelyCutout && Boolean(mat.map));
                         mat.transparent = isTrulyTransparent;
-                        mat.depthWrite = true;
+                        mat.depthWrite = !isTrulyTransparent;
 
                         if (hasCutout) {
-                            mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.5;
-                            mat.transparent = false;
+                            mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.05;
+                            mat.transparent = true;
                             mat.depthWrite = true;
                         }
 
@@ -809,6 +810,9 @@ const GenericModel = React.memo(React.forwardRef(({
                             if (mat.map !== loadedMaps.map) mat.map = loadedMaps.map;
                             if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
                             mat.userData.manualMaps.map = newMapsList.map;
+                            mat.transparent = true;
+                            mat.alphaTest = Math.max(0.05, mat.alphaTest || 0);
+                            mat.depthWrite = true;
                         } else if (newMapsList.map === null) {
                             mat.map = null;
                             if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
@@ -1282,18 +1286,19 @@ const GenericModel = React.memo(React.forwardRef(({
                             processedMaterials.set(m.uuid, uniqueName);
                             usedNames.add(uniqueName);
 
-                            const isLikelyCutoutM = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${m.name || ''}`);
+                            const isLikelyCutoutM = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((child.name || '') + '_' + (m.name || ''));
                             const hasAlphaMapM = Boolean(m.alphaMap);
                             const hasCutoutM = (m.alphaTest !== undefined && m.alphaTest > 0) || isLikelyCutoutM;
                             const isExplicitlyPartialOpacityM = (m.opacity !== undefined && m.opacity < 0.999);
-                            const isTrulyTransparentM = isExplicitlyPartialOpacityM || hasAlphaMapM;
+                            const isGLTFTransparentM = Boolean(m.transparent);
+                            const isTrulyTransparentM = isExplicitlyPartialOpacityM || hasAlphaMapM || (isGLTFTransparentM && !hasCutoutM) || (isLikelyCutoutM && Boolean(m.map));
 
                             m.transparent = isTrulyTransparentM;
-                            m.depthWrite = true;
+                            m.depthWrite = !isTrulyTransparentM;
 
                             if (hasCutoutM) {
-                                m.alphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : 0.5;
-                                m.transparent = false;
+                                m.alphaTest = (m.alphaTest !== undefined && m.alphaTest > 0) ? m.alphaTest : 0.05;
+                                m.transparent = true;
                                 m.depthWrite = true;
                             }
 

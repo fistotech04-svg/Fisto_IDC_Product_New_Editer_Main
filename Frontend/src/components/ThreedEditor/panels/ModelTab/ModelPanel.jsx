@@ -3,7 +3,7 @@ import { Icon } from "@iconify/react";
 import { resolveUploadsPath } from "../../../../utils/supabaseUtils";
 import { textureData } from "../../../../data/textureData";
 import ColorPicker from "../../ColorPicker";
-import { AxisInput, SliderRow, DualAxisInput } from "../common/PanelInputs";
+import { AxisInput, SliderRow, DualAxisInput, ToggleSwitch } from "../common/PanelInputs";
 
 export function ModelPanel({
   // Position & View transforms
@@ -117,6 +117,12 @@ export function ModelPanel({
     e.target.value = "";
   };
 
+  // Check if a model, mesh, or material is selected
+  const hasSelection = Boolean(
+    selectedMaterial &&
+    (typeof selectedMaterial === "string" ? selectedMaterial.trim() !== "" : true)
+  );
+
   return (
     <div className="flex flex-col gap-[1.3vw]">
       {/* ── 1. POSITION SECTION ── */}
@@ -217,8 +223,11 @@ export function ModelPanel({
         </div>
       </div>
 
-      {/* ── 2. MATERIAL SECTION ── */}
-      <div className="flex flex-col gap-[0.75vw]">
+      {/* ── 2. MATERIAL & 3. TEXTURE PLACEMENT SECTIONS (Only show when a model/mesh/material is selected) ── */}
+      {hasSelection && (
+        <>
+          {/* ── 2. MATERIAL SECTION ── */}
+          <div className="flex flex-col gap-[0.75vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.82vw] font-bold text-gray-900">Material</span>
           <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
@@ -487,8 +496,10 @@ export function ModelPanel({
           />
         </div>
       </div>
+    </>
+  )}
 
-      {/* ── 4. VIEW SECTION ── */}
+  {/* ── 4. VIEW SECTION ── */}
       <div className="flex flex-col gap-[0.75vw]">
         <div className="flex items-center gap-[0.6vw]">
           <span className="text-[0.82vw] font-bold text-gray-900">View</span>
@@ -498,19 +509,11 @@ export function ModelPanel({
         {/* Auto Rotate Toggle */}
         <div className="flex items-center justify-between py-[0.1vw]">
           <span className="text-[0.78vw] font-medium text-gray-800">Auto Rotate</span>
-          <button
-            type="button"
-            onClick={() => setAutoRotate && setAutoRotate(!autoRotate)}
-            className={`w-[2.4vw] h-[1.3vw] rounded-full flex items-center px-[0.18vw] transition-colors cursor-pointer ${
-              autoRotate ? "bg-[#ea543a]" : "bg-gray-300"
-            }`}
-          >
-            <div
-              className={`w-[0.9vw] h-[0.9vw] rounded-full bg-white transition-transform ${
-                autoRotate ? "translate-x-[1.1vw]" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={!!autoRotate}
+            onChange={(val) => setAutoRotate && setAutoRotate(val)}
+            title="Auto Rotate"
+          />
         </div>
 
         {/* Rotate Speed */}
@@ -537,37 +540,21 @@ export function ModelPanel({
         {/* Show Grid Lines */}
         <div className="flex items-center justify-between py-[0.1vw]">
           <span className="text-[0.78vw] font-medium text-gray-800">Show Grid Lines</span>
-          <button
-            type="button"
-            onClick={() => setShowGridLines && setShowGridLines(!showGridLines)}
-            className={`w-[2.4vw] h-[1.3vw] rounded-full flex items-center px-[0.18vw] transition-colors cursor-pointer ${
-              showGridLines ? "bg-[#ea543a]" : "bg-gray-300"
-            }`}
-          >
-            <div
-              className={`w-[0.9vw] h-[0.9vw] rounded-full bg-white transition-transform ${
-                showGridLines ? "translate-x-[1.1vw]" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={!!showGridLines}
+            onChange={(val) => setShowGridLines && setShowGridLines(val)}
+            title="Show Grid Lines"
+          />
         </div>
 
         {/* Show Axis */}
         <div className="flex items-center justify-between py-[0.1vw]">
           <span className="text-[0.78vw] font-medium text-gray-800">Show Axis</span>
-          <button
-            type="button"
-            onClick={() => setShowAxis && setShowAxis(!showAxis)}
-            className={`w-[2.4vw] h-[1.3vw] rounded-full flex items-center px-[0.18vw] transition-colors cursor-pointer ${
-              showAxis ? "bg-[#ea543a]" : "bg-gray-300"
-            }`}
-          >
-            <div
-              className={`w-[0.9vw] h-[0.9vw] rounded-full bg-white transition-transform ${
-                showAxis ? "translate-x-[1.1vw]" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <ToggleSwitch
+            checked={!!showAxis}
+            onChange={(val) => setShowAxis && setShowAxis(val)}
+            title="Show Axis"
+          />
         </div>
       </div>
     </div>
