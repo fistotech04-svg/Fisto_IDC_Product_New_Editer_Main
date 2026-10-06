@@ -4,7 +4,7 @@ import SidebarItem from './SidebarItem';
 import Branding from './Branding';
 import Appearance from './Appearance';
 import MenuBar from './MenuBar';
-import OtherSetup from './OtherSetup';
+import AdvancedSettings from './AdvancedSettings';
 import LeadForm from './LeadForm';
 import Visibility from './Visibility';
 import Statistic from './Statistic';
@@ -16,7 +16,8 @@ export {
   Branding,
   Appearance,
   MenuBar,
-  OtherSetup,
+  AdvancedSettings,
+  AdvancedSettings as OtherSetup,
   LeadForm,
   Visibility,
   Statistic

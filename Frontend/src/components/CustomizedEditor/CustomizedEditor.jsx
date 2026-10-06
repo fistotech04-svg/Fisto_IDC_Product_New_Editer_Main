@@ -7,7 +7,7 @@ import PreviewArea from './PreviewArea';
 import Branding from './Branding';
 import Appearance from './Appearance';
 import MenuBar from './MenuBar';
-import OtherSetup from './OtherSetup';
+import AdvancedSettings from './AdvancedSettings';
 import LeadForm from './LeadForm';
 import Visibility from './Visibility';
 import Statistic from './Statistic';
@@ -1757,7 +1757,7 @@ const CustomizedEditor = () => {
         );
       case 'othersetup':
         return (
-          <OtherSetup
+          <AdvancedSettings
             onBack={handleBack}
             settings={otherSetupSettings}
             onUpdate={setOtherSetupSettings}

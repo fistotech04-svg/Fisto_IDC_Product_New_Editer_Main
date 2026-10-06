@@ -16,9 +16,10 @@ import axios from 'axios';
 import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { fontFamilies, fontWeights } from '../../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
-import ColorPicker from './ColorPicker';
-import HotspotCustomizationPopup, { generateHotspotSVG, generateButtonSVG } from './HotspotCustomizationPopup';
-import MediaGalleryPopup from './MediaGalleryPopup';
+import ColorPicker from './properties/ColorPicker';
+import HotspotCustomizationPopup from './HotspotCustomizationPopup';
+import { generateHotspotSVG, generateButtonSVG } from './hotspotSvgUtils';
+import MediaGalleryPopup from './properties/MediaGalleryPopup';
 
 const GlbModelScene = ({ url }) => {
   const { scene, animations } = useGLTF(url);
@@ -496,7 +497,9 @@ const CallInteractionInput = ({ initialValue, onSave, isWhatsApp }) => {
         }}
         buttonStyle={{
           backgroundColor: bgColor,
-          border: `1px solid ${borderColor}`,
+          borderTop: `1px solid ${borderColor}`,
+          borderBottom: `1px solid ${borderColor}`,
+          borderLeft: `1px solid ${borderColor}`,
           borderRight: '1px solid #D1D5DB',
           borderRadius: '0.6vw 0 0 0.6vw',
           width: '3.2vw',
@@ -1786,6 +1789,34 @@ const InteractionPanel = ({
       });
     }
   }, [pages, activePageIndex, selectedLayerId]);
+
+  // Listen for interaction-removed event to immediately close and clean up card state
+  useEffect(() => {
+    const handleInteractionRemoved = (e) => {
+      const id = e.detail?.id;
+      if (!id) return;
+      setOpenCardIds(prev => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setItemValueOverrides(prev => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setCardActionOverrides(prev => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    };
+    window.addEventListener('interaction-removed', handleInteractionRemoved);
+    return () => window.removeEventListener('interaction-removed', handleInteractionRemoved);
+  }, []);
 
   // Broadcast visual badge state (icon/checkmark) updates to MainEditor canvas whenever elements exist, page changes, or selection changes
   useEffect(() => {

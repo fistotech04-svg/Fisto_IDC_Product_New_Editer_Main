@@ -8,7 +8,7 @@ import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
 import domtoimage from 'dom-to-image-more';
 import ColorPicker from './ThreedEditor/ColorPicker';
-import TemplateColorPicker from './TemplateEditor/ColorPicker';
+import TemplateColorPicker from './TemplateEditor/properties/ColorPicker';
 import { getSupabaseBaseUrl } from '../utils/supabaseUtils';
 import { convertSvgTextToOutlines } from '../utils/vectorTextConverter';
 

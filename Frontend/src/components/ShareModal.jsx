@@ -3,7 +3,7 @@ import axios from 'axios';
 import { X, Link as LinkIcon, Copy, QrCode, Download, Share2, Mail, Instagram, Edit3, ArrowRight, ChevronRight, ChevronLeft, Check, Sliders, Upload, ChevronDown, BookOpen } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ColorPicker from './ThreedEditor/ColorPicker';
-import TemplateColorPicker from './TemplateEditor/ColorPicker';
+import TemplateColorPicker from './TemplateEditor/properties/ColorPicker';
 import QRCodeStyling from 'qr-code-styling';
 import html2canvas from 'html2canvas';
 import { getSupabaseBaseUrl } from '../utils/supabaseUtils';

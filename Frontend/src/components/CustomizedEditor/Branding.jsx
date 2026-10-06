@@ -6,8 +6,8 @@ import axios from 'axios';
 import PremiumDropdown from './PremiumDropdown';
 import AlertModal from '../AlertModal';
 import { AdjustmentSlider, SectionLabel, ImageCropOverlay, CustomColorPicker } from './AppearanceShared';
-import ReplaceMediaModal from '../TemplateEditor/ReplaceMediaModal';
-import MediaGalleryPopup from '../TemplateEditor/MediaGalleryPopup';
+import ReplaceMediaModal from '../TemplateEditor/properties/ReplaceMediaModal';
+import MediaGalleryPopup from '../TemplateEditor/properties/MediaGalleryPopup';
 
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
