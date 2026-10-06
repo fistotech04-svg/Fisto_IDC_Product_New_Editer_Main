@@ -327,28 +327,6 @@ export default function LeftSidebar({
         </button>
       </nav>
 
-      {/* Export 3D Button at bottom */}
-      {onExport && (
-        <div className="pt-[0.6vw] border-t border-gray-100 shrink-0 mt-[0.4vw]">
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={!hasModel}
-            className={`w-full py-[0.55vw] px-[0.8vw] rounded-[0.5vw] text-[0.78vw] font-bold flex items-center justify-center gap-[0.45vw] transition-all cursor-pointer ${
-              hasModel
-                ? "bg-[#ea543a] hover:bg-[#d9442a] text-white shadow-md shadow-[#ea543a]/20 active:scale-98"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
-            }`}
-          >
-            <Icon
-              icon="bitcoin-icons:export-outline"
-              className="w-[1.05vw] h-[1.05vw] stroke-2"
-            />
-            <span>Export 3D</span>
-          </button>
-        </div>
-      )}
-
       <style>{`
         .custom-left-scrollbar::-webkit-scrollbar {
           width: 0.25vw;

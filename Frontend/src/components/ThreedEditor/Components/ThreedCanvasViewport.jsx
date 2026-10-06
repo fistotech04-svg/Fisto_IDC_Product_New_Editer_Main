@@ -91,7 +91,7 @@ export default function ThreedCanvasViewport({
     <div className={`flex-1 h-full w-full relative ${isPlacingHotspot ? "cursor-crosshair" : navMode === "pan" ? "cursor-grab active:cursor-grabbing" : ""}`}>
       {!isSyncing && (
         <Canvas
-          camera={{ position: [3.5, 3.2, 5.0], fov: 45, near: 0.05, far: 1000 }}
+          camera={{ position: [2.2, 1.9, 3.0], fov: 45, near: 0.05, far: 1000 }}
           onPointerDown={handleCanvasPointerDown}
           onPointerMissed={handlePointerMissed}
           dpr={[1, 1.5]}
@@ -112,11 +112,9 @@ export default function ThreedCanvasViewport({
             gl.outputColorSpace = THREE.SRGBColorSpace;
           }}
         >
-          {isCapturing ? (
-            <color attach="background" args={['transparent']} />
-          ) : activeLeftTab === "camera" && cameraBgType === "solid" ? (
-            <color attach="background" args={[cameraBgColor || '#F3F3F3']} />
-          ) : null}
+          {activeLeftTab !== "camera" && !isCapturing && (
+            <color attach="background" args={['#1e2025']} />
+          )}
 
           <ambientLight intensity={0.4 + (100 - (materialSettings.shadowDensity ?? materialSettings.shadow ?? 50)) / 250} />
 
@@ -325,7 +323,7 @@ export default function ThreedCanvasViewport({
                   ? null
                   : (materialSettings?.environment || 'studio')
               }
-              background={!isCapturing && !(activeLeftTab === "camera" && cameraBgType === "solid")}
+              background={!isCapturing && activeLeftTab !== "camera"}
               blur={(materialSettings?.worldBlur ?? 0) / 100}
               environmentIntensity={(materialSettings?.reflection ?? 50) <= 50 ? ((materialSettings?.reflection ?? 50) / 50) : 1.0 + (((materialSettings?.reflection ?? 50) - 50) / 50) * 2.0}
             />
@@ -335,7 +333,8 @@ export default function ThreedCanvasViewport({
               worldBlur={materialSettings?.worldBlur ?? 0}
               reflection={materialSettings?.reflection ?? 50}
               isCapturing={isCapturing}
-              customBgColor={activeLeftTab === "camera" && cameraBgType === "solid" ? cameraBgColor : null}
+              isCameraTab={activeLeftTab === "camera"}
+              customBgColor={null}
             />
           </Suspense>
         </Canvas>

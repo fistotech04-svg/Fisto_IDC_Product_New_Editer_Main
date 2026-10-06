@@ -42,10 +42,11 @@ export function useThreedCameraControls({
 
       let box = new THREE.Box3();
       if (sceneWrapperRef.current) {
+        try { sceneWrapperRef.current.updateMatrixWorld(true); } catch (err) { void err; }
         sceneWrapperRef.current.traverse((child) => {
           if ((child.isMesh || child.isSkinnedMesh) && child.geometry) {
             if (!child.geometry.boundingBox) {
-              try { child.geometry.computeBoundingBox(); } catch (_) { }
+              try { child.geometry.computeBoundingBox(); } catch (err) { void err; }
             }
             if (child.geometry.boundingBox) {
               try {
@@ -53,25 +54,31 @@ export function useThreedCameraControls({
                 if (!geomBox.isEmpty() && isFinite(geomBox.min.x)) {
                   box.union(geomBox);
                 }
-              } catch (_) { }
+              } catch (err) { void err; }
             }
           }
         });
       }
 
-      if (!box.isEmpty() && isFinite(box.min.x)) {
+            if (!box.isEmpty() && isFinite(box.min.x)) {
         const center = new THREE.Vector3();
         const size = new THREE.Vector3();
         box.getCenter(center);
         box.getSize(size);
         target.copy(center);
-        radius = Math.max(0.8, size.length() / 2);
+
+        // ✅ Tight framing: use half of the largest extent, not the AABB diagonal.
+        const maxExtent = Math.max(size.x, size.y, size.z);
+        radius = Math.max(0.8, maxExtent / 2);
       } else if (bounds) {
         const h = bounds.height || (bounds.size?.y ? bounds.size.y * (bounds.targetScale || 1) : 2.0);
-        const w = bounds.width || (bounds.size?.x ? bounds.size.x * (bounds.targetScale || 1) : 2.0);
-        const d = bounds.depth || (bounds.size?.z ? bounds.size.z * (bounds.targetScale || 1) : 2.0);
+        const w = bounds.width  || (bounds.size?.x ? bounds.size.x * (bounds.targetScale || 1) : 2.0);
+        const d = bounds.depth  || (bounds.size?.z ? bounds.size.z * (bounds.targetScale || 1) : 2.0);
         target.set(0, Math.max(0.2, h / 2), 0);
-        radius = Math.max(0.8, Math.sqrt(w * w + h * h + d * d) / 2);
+
+        // ✅ Same fix here for consistency.
+        const maxExtent = Math.max(w, h, d);
+        radius = Math.max(0.8, maxExtent / 2);
       }
 
       // 2. Compute optimal camera framing distance
@@ -84,12 +91,13 @@ export function useThreedCameraControls({
       const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
       const hFOVRad = Math.atan(Math.tan(vFOVRad) * aspect);
 
-      const distV = radius / Math.sin(vFOVRad);
-      const distH = radius / Math.sin(hFOVRad);
+      // Frame model tighter and nearer to comfortably occupy the viewport
+      const distV = radius / Math.tan(vFOVRad);
+      const distH = radius / Math.tan(hFOVRad);
       const fitDistance = Math.max(distV, distH);
 
-      const PADDING = 1.08;
-      const distance = Math.max(2.2, Math.min(fitDistance * PADDING, 50));
+      const PADDING = 0.5;
+      const distance = Math.max(1.8, Math.min(fitDistance * PADDING, 25));
 
       // 3. 3/4 elevated perspective
       const phi = THREE.MathUtils.degToRad(66);

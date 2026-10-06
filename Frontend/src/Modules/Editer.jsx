@@ -120,6 +120,14 @@ const Editor = () => {
   };
 
   const handleExport = () => {
+    if (location.pathname.includes('threed_editor')) {
+      if (exportHandler) {
+        exportHandler();
+      } else {
+        window.dispatchEvent(new CustomEvent('editor-export-3d'));
+      }
+      return;
+    }
     setIsExportModalOpen(true);
     if (exportHandler) {
       exportHandler();

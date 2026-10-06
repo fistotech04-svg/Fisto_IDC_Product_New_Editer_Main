@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
@@ -40,6 +40,7 @@ import { useThreedHotspots } from "./hooks/useThreedHotspots";
 import { useThreedMaterialTree } from "./hooks/useThreedMaterialTree";
 import { useThreedMaterialSettings } from "./hooks/useThreedMaterialSettings";
 import { useThreedModelLoader } from "./hooks/useThreedModelLoader";
+import { CAMERA_FRAME_OPTIONS } from "./panels/CameraTab/CameraPanel";
 
 /**
  * ThreedEditor Component
@@ -56,6 +57,7 @@ export default function ThreedEditor() {
   const {
     threedState,
     setThreedState,
+    setExportHandler,
     setSaveHandler,
     setSaveAsHandler,
     setCanSave,
@@ -355,16 +357,72 @@ export default function ThreedEditor() {
 
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0 });
   const [cameraCoordinates, setCameraCoordinates] = useState({ x: 0, y: 0, z: 0 });
-  const [cameraBgType, setCameraBgType] = useState("transparent");
-  const [cameraBgColor, setCameraBgColor] = useState("#F3F3F3");
+  const [cameraBgType, setCameraBgType] = useState("solid");
+  const [cameraBgColor, setCameraBgColor] = useState("#FFFFFF");
   const [cameraBgOpacity, setCameraBgOpacity] = useState(100);
   const [selectedFrameId, setSelectedFrameId] = useState("frame_2_1_a");
-  const [savedCameraAngles, setSavedCameraAngles] = useState([
-    { id: 'snap_1', title: 'Top Angle', dataUrl: null },
-    { id: 'snap_2', title: 'Top Angle', dataUrl: null },
-    { id: 'snap_3', title: 'Top Angle', dataUrl: null },
-    { id: 'snap_4', title: 'Top Angle', dataUrl: null },
-  ]);
+  const [savedCameraAngles, setSavedCameraAngles] = useState([]);
+
+  const handleChangeCameraPosition = useCallback((axis, val) => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return;
+    setCameraCoordinates((prev) => ({ ...prev, [axis]: num }));
+    if (cameraInstanceRef.current) {
+      cameraInstanceRef.current.position[axis] = num;
+      cameraInstanceRef.current.updateProjectionMatrix?.();
+      if (controlsRef.current) {
+        controlsRef.current.update();
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeLeftTab === "camera" && cameraInstanceRef.current) {
+      const cam = cameraInstanceRef.current;
+      setCameraCoordinates({
+        x: parseFloat(cam.position.x.toFixed(2)),
+        y: parseFloat(cam.position.y.toFixed(2)),
+        z: parseFloat(cam.position.z.toFixed(2)),
+      });
+    }
+  }, [activeLeftTab]);
+
+  const getCameraBgStyle = useCallback(() => {
+    if (activeLeftTab !== "camera") {
+      return { backgroundColor: "#1e2025" };
+    }
+    if (cameraBgType === "transparent") {
+      return {
+        backgroundColor: "#ffffff",
+        backgroundImage: "linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb)",
+        backgroundPosition: "0 0, 10px 10px",
+        backgroundSize: "20px 20px"
+      };
+    }
+    const hex = cameraBgColor || "#FFFFFF";
+    const alpha = Math.max(0, Math.min(1, (cameraBgOpacity ?? 100) / 100));
+    try {
+      const c = new THREE.Color(hex);
+      const r = Math.round(c.r * 255);
+      const g = Math.round(c.g * 255);
+      const b = Math.round(c.b * 255);
+
+      if (alpha < 1) {
+        return {
+          backgroundColor: "#ffffff",
+          backgroundImage: `linear-gradient(rgba(${r},${g},${b},${alpha}), rgba(${r},${g},${b},${alpha})), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb)`,
+          backgroundPosition: "0 0, 0 0, 10px 10px",
+          backgroundSize: "auto, 20px 20px, 20px 20px"
+        };
+      }
+    } catch {
+      // fallback
+    }
+
+    return {
+      backgroundColor: hex,
+    };
+  }, [activeLeftTab, cameraBgType, cameraBgColor, cameraBgOpacity]);
 
   const handleControlsChange = useCallback((e) => {
     const target = e?.target?.target;
@@ -1350,11 +1408,13 @@ export default function ThreedEditor() {
       setIsSaving,
       setManualLoading,
       setLoadingText,
+      setLoadingProgress,
+      setSafeProgress,
       triggerSaveSuccess,
       toast,
       navigate
     });
-  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, past, urlModelId, navigate, hotspots, modelMaterialLists, modelMaterialDataMap, modelStatsMap, setThreedState]);
+  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, past, urlModelId, navigate, hotspots, modelMaterialLists, modelMaterialDataMap, modelStatsMap, setThreedState, setSafeProgress, setLoadingProgress]);
 
   const handleOpenSaveAs = useCallback(() => {
     const currentName = modelName || models[0]?.displayName || models[0]?.name?.replace(/\.[^/.]+$/, "") || "3D_Model";
@@ -1394,6 +1454,18 @@ export default function ThreedEditor() {
       window.removeEventListener('trigger-manual-save', onManualSave);
     };
   }, [handleSave, setSaveHandler]);
+
+  useEffect(() => {
+    if (setExportHandler) {
+      setExportHandler(() => () => setShowExportModal(true));
+    }
+    const onCustomExport = () => setShowExportModal(true);
+    window.addEventListener('editor-export-3d', onCustomExport);
+    return () => {
+      if (setExportHandler) setExportHandler(null);
+      window.removeEventListener('editor-export-3d', onCustomExport);
+    };
+  }, [setExportHandler]);
 
   useEffect(() => {
     if (setSaveAsHandler) {
@@ -1926,15 +1998,27 @@ export default function ThreedEditor() {
           bumpMap: finalMaps.bumpMap || null,
           ...(prev.customEnvMap || prev.maps?.envMap ? { envMap: prev.customEnvMap || prev.maps?.envMap } : {})
         };
-        next.metallic = 100;
-        next.roughness = 100;
-        next.normal = 100;
-        next.bump = 0;
-        next.ao = 100;
-        next.color = '#ffffff';
-        next.scale = 50;
-        next.useFactorColor = true;
-        next.lastChangedProp = 'appliedTexture';
+        if (textureData.isXray) {
+          next.color = textureData.color || '#5ec4e0';
+          next.emissiveColor = textureData.emissiveColor || '#3a8fb0';
+          next.emissiveIntensity = textureData.emissiveIntensity !== undefined ? textureData.emissiveIntensity : 100;
+          next.roughness = textureData.roughness !== undefined ? textureData.roughness : 42;
+          next.metallic = textureData.metallic !== undefined ? textureData.metallic : 0;
+          next.alpha = textureData.alpha !== undefined ? textureData.alpha : 42;
+          next.scale = 50;
+          next.useFactorColor = true;
+          next.lastChangedProp = 'appliedTexture';
+        } else {
+          next.metallic = textureData.metallic !== undefined ? textureData.metallic : 100;
+          next.roughness = textureData.roughness !== undefined ? textureData.roughness : 100;
+          next.normal = textureData.normal !== undefined ? textureData.normal : 100;
+          next.bump = textureData.bump !== undefined ? textureData.bump : 0;
+          next.ao = textureData.ao !== undefined ? textureData.ao : 100;
+          next.color = textureData.color || '#ffffff';
+          next.scale = 50;
+          next.useFactorColor = true;
+          next.lastChangedProp = 'appliedTexture';
+        }
       }
 
       const curSel = stateRef.current.selectedMaterial;
@@ -1960,6 +2044,9 @@ export default function ThreedEditor() {
               bump: next.bump,
               ao: next.ao,
               color: next.color,
+              alpha: next.alpha !== undefined ? next.alpha : prevEntry.alpha,
+              emissiveColor: next.emissiveColor || prevEntry.emissiveColor,
+              emissiveIntensity: next.emissiveIntensity !== undefined ? next.emissiveIntensity : prevEntry.emissiveIntensity,
               scale: next.scale,
               useFactorColor: true
             };
@@ -2241,11 +2328,22 @@ export default function ThreedEditor() {
 
   useEffect(() => {
     if (isRestoringHistoryRef.current) return;
-    setMaterialSettings(prev => ({
-      ...prev,
-      useFactorColor: false,
-      lastChangedProp: null
-    }));
+    setMaterialSettings(prev => {
+      // When unselecting material (clicking on empty canvas), clear any active material preview/appliedTexture
+      if (!selectedMaterial) {
+        return {
+          ...prev,
+          appliedTexture: null,
+          useFactorColor: false,
+          lastChangedProp: null
+        };
+      }
+      return {
+        ...prev,
+        useFactorColor: false,
+        lastChangedProp: null
+      };
+    });
   }, [selectedMaterial]);
 
   useEffect(() => {
@@ -2507,7 +2605,7 @@ export default function ThreedEditor() {
 
         {/* Center Workspace (Canvas + Floating Tools + Bottom Swatch Tray) */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 relative">
-          <div className={`flex-1 relative overflow-hidden flex flex-col w-full h-full ${activeLeftTab === "camera" ? (cameraBgType === "solid" ? "" : "bg-[#f3f4f6]") : "bg-[#1e2025]"}`} style={activeLeftTab === "camera" && cameraBgType === "solid" ? { backgroundColor: cameraBgColor || "#ffffff" } : {}}>
+          <div className="flex-1 relative overflow-hidden flex flex-col w-full h-full" style={getCameraBgStyle()}>
             {/* Top Viewport Floating Controls */}
             {activeLeftTab !== "camera" && (
             <CanvasFloatingToolbar
@@ -2564,25 +2662,64 @@ export default function ThreedEditor() {
             )}
 
             {/* 3D Scene Viewport */}
-                        {/* Save Current Angle Floating Button */}
+                        {/* Camera Viewfinder Overlay */}
+            {activeLeftTab === "camera" && (() => {
+              const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
+              if (!activeFrame || !activeFrame.aspect) return null;
+              const isWide = activeFrame.aspect >= 1;
+              return (
+                <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden">
+                  <div
+                    className="relative border-2 border-dashed border-[#EC5137]/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)] transition-all duration-300 rounded-[0.35vw]"
+                    style={{
+                      width: isWide ? "min(84%, 84vh)" : `calc(min(76vh, 76%) * ${activeFrame.aspect})`,
+                      height: isWide ? `calc(min(84%, 84vh) / ${activeFrame.aspect})` : "min(76vh, 76%)",
+                      maxHeight: "82%",
+                      maxWidth: "88%",
+                    }}
+                  >
+                    {/* Viewfinder corner brackets */}
+                    <div className="absolute -top-[2px] -left-[2px] w-[0.8vw] h-[0.8vw] border-t-2 border-l-2 border-[#EC5137]" />
+                    <div className="absolute -top-[2px] -right-[2px] w-[0.8vw] h-[0.8vw] border-t-2 border-r-2 border-[#EC5137]" />
+                    <div className="absolute -bottom-[2px] -left-[2px] w-[0.8vw] h-[0.8vw] border-b-2 border-l-2 border-[#EC5137]" />
+                    <div className="absolute -bottom-[2px] -right-[2px] w-[0.8vw] h-[0.8vw] border-b-2 border-r-2 border-[#EC5137]" />
+
+                    {/* Viewfinder ratio tag */}
+                    <div className="absolute top-[0.45vw] left-[0.55vw] bg-black/60 text-white text-[0.68vw] font-mono font-medium px-[0.45vw] py-[0.18vw] rounded backdrop-blur-xs select-none">
+                      {activeFrame.ratio} {activeFrame.label ? `• ${activeFrame.label}` : ""}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Save Current Angle Floating Button */}
             {activeLeftTab === "camera" && (
               <div className="absolute bottom-[1.2vw] right-[1.2vw] z-30 pointer-events-auto">
                 <button
                   type="button"
                   onClick={async () => {
-                    const snapUrl = await handleCaptureSnapshot();
-                    setSavedCameraAngles((prev) => [
-                      ...prev,
-                      {
-                        id: 'snap_' + Date.now(),
-                        title: 'Top Angle',
-                        dataUrl: snapUrl || null,
-                      },
-                    ]);
+                    const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
+                    const snapUrl = await handleCaptureSnapshot({
+                      bgType: cameraBgType,
+                      solidColor: cameraBgColor,
+                      bgOpacity: cameraBgOpacity,
+                      aspectRatio: activeFrame?.aspect || null
+                    });
+                    if (snapUrl) {
+                      setSavedCameraAngles((prev) => [
+                        ...prev,
+                        {
+                          id: 'snap_' + Date.now(),
+                          title: activeFrame?.ratio ? `${activeFrame.ratio} Angle` : `Angle ${prev.length + 1}`,
+                          dataUrl: snapUrl,
+                        },
+                      ]);
+                    }
                   }}
-                  className="flex items-center gap-[0.5vw] px-[1vw] py-[0.55vw] bg-white hover:bg-gray-50 text-gray-800 hover:text-[#ea543a] rounded-[0.5vw] shadow-lg border border-gray-200/80 text-[0.8vw] font-semibold transition-all cursor-pointer active:scale-95 group"
+                  className="flex items-center gap-[0.55vw] px-[1.1vw] py-[0.58vw] bg-[#17202C] hover:bg-[#253243] text-white rounded-[0.5vw] shadow-lg border border-[#17202C] text-[0.8vw] font-semibold transition-all cursor-pointer active:scale-95 group"
                 >
-                  <Icon icon="solar:camera-add-linear" className="w-[1.1vw] h-[1.1vw] text-[#ea543a] group-hover:scale-110 transition-transform" />
+                  <Icon icon="hugeicons:tick-02" className="w-[1.15vw] h-[1.15vw] text-white group-hover:scale-110 transition-transform" />
                   <span>Save Current Angle</span>
                 </button>
               </div>
@@ -2847,6 +2984,7 @@ export default function ThreedEditor() {
             onClearModel={handleClearModel}
             modelStats={combinedStats}
             cameraPosition={cameraCoordinates}
+            onChangeCameraPosition={handleChangeCameraPosition}
             cameraBgType={cameraBgType}
             onChangeCameraBgType={setCameraBgType}
             cameraBgColor={cameraBgColor}

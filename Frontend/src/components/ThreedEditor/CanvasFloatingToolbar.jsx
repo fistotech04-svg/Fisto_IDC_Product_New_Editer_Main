@@ -157,10 +157,13 @@ export default function CanvasFloatingToolbar({
           {/* Hand / Pan Button */}
           <button
             type="button"
-            onClick={() => onSelectNavMode && onSelectNavMode("pan")}
+            onClick={() =>
+              onSelectNavMode &&
+              onSelectNavMode(navMode === "pan" ? "orbit" : "pan")
+            }
             className={`flex flex-col items-center justify-center transition-colors cursor-pointer group ${navMode === "pan" ? "text-white" : "text-gray-300 hover:text-white"
               }`}
-            title="Hand / Pan View"
+            title={navMode === "pan" ? "Disable Hand / Pan View" : "Enable Hand / Pan View"}
           >
             <Icon
               icon="famicons:hand-right-outline"

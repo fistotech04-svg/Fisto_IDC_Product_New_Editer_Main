@@ -423,10 +423,13 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
       writeStream.on("finish", async () => {
         try {
           let uploadFilePath = finalPath;
-          let finalFileName = fileName;
+          const ext = path.extname(fileName);
+          const rawBase = path.basename(fileName, ext);
+          const safeBase = rawBase.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
+          let finalFileName = `${safeBase}${ext}`;
 
           const isConverter = req.body.isConverter === "true" || req.body.isConverter === true;
-          const baseName = path.basename(fileName, path.extname(fileName)).replace(/[^a-zA-Z0-9_-]/g, "_");
+          const baseName = safeBase;
 
           // Convert to GLB if not already GLB
           if (!isGlbFormat(fileName)) {

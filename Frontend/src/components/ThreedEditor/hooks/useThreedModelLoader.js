@@ -354,7 +354,9 @@ export function useThreedModelLoader({
         hasLocalFiles: false
       };
     }
-    setHasUnsavedChanges(false);
+    if (typeof setHasUnsavedChanges === "function") {
+      setHasUnsavedChanges(false);
+    }
 
     try {
       const storedUser = localStorage.getItem('user');

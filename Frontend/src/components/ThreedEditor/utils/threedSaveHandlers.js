@@ -165,11 +165,36 @@ export async function executeSave3D({
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         mats.forEach((mat) => {
           if (!mat) return;
-          const isTrans = mat.opacity < 0.99 || !!mat.alphaMap;
-          mat.transparent = isTrans;
-          mat.depthWrite = !isTrans;
+          const isXrayMat = Boolean(mat.userData?.__xrayBackup || mat.userData?.appliedTexture?.isXray);
+          if (isXrayMat) {
+            mat.color = new THREE.Color('#5ec4e0');
+            mat.emissive = new THREE.Color('#3a8fb0');
+            mat.emissiveIntensity = 0.5;
+            mat.roughness = 0.42;
+            mat.metalness = 0;
+            mat.opacity = 0.42;
+            mat.transparent = true;
+            mat.depthWrite = true;
+            mat.map = null;
+            mat.roughnessMap = null;
+            mat.metalnessMap = null;
+            mat.alphaMap = null;
+            mat.aoMap = null;
+          } else {
+            const isTrans = mat.opacity < 0.99 || !!mat.alphaMap;
+            mat.transparent = isTrans;
+            mat.depthWrite = !isTrans;
+          }
           mat.alphaTest = 0;
           if (mat.envMap) mat.envMap = null;
+          delete mat.customProgramCacheKey;
+          delete mat.onBeforeCompile;
+          if (mat.userData) {
+            delete mat.userData.__xrayBackup;
+            delete mat.userData.originalTexTransforms;
+            delete mat.userData.originalColor;
+            delete mat.userData.originalMap;
+          }
         });
       }
     });
@@ -308,11 +333,12 @@ export async function executeSave3D({
     });
 
     const originalFileName = isSaveAs ? null : nextModels[0]?.fileName;
-    const defaultBaseName = customName || (modelName || nextModels[0]?.displayName || nextModels[0]?.name || "Scene").replace(/\.[^/.]+$/, "").replace(/\s+/g, "_");
+    const defaultBaseName = customName || (modelName || nextModels[0]?.displayName || nextModels[0]?.name || "Scene").replace(/\.[^/.]+$/, "");
+    const sanitizedBaseName = defaultBaseName.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
 
     const exportFileName = isSaveAs
-      ? `${defaultBaseName.replace(/\.[^/.]+$/, "")}_${Date.now().toString().slice(-4)}.glb`
-      : originalFileName || `${defaultBaseName}.glb`;
+      ? `${sanitizedBaseName}_${Date.now().toString().slice(-4)}.glb`
+      : originalFileName || `${sanitizedBaseName}.glb`;
 
     const glbBlob = new Blob([glbBuffer]);
     const glbSize = glbBlob.size;
@@ -459,7 +485,9 @@ export async function executeSave3D({
       historyIndex: past.length,
       hasLocalFiles: false
     };
-    setHasUnsavedChanges(false);
+    if (typeof setHasUnsavedChanges === "function") {
+      setHasUnsavedChanges(false);
+    }
 
     if (triggerSaveSuccess) {
       triggerSaveSuccess({

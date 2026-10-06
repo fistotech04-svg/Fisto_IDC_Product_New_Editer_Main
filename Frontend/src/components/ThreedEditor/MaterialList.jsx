@@ -521,29 +521,29 @@ const TreeItem = ({
                     )}
 
                     {/* Left: Chevron + Folder Icon + Object Badge + Name + Mesh Count */}
-                    <div className="flex items-center gap-[0.35vw] min-w-0 flex-1 pr-[0.25vw]">
+                    <div className="flex items-center gap-[0.3vw] min-w-0 flex-1 pr-[0.2vw]">
                         <button
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setIsOpen(!isOpen);
                             }}
-                            className="w-[1.1vw] h-[1.1vw] flex items-center justify-center rounded-[0.22vw] text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 transition-colors shrink-0 cursor-pointer"
+                            className="w-[1vw] h-[1vw] flex items-center justify-center rounded-[0.22vw] text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 transition-colors shrink-0 cursor-pointer"
                             title={isOpen ? "Collapse folder" : "Expand folder"}
                         >
                             <Icon
                                 icon="heroicons:chevron-down-20-solid"
-                                width="0.78vw"
-                                height="0.78vw"
+                                width="0.75vw"
+                                height="0.75vw"
                                 className={`transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"}`}
                             />
                         </button>
 
-                        <div className="w-[1.3vw] h-[1.3vw] rounded-[0.3vw] flex items-center justify-center shrink-0">
+                        <div className="w-[1.2vw] h-[1.2vw] rounded-[0.28vw] flex items-center justify-center shrink-0">
                             <Icon
                                 icon={isOpen ? "solar:folder-open-bold-duotone" : "solar:folder-bold-duotone"}
-                                width="1.05vw"
-                                height="1.05vw"
+                                width="1vw"
+                                height="1vw"
                                 className={`transition-colors ${
                                     isSelected
                                         ? "text-[#5d5efc]"
@@ -567,41 +567,25 @@ const TreeItem = ({
                             />
                         ) : (
                             <span 
-                                className="truncate font-semibold text-[0.7vw] text-gray-800 tracking-tight flex-1 min-w-0"
+                                className="truncate font-semibold text-[0.7vw] text-gray-800 tracking-tight flex-1 min-w-0 leading-tight"
                                 title={displayName}
                             >
                                 {visualTitle}
                             </span>
                         )}
 
-                        <span className="text-[0.52vw] font-medium px-[0.3vw] py-[0.05vw] rounded-[0.22vw] bg-gray-100 text-gray-400 shrink-0 ml-auto mr-[0.15vw]">
+                        <span className="text-[0.52vw] font-medium px-[0.28vw] py-[0.04vw] rounded-[0.22vw] bg-gray-100 text-gray-400 shrink-0 ml-auto mr-[0.1vw]">
                             {childMeshCount}
                         </span>
                     </div>
 
-                    {/* Right: X-Ray, Visibility Eye & 3-Dots Menu */}
+                    {/* Right: Visibility Eye & 3-Dots Menu */}
                     <div
                         className={`flex items-center gap-[0.12vw] shrink-0 ml-[0.15vw] ${
-                            isMenuOpen || isSelected || !isVisible || isXray ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            isMenuOpen || isSelected || !isVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                         } transition-opacity duration-150`}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* X-Ray Toggle Button */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleXray && onToggleXray(node, isXray);
-                            }}
-                            className={`p-[0.2vw] rounded-[0.25vw] transition-all cursor-pointer ${
-                                isXray
-                                    ? "text-[#00BFFF] bg-[#00BFFF]/15 hover:bg-[#00BFFF]/25 shadow-xs"
-                                    : "text-gray-400 hover:text-[#00BFFF] hover:bg-[#00BFFF]/10"
-                            }`}
-                            title={isXray ? "Disable X-Ray for object" : "Enable X-Ray for object"}
-                        >
-                            <Icon icon="solar:scanner-bold-duotone" width="0.75vw" height="0.75vw" />
-                        </button>
-
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -702,15 +686,15 @@ const TreeItem = ({
             )}
 
             {/* Left: 3D Box Icon + Mesh Name (NO text label badge) */}
-            <div className="flex items-center gap-[0.4vw] min-w-0 flex-1 pr-[0.25vw]">
+            <div className="flex items-center gap-[0.35vw] min-w-0 flex-1 pr-[0.2vw]">
                 <div
-                    className={`w-[1.2vw] h-[1.2vw] rounded-[0.28vw] flex items-center justify-center shrink-0 transition-colors ${
+                    className={`w-[1.15vw] h-[1.15vw] rounded-[0.26vw] flex items-center justify-center shrink-0 transition-colors ${
                         isSelected
                             ? "bg-indigo-100 text-[#5d5efc]"
                             : "bg-gray-100/90 text-gray-400 group-hover:text-[#5d5efc] group-hover:bg-indigo-50/80"
                     }`}
                 >
-                    <Icon icon="solar:box-minimalistic-bold-duotone" width="0.82vw" height="0.82vw" />
+                    <Icon icon="solar:box-minimalistic-bold-duotone" width="0.78vw" height="0.78vw" />
                 </div>
 
                 {isEditing ? (
@@ -726,7 +710,7 @@ const TreeItem = ({
                     />
                 ) : (
                     <span 
-                        className="truncate font-medium text-[0.68vw] text-gray-700 group-hover:text-gray-900 tracking-tight flex-1 min-w-0"
+                        className="truncate font-medium text-[0.68vw] text-gray-700 group-hover:text-gray-900 tracking-tight flex-1 min-w-0 leading-tight"
                         title={displayName}
                     >
                         {visualTitle}
@@ -734,29 +718,13 @@ const TreeItem = ({
                 )}
             </div>
 
-            {/* Right: X-Ray, Visibility Toggle & Options Menu */}
+            {/* Right: Visibility Toggle & Options Menu */}
             <div
                 className={`flex items-center gap-[0.12vw] shrink-0 ml-[0.15vw] ${
-                    isMenuOpen || isSelected || !isVisible || isXray ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    isMenuOpen || isSelected || !isVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 } transition-opacity duration-150`}
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* X-Ray Toggle Button */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleXray && onToggleXray(node, isXray);
-                    }}
-                    className={`p-[0.18vw] rounded-[0.22vw] transition-all cursor-pointer ${
-                        isXray
-                            ? "text-[#00BFFF] bg-[#00BFFF]/15 hover:bg-[#00BFFF]/25 shadow-xs"
-                            : "text-gray-400 hover:text-[#00BFFF] hover:bg-[#00BFFF]/10"
-                    }`}
-                    title={isXray ? "Disable X-Ray for mesh" : "Enable X-Ray for mesh"}
-                >
-                    <Icon icon="solar:scanner-bold-duotone" width="0.72vw" height="0.72vw" />
-                </button>
-
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -1145,7 +1113,7 @@ export default function MaterialList({
     }
 
     return (
-        <div className="relative z-40 flex flex-col w-[16.5vw] min-w-[240px] max-w-[285px] select-none font-sans">
+        <div className="relative z-40 flex flex-col w-[20vw] min-w-[290px] max-w-[360px] select-none font-sans">
             {/* --- STATIC FLOATING HEADER PILL --- */}
             {/* Matches Undo/Redo button height and radius */}
             <div

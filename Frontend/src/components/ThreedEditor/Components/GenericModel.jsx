@@ -277,6 +277,12 @@ const GenericModel = React.memo(React.forwardRef(({
                 }
                 const mats = Array.isArray(child.material) ? child.material : [child.material];
                 mats.forEach((mat) => {
+                    if (mat && typeof mat.customProgramCacheKey !== 'function' && mat.customProgramCacheKey !== undefined) {
+                        delete mat.customProgramCacheKey;
+                    }
+                    if (mat && typeof mat.onBeforeCompile !== 'function' && mat.onBeforeCompile !== undefined) {
+                        delete mat.onBeforeCompile;
+                    }
                     if (!mat.userData.origTexturesSnap) {
                         const snap = {};
                         TEX_KEYS.forEach(k => { if (mat[k]) snap[k] = mat[k]; });
@@ -366,7 +372,7 @@ const GenericModel = React.memo(React.forwardRef(({
 
     // 0. Apply Texture to Selected Material
     useEffect(() => {
-        if (!selectedTexture || !scene || xrayMode) return;
+        if (!selectedTexture || !scene || xrayMode || selectedTexture.isXray) return;
 
         const resolveUrl = (url) => {
             if (!url) return null;
@@ -1692,6 +1698,53 @@ const GenericModel = React.memo(React.forwardRef(({
                         childMatNames.some(mName => xrayMaterials.has(mName));
                 }
 
+                // Also check if applied texture is X-Ray preset
+                if (!isXrayMesh) {
+                    const lookupKeys = [
+                        child.uuid,
+                        child.userData?.meshUuid,
+                        child.userData?.initialUuid,
+                        child.name,
+                        child.userData?.initialName,
+                        ...childMatNames
+                    ].filter(Boolean);
+
+                    let customSetting = null;
+                    if (customizedMaterials) {
+                        for (const k of lookupKeys) {
+                            if (customizedMaterials[k]) {
+                                customSetting = customizedMaterials[k];
+                                break;
+                            }
+                        }
+                        if (!customSetting && customizedMaterials['__ALL__']) {
+                            const allEntry = customizedMaterials['__ALL__'];
+                            const allowList = Array.isArray(allEntry.__meshes__) ? allEntry.__meshes__ : null;
+                            if (!allowList) {
+                                customSetting = allEntry;
+                            } else {
+                                const inList = lookupKeys.some(k => allowList.includes(k));
+                                if (inList) customSetting = allEntry;
+                            }
+                        }
+                    }
+
+                    if (customSetting?.appliedTexture?.isXray) {
+                        isXrayMesh = true;
+                    } else if (materialSettings?.appliedTexture?.isXray) {
+                        const selMat = selectedMaterial;
+                        const isExplicitAll = Boolean(!selMat || selMat.isAll || selMat.name === 'All Meshes' || selMat.name === modelName || selMat.name === 'Scene' || selMat.parentGroup === modelName || (selMat.name && modelName && selMat.name.toLowerCase().includes(modelName.toLowerCase())));
+                        if (isExplicitAll) {
+                            isXrayMesh = true;
+                        } else if (selMat) {
+                            const selKeys = [selMat.uuid, selMat.name, selMat.initialUuid, selMat.meshUuid, selMat.meshName].filter(Boolean);
+                            if (lookupKeys.some(k => selKeys.includes(k))) {
+                                isXrayMesh = true;
+                            }
+                        }
+                    }
+                }
+
                 const mats = Array.isArray(child.material) ? child.material : [child.material];
                 mats.forEach((m) => {
                     if (!m) return;
@@ -1745,8 +1798,12 @@ const GenericModel = React.memo(React.forwardRef(({
                         m.map = backup.map;
                         m.roughnessMap = backup.roughnessMap;
                         m.metalnessMap = backup.metalnessMap;
-                        m.onBeforeCompile = backup.onBeforeCompile;
-                        m.customProgramCacheKey = backup.customProgramCacheKey;
+                        m.onBeforeCompile = typeof backup.onBeforeCompile === 'function' ? backup.onBeforeCompile : null;
+                        if (typeof backup.customProgramCacheKey === 'function') {
+                            m.customProgramCacheKey = backup.customProgramCacheKey;
+                        } else {
+                            delete m.customProgramCacheKey;
+                        }
                         m.needsUpdate = true;
                         delete m.userData.__xrayBackup;
                     }
@@ -1774,8 +1831,12 @@ const GenericModel = React.memo(React.forwardRef(({
                                 m.map = backup.map;
                                 m.roughnessMap = backup.roughnessMap;
                                 m.metalnessMap = backup.metalnessMap;
-                                m.onBeforeCompile = backup.onBeforeCompile;
-                                m.customProgramCacheKey = backup.customProgramCacheKey;
+                                m.onBeforeCompile = typeof backup.onBeforeCompile === 'function' ? backup.onBeforeCompile : null;
+                                if (typeof backup.customProgramCacheKey === 'function') {
+                                    m.customProgramCacheKey = backup.customProgramCacheKey;
+                                } else {
+                                    delete m.customProgramCacheKey;
+                                }
                                 m.needsUpdate = true;
                                 delete m.userData.__xrayBackup;
                             }
@@ -1784,7 +1845,7 @@ const GenericModel = React.memo(React.forwardRef(({
                 });
             }
         };
-    }, [scene, xrayMode, xrayMaterials]);
+    }, [scene, xrayMode, xrayMaterials, materialSettings?.appliedTexture, customizedMaterials, selectedMaterial, modelName]);
 
     const prevTransformTargetRef = React.useRef(null);
     const lastTransformResetKeyRef = React.useRef(resetKey);

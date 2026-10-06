@@ -1,7 +1,6 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
-import { XRayToggleBar } from "./panels/common/XRayToggleBar";
 import { ModelPanel } from "./panels/ModelTab/ModelPanel";
 import { MaterialsPanel } from "./panels/MaterialsTab/MaterialsPanel";
 import { TexturesPanel } from "./panels/MaterialsTab/TexturesPanel";
@@ -69,7 +68,17 @@ export default function RightPanel({
   onGalleryClick,
   onClearModel,
   modelStats,
-  onOpenMaterialDrawer
+  onOpenMaterialDrawer,
+  cameraPosition,
+  onChangeCameraPosition,
+  cameraBgType,
+  onChangeCameraBgType,
+  cameraBgColor,
+  onChangeCameraBgColor,
+  cameraBgOpacity,
+  onChangeCameraBgOpacity,
+  selectedFrameId,
+  onSelectFrameId
 }) {
   // Determine Header Title based on active Left Sidebar Tab
   
@@ -92,21 +101,13 @@ export default function RightPanel({
       {/* â”€â”€â”€ PANEL CONTENT â”€â”€â”€ */}
       <div className="flex-1 overflow-y-auto p-[1vw] custom-scrollbar">
         <div className="flex flex-col gap-[1vw]">
-            {/* â”€â”€â”€ X-Ray View Toggle Bar (Persistent across all tool views) â”€â”€â”€ */}
-            {activeLeftTab !== "camera" && (
-              <XRayToggleBar
-                selectedMaterial={selectedMaterial}
-                xrayMode={xrayMode}
-                setXrayMode={setXrayMode}
-                xrayMaterials={xrayMaterials}
-                onToggleXray={onToggleXray}
-              />
-            )}
+
 
             {/* â”€â”€â”€â”€â”€ VIEW: TEXTURES â”€â”€â”€â”€â”€ */}
             {activeLeftTab === "textures" && (
               <TexturesPanel
                 selectedMaterial={selectedMaterial}
+                onMapUpload={onMapUpload}
                 onSelectMaterial={onSelectMaterial}
                 materialList={materialList}
                 materialSettings={materialSettings}
@@ -137,6 +138,7 @@ export default function RightPanel({
                 selectedTextureId={selectedTextureId}
                 onOpenMaterialDrawer={onOpenMaterialDrawer}
                 selectedMaterial={selectedMaterial}
+                onMapUpload={onMapUpload}
               />
             )}
 
@@ -172,6 +174,16 @@ export default function RightPanel({
                 onCaptureSnapshot={onCaptureSnapshot}
                 modelName={modelName}
                 hasModel={hasModel}
+                cameraPosition={cameraPosition}
+                onChangeCameraPosition={onChangeCameraPosition}
+                cameraBgType={cameraBgType}
+                onChangeCameraBgType={onChangeCameraBgType}
+                cameraBgColor={cameraBgColor}
+                onChangeCameraBgColor={onChangeCameraBgColor}
+                cameraBgOpacity={cameraBgOpacity}
+                onChangeCameraBgOpacity={onChangeCameraBgOpacity}
+                selectedFrameId={selectedFrameId}
+                onSelectFrameId={onSelectFrameId}
               />
             )}
 

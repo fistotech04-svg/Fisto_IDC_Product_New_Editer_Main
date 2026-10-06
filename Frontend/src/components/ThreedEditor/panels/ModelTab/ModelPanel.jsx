@@ -26,7 +26,8 @@ export function ModelPanel({
   onUpdateMaterialSetting,
   selectedTextureId,
   onOpenMaterialDrawer,
-  selectedMaterial
+  selectedMaterial,
+  onMapUpload
 }) {
   const [isUniformScale, setIsUniformScale] = useState(true);
   const [colorMode, setColorMode] = useState("HEX");
@@ -36,6 +37,7 @@ export function ModelPanel({
   const [isScaleLinked, setIsScaleLinked] = useState(true);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const colorPickerContainerRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -66,6 +68,10 @@ export function ModelPanel({
 
   // Resolve thumbnail / sphere preview
   const activeMaterialPreview = (() => {
+    const rawMap = materialSettings?.maps?.map || materialSettings?.maps?.base;
+    if (rawMap && rawMap !== "existing") {
+      return resolveUploadsPath(rawMap);
+    }
     if (materialSettings?.appliedTexture?.preview) {
       return resolveUploadsPath(materialSettings.appliedTexture.preview);
     }
@@ -93,6 +99,23 @@ export function ModelPanel({
     (typeof selectedMaterial === "string"
       ? selectedMaterial
       : selectedMaterial?.name || selectedMaterial?.material || "Sliver Material");
+
+  // Check if current material contains an image/texture
+  const hasImageTexture = Boolean(
+    (materialSettings?.maps?.map && materialSettings.maps.map !== "existing") ||
+    (materialSettings?.maps && (materialSettings.maps.base || materialSettings.maps.diffuse)) ||
+    materialSettings?.appliedTexture?.map ||
+    materialSettings?.appliedTexture?.preview ||
+    activeMaterialPreview
+  );
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file && onMapUpload) {
+      onMapUpload("map", file);
+    }
+    e.target.value = "";
+  };
 
   return (
     <div className="flex flex-col gap-[1.3vw]">
@@ -230,13 +253,35 @@ export function ModelPanel({
             <span className="text-[0.85vw] font-bold text-gray-800 truncate">
               {materialDisplayName}
             </span>
-            <button
-              type="button"
-              onClick={() => onOpenMaterialDrawer && onOpenMaterialDrawer()}
-              className="w-fit px-[0.7vw] py-[0.25vw] bg-white hover:bg-gray-50 border border-gray-200 rounded-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-2xs cursor-pointer"
-            >
-              Change Material
-            </button>
+            <div className="flex items-center gap-[0.4vw] flex-wrap">
+              <button
+                type="button"
+                onClick={() => onOpenMaterialDrawer && onOpenMaterialDrawer()}
+                className="w-fit px-[0.6vw] py-[0.25vw] bg-white hover:bg-gray-50 border border-gray-200 rounded-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-2xs cursor-pointer"
+              >
+                Change Material
+              </button>
+
+              {hasImageTexture && (
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="w-fit px-[0.6vw] py-[0.25vw] bg-white hover:bg-orange-50/50 border border-gray-200 hover:border-[#ea543a] rounded-[0.4vw] text-[0.7vw] font-semibold text-[#ea543a] transition-colors shadow-2xs cursor-pointer flex items-center gap-[0.25vw]"
+                  title="Replace Image Texture"
+                >
+                  <Icon icon="solar:gallery-edit-linear" className="w-[0.85vw] h-[0.85vw] shrink-0" />
+                  <span>Replace Image</span>
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageFileChange}
+            />
           </div>
         </div>
 
