@@ -4,6 +4,7 @@ import axios from "axios";
 import { textureData } from "../../../data/textureData";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 import AddMaterial from "./AddMaterial";
+import AlertModal from "../../../components/AlertModal";
 
 export default function MaterialSelectorDrawer({
   isOpen = false,
@@ -23,6 +24,11 @@ export default function MaterialSelectorDrawer({
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [editingFolderName, setEditingFolderName] = useState("");
+  const [activeFolderMenuId, setActiveFolderMenuId] = useState(null);
+  const [deletingFolder, setDeletingFolder] = useState(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
   const [showInternalAddMaterial, setShowInternalAddMaterial] = useState(false);
 
   // High-performance direct DOM dragging refs
@@ -96,34 +102,55 @@ export default function MaterialSelectorDrawer({
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
     window.addEventListener("mouseup", handleMouseUp);
 
+    const handleClickOutsideFolderMenu = (e) => {
+      if (!e.target.closest('.folder-menu-container') && !e.target.closest('.folder-menu-btn')) {
+        setActiveFolderMenuId(null);
+      }
+    };
+    window.addEventListener("mousedown", handleClickOutsideFolderMenu);
+
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousedown", handleClickOutsideFolderMenu);
       if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
     };
   }, []);
 
+  const getUserEmail = () => {
+    try {
+      const stored = localStorage.getItem("user") || localStorage.getItem("user_profile");
+      const u = stored ? JSON.parse(stored) : null;
+      return u?.emailId || u?.email || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
   // Fetch uploaded textures
   const fetchUploadedTextures = useCallback(async () => {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user?.emailId) return;
+    const email = getUserEmail();
+    if (!email) return;
 
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      const response = await axios.get(`${backendUrl}/api/textures/get?email=${user.emailId}`);
+      const response = await axios.get(`${backendUrl}/api/textures/get?email=${email}`);
       if (response.data.textures) {
-        const mapped = response.data.textures.map(t => ({
-          id: t._id,
-          name: t.materialName,
-          category: typeof t.materialCategory === 'object' ? t.materialCategory?.name : (t.materialCategory || "Texture 1"),
-          thumb: t.maps?.preview || t.maps?.base,
-          preview: t.maps?.preview || t.maps?.base,
-          maps: t.maps || {},
-          isUploaded: true
-        }));
+        const mapped = response.data.textures.map(t => {
+          const firstAvailableMap = t.maps ? Object.values(t.maps).find(url => Boolean(url)) : null;
+          const previewUrl = t.maps?.preview || t.maps?.base || firstAvailableMap;
+          return {
+            id: t._id,
+            name: t.materialName,
+            category: typeof t.materialCategory === 'object' ? t.materialCategory?.name : (t.materialCategory || "Texture 1"),
+            thumb: previewUrl,
+            preview: previewUrl,
+            maps: t.maps || {},
+            isUploaded: true
+          };
+        });
         setUploadedTextures(mapped);
       }
     } catch (error) {
@@ -133,13 +160,12 @@ export default function MaterialSelectorDrawer({
 
   // Fetch user categories / folders
   const fetchCategories = useCallback(async () => {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user?.emailId) return;
+    const email = getUserEmail();
+    if (!email) return;
 
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${user.emailId}`);
+      const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${email}`);
       if (response.data.categories) {
         setFetchedCategories(response.data.categories);
         if (response.data.categories.length > 0 && activeTab === "uploaded") {
@@ -170,16 +196,15 @@ export default function MaterialSelectorDrawer({
       return;
     }
 
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user?.emailId) return;
+    const email = getUserEmail();
+    if (!email) return;
 
     try {
       setIsCreatingFolder(true);
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
       await axios.post(`${backendUrl}/api/textures/categories/add`, {
         name: folderName,
-        email: user.emailId
+        userEmail: email
       });
       setNewFolderName("");
       setIsAddingFolder(false);
@@ -193,6 +218,52 @@ export default function MaterialSelectorDrawer({
       setIsAddingFolder(false);
     } finally {
       setIsCreatingFolder(false);
+    }
+  };
+
+  // Handle Rename Folder
+  const handleRenameFolder = async (folderId, newName) => {
+    const cleanName = (newName || "").trim();
+    if (!cleanName || !folderId) {
+      setEditingFolderId(null);
+      setEditingFolderName("");
+      return;
+    }
+
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      await axios.put(`${backendUrl}/api/textures/categories/rename/${folderId}`, {
+        name: cleanName
+      });
+      setEditingFolderId(null);
+      setEditingFolderName("");
+      await fetchCategories();
+      await fetchUploadedTextures();
+      setSelectedCategory(cleanName);
+    } catch (err) {
+      console.error("Error renaming folder:", err);
+      setEditingFolderId(null);
+    }
+  };
+
+  // Handle Delete Folder
+  const handleDeleteFolder = async () => {
+    if (!deletingFolder) return;
+    setIsDeletingFolder(true);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      await axios.delete(`${backendUrl}/api/textures/categories/delete/${deletingFolder._id}`);
+      setDeletingFolder(null);
+      await fetchCategories();
+      await fetchUploadedTextures();
+      setSelectedCategory(prev => {
+        const remaining = fetchedCategories.filter(c => c._id !== deletingFolder._id);
+        return remaining.length > 0 ? remaining[0].name : "";
+      });
+    } catch (err) {
+      console.error("Error deleting folder:", err);
+    } finally {
+      setIsDeletingFolder(false);
     }
   };
 
@@ -424,28 +495,133 @@ export default function MaterialSelectorDrawer({
         >
           {/* Left Vertical Categories Column */}
           <div 
-            className="w-[6.8vw] min-w-[90px] max-w-[110px] h-auto max-h-[35vh] overflow-y-auto overscroll-contain border-r border-gray-100 py-[0.3vw] flex flex-col shrink-0 custom-scrollbar"
+            className="w-[6.8vw] min-w-[90px] max-w-[110px] h-auto max-h-[35vh] overflow-y-auto overflow-x-hidden overscroll-contain border-r border-gray-100 py-[0.3vw] flex flex-col shrink-0 custom-scrollbar"
             onWheel={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col gap-[0.15vw] flex-1">
-              {(activeTab === "predefined" ? predefinedCategoryList : uploadedCategoryList).map((catName) => {
-                const isSelected = selectedCategory.toLowerCase() === catName.toLowerCase();
-                return (
-                  <div key={catName} className="relative px-[0.45vw]">
-                    <button
-                      onClick={() => setSelectedCategory(catName)}
-                      className={`w-full text-left px-[0.6vw] py-[0.36vw] rounded-[0.35vw] text-[0.7vw] font-medium transition-all cursor-pointer truncate ${
-                        isSelected
-                          ? "bg-[#fff1ed] text-[#ea543a] font-semibold border-l-[0.18vw] border-[#ea543a]"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                      }`}
-                    >
-                      {catName}
-                    </button>
-                  </div>
-                );
-              })}
-              {activeTab === "uploaded" && uploadedCategoryList.length === 0 && (
+              {activeTab === "predefined" ? (
+                predefinedCategoryList.map((catName) => {
+                  const isSelected = selectedCategory.toLowerCase() === catName.toLowerCase();
+                  return (
+                    <div key={catName} className="relative px-[0.45vw]">
+                      <button
+                        onClick={() => setSelectedCategory(catName)}
+                        className={`w-full text-left px-[0.6vw] py-[0.36vw] rounded-[0.35vw] text-[0.7vw] font-medium transition-all cursor-pointer truncate ${
+                          isSelected
+                            ? "bg-[#fff1ed] text-[#ea543a] font-semibold border-l-[0.18vw] border-[#ea543a]"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
+                      >
+                        {catName}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                fetchedCategories.map((cat) => {
+                  const isSelected = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+                  const isEditing = editingFolderId === cat._id;
+                  const isMenuOpen = activeFolderMenuId === cat._id;
+
+                  return (
+                    <div key={cat._id || cat.name} className="relative px-[0.45vw] group/folder">
+                      {isEditing ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleRenameFolder(cat._id, editingFolderName);
+                          }}
+                          className="flex items-center gap-[0.15vw] py-[0.2vw]"
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingFolderName}
+                            onChange={(e) => setEditingFolderName(e.target.value)}
+                            className="w-full px-[0.3vw] py-[0.2vw] text-[0.65vw] border border-[#ea543a] rounded-[0.2vw] outline-none"
+                          />
+                          <button
+                            type="submit"
+                            className="p-[0.15vw] text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                            title="Save"
+                          >
+                            <Icon icon="solar:check-read-linear" className="w-[0.75vw] h-[0.75vw]" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingFolderId(null);
+                              setEditingFolderName("");
+                            }}
+                            className="p-[0.15vw] text-gray-400 hover:text-gray-600 cursor-pointer"
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="relative flex items-center">
+                          <button
+                            onClick={() => setSelectedCategory(cat.name)}
+                            className={`w-full text-left pl-[0.6vw] pr-[1.4vw] py-[0.36vw] rounded-[0.35vw] text-[0.7vw] font-medium transition-all cursor-pointer truncate ${
+                              isSelected
+                                ? "bg-[#fff1ed] text-[#ea543a] font-semibold border-l-[0.18vw] border-[#ea543a]"
+                                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            }`}
+                            title={cat.name}
+                          >
+                            {cat.name}
+                          </button>
+
+                          {/* 3-dots folder options menu button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveFolderMenuId(isMenuOpen ? null : cat._id);
+                            }}
+                            className={`folder-menu-btn absolute right-[0.2vw] p-[0.15vw] rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 cursor-pointer transition-opacity ${
+                              isMenuOpen ? "opacity-100" : "opacity-0 group-hover/folder:opacity-100"
+                            }`}
+                            title="Folder options"
+                          >
+                            <Icon icon="solar:menu-dots-bold" className="w-[0.65vw] h-[0.65vw]" />
+                          </button>
+
+                          {/* Options dropdown - positioned inside sidebar bounds */}
+                          {isMenuOpen && (
+                            <div className="folder-menu-container absolute right-[0.2vw] top-full mt-[0.15vw] z-50 bg-white border border-gray-200/90 rounded-[0.4vw] shadow-[0_4px_16px_rgba(0,0,0,0.15)] py-[0.2vw] w-[5.2vw] min-w-[70px] animate-in fade-in zoom-in-95 duration-100">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveFolderMenuId(null);
+                                  setEditingFolderId(cat._id);
+                                  setEditingFolderName(cat.name);
+                                }}
+                                className="w-full text-left px-[0.45vw] py-[0.28vw] text-[0.6vw] text-gray-700 hover:bg-gray-50 flex items-center gap-[0.3vw] cursor-pointer"
+                              >
+                                <Icon icon="solar:pen-linear" className="w-[0.68vw] h-[0.68vw] text-gray-500" />
+                                <span>Rename</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveFolderMenuId(null);
+                                  setDeletingFolder(cat);
+                                }}
+                                className="w-full text-left px-[0.45vw] py-[0.28vw] text-[0.6vw] text-red-600 hover:bg-red-50 flex items-center gap-[0.3vw] cursor-pointer"
+                              >
+                                <Icon icon="solar:trash-bin-trash-linear" className="w-[0.68vw] h-[0.68vw] text-red-500" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+              {activeTab === "uploaded" && fetchedCategories.length === 0 && (
                 <div className="px-[0.5vw] py-[1vw] text-center text-[0.58vw] text-gray-400">
                   No folders yet. Click + Add Folder below.
                 </div>
@@ -460,7 +636,7 @@ export default function MaterialSelectorDrawer({
                     <input
                       type="text"
                       autoFocus
-                      placeholder="Folder"
+                      placeholder="Folder Name"
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}
                       className="w-full px-[0.3vw] py-[0.18vw] text-[0.6vw] border border-[#ea543a] rounded-[0.2vw] outline-none"
@@ -472,7 +648,7 @@ export default function MaterialSelectorDrawer({
                         disabled={isCreatingFolder}
                         className="flex-1 py-[0.15vw] bg-[#ea543a] text-white text-[0.58vw] rounded-[0.2vw] font-bold cursor-pointer"
                       >
-                        Add
+                        {isCreatingFolder ? "Adding..." : "Add"}
                       </button>
                       <button
                         type="button"
@@ -509,7 +685,7 @@ export default function MaterialSelectorDrawer({
               {activeTab === "uploaded" && (
                 <div
                   onClick={() => {
-                    if (onOpenAddMaterial) onOpenAddMaterial();
+                    if (onOpenAddMaterial) onOpenAddMaterial(selectedCategory);
                     else setShowInternalAddMaterial(true);
                   }}
                   className="flex flex-col items-center gap-[0.25vw] group cursor-pointer"
@@ -608,11 +784,28 @@ export default function MaterialSelectorDrawer({
       {showInternalAddMaterial && (
         <AddMaterial
           isOpen={showInternalAddMaterial}
+          initialCategory={selectedCategory}
           onClose={() => setShowInternalAddMaterial(false)}
           onUpdateSuccess={() => {
             fetchUploadedTextures();
             fetchCategories();
           }}
+        />
+      )}
+
+      {/* Delete Folder Confirmation Alert */}
+      {deletingFolder && (
+        <AlertModal
+          isOpen={!!deletingFolder}
+          type="error"
+          title="Delete Folder?"
+          message={`Are you sure you want to delete the folder "${deletingFolder.name}" and all materials inside it? This action cannot be undone.`}
+          confirmText="Delete Folder"
+          cancelText="Cancel"
+          showCancel={true}
+          onConfirm={handleDeleteFolder}
+          onClose={() => setDeletingFolder(null)}
+          isLoading={isDeletingFolder}
         />
       )}
     </>

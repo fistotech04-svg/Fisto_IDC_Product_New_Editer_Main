@@ -1738,16 +1738,20 @@ const GenericModel = React.memo(React.forwardRef(({
                         isXrayMesh = true;
                     } else if (materialSettings?.appliedTexture?.isXray) {
                         const selMat = selectedMaterial;
-                        const isExplicitAll = Boolean(!selMat || selMat.isAll || selMat.name === 'All Meshes' || selMat.name === modelName || selMat.name === 'Scene' || selMat.parentGroup === modelName || (selMat.name && modelName && selMat.name.toLowerCase().includes(modelName.toLowerCase())));
+                        const isExplicitAll = Boolean(selMat && (selMat.isAll || selMat.name === 'All Meshes'));
                         if (isExplicitAll) {
                             isXrayMesh = true;
                         } else if (selMat) {
-                            const selKeys = [selMat.uuid, selMat.name, selMat.initialUuid, selMat.meshUuid, selMat.meshName].filter(Boolean);
-                            if (lookupKeys.some(k => selKeys.includes(k))) {
+                            const targetMeshes = resolveTargetMeshes(selMat);
+                            if (targetMeshes && targetMeshes.includes(child)) {
                                 isXrayMesh = true;
                             }
                         }
                     }
+                }
+
+                if (isXrayMesh && !xrayMode && (!xrayMaterials || xrayMaterials.size === 0)) {
+                    ensureMeshUniqueMaterial(child);
                 }
 
                 const mats = Array.isArray(child.material) ? child.material : [child.material];

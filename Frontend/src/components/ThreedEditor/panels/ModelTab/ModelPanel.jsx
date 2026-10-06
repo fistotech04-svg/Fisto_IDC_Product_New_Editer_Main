@@ -4,6 +4,7 @@ import { resolveUploadsPath } from "../../../../utils/supabaseUtils";
 import { textureData } from "../../../../data/textureData";
 import ColorPicker from "../../ColorPicker";
 import { AxisInput, SliderRow, DualAxisInput, ToggleSwitch } from "../common/PanelInputs";
+import FloorPresetSelector from "../../Components/FloorPresetSelector";
 
 export function ModelPanel({
   // Position & View transforms
@@ -37,6 +38,8 @@ export function ModelPanel({
   const [isScaleLinked, setIsScaleLinked] = useState(true);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const colorPickerContainerRef = useRef(null);
+  const [isFloorColorPickerOpen, setIsFloorColorPickerOpen] = useState(false);
+  const floorColorPickerRef = useRef(null);
   const imageInputRef = useRef(null);
 
   useEffect(() => {
@@ -44,12 +47,15 @@ export function ModelPanel({
       if (colorPickerContainerRef.current && !colorPickerContainerRef.current.contains(e.target)) {
         setIsColorPickerOpen(false);
       }
+      if (floorColorPickerRef.current && !floorColorPickerRef.current.contains(e.target)) {
+        setIsFloorColorPickerOpen(false);
+      }
     };
-    if (isColorPickerOpen) {
+    if (isColorPickerOpen || isFloorColorPickerOpen) {
       document.addEventListener("mousedown", handleOutsideClick);
     }
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isColorPickerOpen]);
+  }, [isColorPickerOpen, isFloorColorPickerOpen]);
 
   const radToDeg = (rad) => {
     const r = Number(rad) || 0;
@@ -536,6 +542,8 @@ export function ModelPanel({
             />
           </div>
         </div>
+
+        <FloorPresetSelector materialSettings={materialSettings} onUpdateMaterialSetting={onUpdateMaterialSetting} />
 
         {/* Show Grid Lines */}
         <div className="flex items-center justify-between py-[0.1vw]">

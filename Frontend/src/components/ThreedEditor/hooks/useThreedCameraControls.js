@@ -19,7 +19,7 @@ export function useThreedCameraControls({
   const onResetSceneTransformsRef = useRef(onResetSceneTransforms);
   onResetSceneTransformsRef.current = onResetSceneTransforms;
 
-  const frameModelFullView = useCallback((bounds, animate = false) => {
+  const frameModelFullView = useCallback((bounds, animate = false, customPadding = null) => {
     if (bounds) {
       latestModelBoundsRef.current = bounds;
     }
@@ -90,13 +90,14 @@ export function useThreedCameraControls({
       const vFOVRad = THREE.MathUtils.degToRad(fov) / 2;
       const hFOVRad = Math.atan(Math.tan(vFOVRad) * aspect);
 
-      // Frame model nicely near the viewport without clipping inside meshes
+      // Frame model: Both initial load and reset use the exact same comfortable framing (PADDING 1.15)
       const distV = radius / Math.tan(vFOVRad);
       const distH = radius / Math.tan(hFOVRad);
       const fitDistance = Math.max(distV, distH);
 
-      const PADDING = 0.85;
-      const distance = Math.max(2.0, Math.min(fitDistance * PADDING, 25));
+      const PADDING = typeof customPadding === "number" ? customPadding : 1.15;
+      const minDistance = 2.6;
+      const distance = Math.max(minDistance, Math.min(fitDistance * PADDING, 35));
 
       // 3. 3/4 elevated perspective
       const phi = THREE.MathUtils.degToRad(66);
@@ -180,7 +181,7 @@ export function useThreedCameraControls({
 
   const handleResetView = useCallback(() => {
     if (typeof frameModelFullViewRef.current === 'function') {
-      frameModelFullViewRef.current(latestModelBoundsRef.current, true);
+      frameModelFullViewRef.current(latestModelBoundsRef.current, true, 1.15);
     } else if (controlsRef.current) {
       controlsRef.current.reset();
       setTargetPosition?.({ x: 0, y: 0, z: 0 });

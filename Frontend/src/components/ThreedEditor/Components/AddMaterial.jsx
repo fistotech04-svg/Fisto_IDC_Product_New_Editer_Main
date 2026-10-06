@@ -146,7 +146,7 @@ const MapUploadBox = ({ label, id, maps, setMaps, setMapFiles, mapMenuOpen, setM
   );
 };
 
-export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess }) {
+export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess, initialCategory = "" }) {
   const [materialName, setMaterialName] = useState("");
   const [category, setCategory] = useState("");
   const [existingCategories, setExistingCategories] = useState([]);
@@ -158,7 +158,17 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
   const [loadingMaps, setLoadingMaps] = useState({});
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-  // Initialize state when editData is provided
+  const getUserEmail = () => {
+    try {
+      const stored = localStorage.getItem("user") || localStorage.getItem("user_profile");
+      const u = stored ? JSON.parse(stored) : null;
+      return u?.emailId || u?.email || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  // Initialize state when editData or initialCategory is provided
   useEffect(() => {
     if (editData && isOpen) {
       setMaterialName(editData.name || "");
@@ -189,7 +199,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
     } else if (!editData && isOpen) {
       // Reset for New Material mode
       setMaterialName("");
-      setCategory("");
+      setCategory(initialCategory || "");
       setMaps({
         preview: null, base: null, metallic: null, roughness: null, normal: null,
         ao: null, displacement: null, opacity: null, emissive: null
@@ -199,18 +209,17 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
         ao: null, displacement: null, opacity: null, emissive: null
       });
     }
-  }, [editData, isOpen]);
+  }, [editData, isOpen, initialCategory]);
 
   // Fetch unique categories
   useEffect(() => {
     if (isOpen) {
       const fetchCategories = async () => {
-        const userStr = localStorage.getItem("user");
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (!user?.emailId) return;
+        const email = getUserEmail();
+        if (!email) return;
 
         try {
-          const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${user.emailId}`);
+          const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${email}`);
           if (response.data.categories) {
             const catNames = response.data.categories.map(c => c.name);
             const uniqueCats = [...new Set(catNames)];
@@ -290,9 +299,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
   };
 
   const handleAddMaterial = async () => {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    const email = user?.emailId;
+    const email = getUserEmail();
 
     if (!email) {
       toast.error("User session not found. Please login again.");
@@ -309,12 +316,12 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
       return;
     }
 
-    // Required Surface Maps check (Allow existing maps in Edit mode)
-    const requiredMaps = ["base", "metallic", "roughness", "normal"];
-    const missingMaps = requiredMaps.filter(m => !mapFiles[m] && !maps[m]);
+    // Ensure at least 1 map or preview is uploaded/present
+    const allMapKeys = ["preview", "base", "metallic", "roughness", "normal", "ao", "displacement", "opacity", "emissive"];
+    const hasAnyMap = allMapKeys.some(m => Boolean(mapFiles[m]) || Boolean(maps[m]));
 
-    if (missingMaps.length > 0) {
-      toast.error(`Please upload all required surface maps: ${missingMaps.join(", ").toUpperCase()}`);
+    if (!hasAnyMap) {
+      toast.error("Please upload at least one texture map or preview.");
       return;
     }
 
@@ -637,7 +644,6 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
             <div className="flex flex-col gap-[0.7vw]">
               <div className="flex items-center gap-[0.45vw]">
                 <h3 className="text-[0.85vw] font-bold text-gray-900 tracking-tight">Surface Maps</h3>
-                <span className="text-red-500 text-[0.85vw] font-bold">*</span>
                 <div className="h-[0.09vw] flex-1 bg-gray-100 ml-[0.35vw]"></div>
               </div>
               <div className="grid grid-cols-4 gap-[0.9vw]">

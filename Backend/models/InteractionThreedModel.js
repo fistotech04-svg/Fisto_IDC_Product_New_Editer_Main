@@ -56,6 +56,10 @@ const InteractionThreedModelSchema = new mongoose.Schema({
     type: Object,
     default: null
   },
+  sceneModels: {
+    type: Array,
+    default: []
+  },
   createdAt: {
     type: Date,
     default: Date.now

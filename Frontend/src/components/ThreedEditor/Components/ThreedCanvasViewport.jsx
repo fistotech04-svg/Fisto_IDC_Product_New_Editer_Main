@@ -4,7 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { TransformControls, Environment } from "@react-three/drei";
 import { DirectionalSunLight, SceneEnvironmentController } from "./SceneEnvironmentController";
 import RenderModel from "./ModelLoaders";
-import BlenderInfiniteGrid from "./BlenderInfiniteGrid";
+import FloorRenderer from "./FloorRenderer";
 import SmoothOrbitControls from "./SmoothOrbitControls";
 import AnimatedGizmo from "./AnimatedGizmo";
 import Hotspot3DOverlay from "./Hotspot3DOverlay";
@@ -137,7 +137,10 @@ export default function ThreedCanvasViewport({
           <Suspense fallback={null}>
             <group ref={sceneWrapperRef}>
               {models.map((model, index) => {
-                const modelRootTransform = model.transform || (models.length === 1 ? rootTransform : { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
+                const defaultOffset = index === 0
+                  ? rootTransform
+                  : { position: { x: (index % 2 === 1 ? 1 : -1) * Math.ceil(index / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+                const modelRootTransform = model.transform || defaultOffset;
                 return (
                   <RenderModel
                     key={model.id}
@@ -206,71 +209,33 @@ export default function ThreedCanvasViewport({
             )}
           </Suspense>
 
-          {settings.grid && !isCapturing && activeLeftTab !== "camera" && (
-            <BlenderInfiniteGrid
-              showGridLines={showGridLines}
-              showAxis={showAxis}
-            />
-          )}
-
-          {!settings.base && (
-            <mesh
-              rotation={[-Math.PI / 2, 0, 0]}
-              position={[0, -0.003, 0]}
-              receiveShadow
-              onClick={(e) => {
-                if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
-                  return;
-                }
-                if (canvasPointerDownPosRef.current) {
-                  const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
-                  const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
-                  if (dx > 6 || dy > 6) return;
-                }
-                if (Date.now() - lastHotspotClickTimeRef.current < 200) return;
-                if (isHotspotFocusingRef.current) return;
-                if (selectedMaterial) {
-                  setSelectedMaterial(null);
-                }
-              }}
-            >
-              <planeGeometry args={[120, 120]} />
-              <shadowMaterial
-                transparent
-                opacity={Math.min(1, Math.max(0, ((materialSettings.shadowDensity ?? materialSettings.shadow ?? 100) / 100) * 0.7))}
-                depthWrite={false}
-                polygonOffset
-                polygonOffsetFactor={1}
-                polygonOffsetUnits={1}
-              />
-            </mesh>
-          )}
-
-          {settings.base && (
-            <mesh
-              rotation={[-Math.PI / 2, 0, 0]}
-              position={[0, -0.005, 0]}
-              receiveShadow
-              onClick={(e) => {
-                if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
-                  return;
-                }
-                if (canvasPointerDownPosRef.current) {
-                  const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
-                  const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
-                  if (dx > 6 || dy > 6) return;
-                }
-                if (Date.now() - lastHotspotClickTimeRef.current < 200) return;
-                if (isHotspotFocusingRef.current) return;
-                if (selectedMaterial) {
-                  setSelectedMaterial(null);
-                }
-              }}
-            >
-              <planeGeometry args={[120, 120]} />
-              <meshStandardMaterial color={settings.baseColor} roughness={0.8} side={THREE.DoubleSide} />
-            </mesh>
-          )}
+          <FloorRenderer
+            floorType={materialSettings?.floorType || (settings.base ? "solid" : "grid")}
+            floorColor={materialSettings?.floorColor || settings.baseColor || "#1a1a20"}
+            floorRoughness={materialSettings?.floorRoughness ?? 20}
+            floorReflectivity={materialSettings?.floorReflectivity ?? 65}
+            floorBlur={materialSettings?.floorBlur ?? 50}
+            showGridLines={showGridLines}
+            showAxis={showAxis}
+            shadowDensity={materialSettings?.shadowDensity ?? materialSettings?.shadow ?? 100}
+            isCapturing={isCapturing}
+            activeLeftTab={activeLeftTab}
+            onFloorClick={(e) => {
+              if (e.intersections && e.intersections.length > 0 && e.intersections[0].object !== e.object) {
+                return;
+              }
+              if (canvasPointerDownPosRef.current) {
+                const dx = Math.abs(e.clientX - canvasPointerDownPosRef.current.x);
+                const dy = Math.abs(e.clientY - canvasPointerDownPosRef.current.y);
+                if (dx > 6 || dy > 6) return;
+              }
+              if (Date.now() - lastHotspotClickTimeRef.current < 200) return;
+              if (isHotspotFocusingRef.current) return;
+              if (selectedMaterial) {
+                setSelectedMaterial(null);
+              }
+            }}
+          />
 
           <SmoothOrbitControls
             ref={controlsRef}

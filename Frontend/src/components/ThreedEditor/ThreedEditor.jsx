@@ -74,13 +74,16 @@ export default function ThreedEditor() {
   // ==========================================================================
   // SECTION 2: CORE EDITOR & MODEL STATE
   // ==========================================================================
-  const [models, setModels] = useState(threedState.models || (threedState.modelUrl ? [{
-    id: "default",
-    url: threedState.modelUrl,
-    file: threedState.modelFile,
-    type: threedState.modelType,
-    name: threedState.modelName || "Model"
-  }] : []));
+  const [models, setModels] = useState(() => {
+    const rawList = threedState.models || (threedState.modelUrl ? [{
+      id: "default",
+      url: threedState.modelUrl,
+      file: threedState.modelFile,
+      type: threedState.modelType,
+      name: threedState.modelName || "Model"
+    }] : []);
+    return rawList.filter(m => m && m.url && (!m.url.startsWith('blob:') || m.file instanceof Blob));
+  });
 
   const [modelUrl, setModelUrl] = useState(models.length > 0 ? models[0].url : null);
   const [modelFile, setModelFile] = useState(models.length > 0 ? models[0].file : null);
@@ -489,7 +492,12 @@ export default function ThreedEditor() {
     worldOpacity: 0, worldBlur: 0, color: '#ffffff',
     useFactorColor: false, autoUnwrap: false, envRotation: 0,
     emissiveIntensity: 0, emissiveColor: '#ffffff',
-    lightPosition: { x: 10, y: 10, z: 10 }
+    lightPosition: { x: 10, y: 10, z: 10 },
+    floorType: 'grid',
+    floorColor: '#1a1a20',
+    floorRoughness: 20,
+    floorReflectivity: 65,
+    floorBlur: 50
   }), []);
 
   const sanitizeTransformValues = useCallback((t) => {
@@ -1197,7 +1205,38 @@ export default function ThreedEditor() {
                 displayName: modelData.displayName,
                 hotspots: loadedHotspots
               };
-              setModels([newModel]);
+              const loadedSceneModels = Array.isArray(modelData.sceneModels) && modelData.sceneModels.length > 0
+                ? modelData.sceneModels
+                : (Array.isArray(modelData.models) && modelData.models.length > 0 ? modelData.models : null);
+
+              let finalModels = [newModel];
+              if (loadedSceneModels && loadedSceneModels.length > 0) {
+                finalModels = loadedSceneModels.map((m, idx) => {
+                  if (idx === 0) return { ...m, ...newModel };
+                  let candidateUrl = m.url;
+                  if (typeof candidateUrl === 'string' && candidateUrl.startsWith('blob:')) {
+                    const sanitizedEmail = (user.emailId || '').replace(/[@.]/g, '_');
+                    const targetFile = m.fileName || `${(m.displayName || m.name || `Model_${idx + 1}`).replace(/\.[^/.]+$/, "")}.glb`;
+                    candidateUrl = `/uploads/${sanitizedEmail}/3D_Modals/${targetFile}`;
+                  }
+                  const mRawUrl = candidateUrl ? resolveUploadsPath(candidateUrl) : null;
+                  const mFullUrl = mRawUrl ? (mRawUrl.includes('?') ? `${mRawUrl}&v=${updatedAtTime}` : `${mRawUrl}?v=${updatedAtTime}`) : null;
+                  return {
+                    ...m,
+                    id: m.id || `model_${Date.now()}_${idx}`,
+                    modelId: m.modelId || null,
+                    url: mFullUrl || m.url,
+                    file: null,
+                    type: m.type || (['step', 'stp', 'iges', 'igs', 'obj', 'fbx', 'stl', 'low', 'lwo', '3ds'].includes((mFullUrl || m.url || '').split('?')[0].split('.').pop().toLowerCase()) ? (mFullUrl || m.url || '').split('?')[0].split('.').pop().toLowerCase() : 'glb'),
+                    name: (m.name || m.displayName || `Model_${idx + 1}`).replace(/\.[^/.]+$/, ""),
+                    fileName: m.fileName || m.name,
+                    displayName: m.displayName || m.name,
+                    hotspots: Array.isArray(m.hotspots) ? m.hotspots : []
+                  };
+                });
+              }
+
+              setModels(finalModels);
               setModelUrl(fullUrl);
               setModelType(newModel.type);
               setModelName(newModel.name);
@@ -1214,7 +1253,7 @@ export default function ThreedEditor() {
 
               setThreedState(prev => ({
                 ...prev,
-                models: [newModel],
+                models: finalModels,
                 modelUrl: fullUrl,
                 modelName: newModel.name,
                 hotspots: loadedHotspots,
@@ -1223,7 +1262,7 @@ export default function ThreedEditor() {
               }));
 
               resetHistory({
-                models: [newModel],
+                models: finalModels,
                 modelName: newModel.name,
                 selectedMaterial: { name: newModel.name, parentGroup: newModel.name },
                 selectedTexture: null,
@@ -1512,14 +1551,22 @@ export default function ThreedEditor() {
     });
 
     try {
-      const converted = await convertModelFileIfNeeded(file, { setLoadingText, setSafeProgress, setManualLoading, startConversionTicker, stopConversionTicker });
+      const offsetIndex = models.length;
+      const initialTransform = offsetIndex === 0
+        ? defaultTransform
+        : {
+            position: { x: (offsetIndex % 2 === 1 ? 1 : -1) * Math.ceil(offsetIndex / 2) * 3.5, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 }
+          };
 
       const newModel = {
         id: modelId,
         url: converted.url,
         file: converted.file,
         type: converted.type || 'glb',
-        name: converted.name
+        name: converted.name,
+        transform: initialTransform
       };
 
       const nextModels = [...models, newModel];
@@ -2607,31 +2654,31 @@ export default function ThreedEditor() {
           <div className="flex-1 relative overflow-hidden flex flex-col w-full h-full" style={getCameraBgStyle()}>
             {/* Top Viewport Floating Controls */}
             {activeLeftTab !== "camera" && (
-            <CanvasFloatingToolbar
-              cameraMode={cameraViewMode}
-              onSelectCameraView={handleCameraViewChange}
-              isWireframe={Boolean(settings?.wireframe)}
-              onToggleWireframe={handleToggleWireframe}
-              isShades={isShades}
-              onToggleShades={handleToggleShades}
-              navMode={navMode}
-              onSelectNavMode={setNavMode}
-              onZoomIn={handleZoomIn}
-              onZoomOut={handleZoomOut}
-              onResetView={handleResetView}
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-              transformMode={transformMode || "select"}
-              onSelectTransformMode={(mode) => {
-                setTransformMode(mode === "select" ? null : mode);
-                if (mode && mode !== "select") {
-                  setActiveAccordion("position");
-                }
-              }}
-              canTransform={models.length > 0}
-            />
+              <CanvasFloatingToolbar
+                cameraMode={cameraViewMode}
+                onSelectCameraView={handleCameraViewChange}
+                isWireframe={Boolean(settings?.wireframe)}
+                onToggleWireframe={handleToggleWireframe}
+                isShades={isShades}
+                onToggleShades={handleToggleShades}
+                navMode={navMode}
+                onSelectNavMode={setNavMode}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onResetView={handleResetView}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                transformMode={transformMode || "select"}
+                onSelectTransformMode={(mode) => {
+                  setTransformMode(mode === "select" ? null : mode);
+                  if (mode && mode !== "select") {
+                    setActiveAccordion("position");
+                  }
+                }}
+                canTransform={models.length > 0}
+              />
             )}
 
             {/* Snapshot / Screenshot Modal */}
@@ -2661,7 +2708,7 @@ export default function ThreedEditor() {
             )}
 
             {/* 3D Scene Viewport */}
-                        {/* Camera Viewfinder Overlay */}
+            {/* Camera Viewfinder Overlay */}
             {activeLeftTab === "camera" && (() => {
               const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
               if (!activeFrame || !activeFrame.aspect) return null;
