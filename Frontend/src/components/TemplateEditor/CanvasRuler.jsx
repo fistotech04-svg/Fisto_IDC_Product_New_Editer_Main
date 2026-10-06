@@ -7,12 +7,25 @@ const CanvasRuler = ({
   baseCanvasHeight,
   baseLogicalWidth,
   baseLogicalHeight,
+  selectedLayerId,
+  multiSelectedIds,
   thickness = 20
 }) => {
   const horizontalCanvasRef = useRef(null);
   const verticalCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = React.useState({ width: 0, height: 0 });
+
+  const selectedLayerIdRef = useRef(selectedLayerId);
+  const multiSelectedIdsRef = useRef(multiSelectedIds);
+
+  useEffect(() => {
+    selectedLayerIdRef.current = selectedLayerId;
+  }, [selectedLayerId]);
+
+  useEffect(() => {
+    multiSelectedIdsRef.current = multiSelectedIds;
+  }, [multiSelectedIds]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -68,8 +81,111 @@ const CanvasRuler = ({
          height: maxBottom - minTop
       };
 
-      // Only redraw if the bounding box or container size changed
-      const currentRenderKey = `${zoomRect.left},${zoomRect.top},${zoomRect.width},${zoomRect.height},${containerWidth},${containerHeight}`;
+      // ── Find selected element bounds in screen space ──
+      let selScreenRect = null;
+      const curMultiIds = multiSelectedIdsRef.current;
+      const curSelectedId = selectedLayerIdRef.current;
+      const hasMulti = Boolean(curMultiIds && curMultiIds.size > 0);
+      const hasSingle = Boolean(curSelectedId);
+
+      // Helper to identify canvas background, root container, or non-element wrappers
+      const isBaseElement = (el) => {
+        if (!el) return true;
+        const dt = el.getAttribute?.('data-type');
+        const dn = el.getAttribute?.('data-name');
+        const id = el.id || '';
+        const tag = el.tagName?.toLowerCase() || '';
+        if (
+          dt === 'background' ||
+          dt === 'frame' ||
+          dn === 'Overlay' ||
+          dn === 'Document Shield' ||
+          id.startsWith('frame-page-') ||
+          id.startsWith('page-') ||
+          id.startsWith('canvas-') ||
+          id.includes('root') ||
+          tag === 'svg' ||
+          tag === 'defs' ||
+          tag === 'style'
+        ) {
+          return true;
+        }
+        if (el.parentElement?.tagName?.toLowerCase() === 'svg' && tag === 'g') {
+          return true;
+        }
+        return false;
+      };
+
+      // Only highlight when the user has actually clicked / selected an element
+      if (hasMulti && curMultiIds.size > 1) {
+        // Multi-selection bounding box in overlay
+        const multiBoundsPoly = document.getElementById('overlay-poly-selected-multi-selection-bounds');
+        if (multiBoundsPoly) {
+          const r = multiBoundsPoly.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            selScreenRect = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+          }
+        }
+
+        if (!selScreenRect) {
+          let minL = Infinity, maxR = -Infinity, minT = Infinity, maxB = -Infinity;
+          let foundAny = false;
+          curMultiIds.forEach(id => {
+            try {
+              const el = document.getElementById(id);
+              if (isBaseElement(el)) return;
+              const escaped = CSS.escape(id);
+              const poly = document.querySelector(
+                `[id="overlay-poly-selected-${escaped}"], [id="overlay-poly-child-selected-${escaped}"], [id="overlay-poly-multi-child-selected-${escaped}"]`
+              );
+              if (poly) {
+                const r = poly.getBoundingClientRect();
+                if (r && (r.width > 0 || r.height > 0)) {
+                  if (r.left < minL) minL = r.left;
+                  if (r.right > maxR) maxR = r.right;
+                  if (r.top < minT) minT = r.top;
+                  if (r.bottom > maxB) maxB = r.bottom;
+                  foundAny = true;
+                }
+              }
+            } catch { /* ignored */ }
+          });
+          if (foundAny && minL < Infinity) {
+            selScreenRect = { left: minL, right: maxR, top: minT, bottom: maxB };
+          }
+        }
+      } else if (hasSingle || (hasMulti && curMultiIds.size === 1)) {
+        const targetId = curSelectedId || (curMultiIds && Array.from(curMultiIds)[0]);
+        if (targetId) {
+          const el = document.getElementById(targetId);
+          if (el && !isBaseElement(el)) {
+            try {
+              const escaped = CSS.escape(targetId);
+              // Only consider selected if there is an active selection overlay polygon or path in the DOM
+              const poly = document.querySelector(
+                `[id="overlay-poly-selected-${escaped}"], [id="overlay-poly-child-selected-${escaped}"], [id="overlay-path-selected-${escaped}"]`
+              );
+              if (poly) {
+                const polyRect = poly.getBoundingClientRect();
+                if (polyRect && polyRect.width > 0 && polyRect.height > 0) {
+                  selScreenRect = {
+                    left: polyRect.left,
+                    right: polyRect.right,
+                    top: polyRect.top,
+                    bottom: polyRect.bottom
+                  };
+                }
+              }
+            } catch { /* ignored */ }
+          }
+        }
+      }
+
+      // Include selection coordinates in render key so rulers update live during drag/resize/select
+      const selKey = selScreenRect
+        ? `${Math.round(selScreenRect.left * 10) / 10},${Math.round(selScreenRect.right * 10) / 10},${Math.round(selScreenRect.top * 10) / 10},${Math.round(selScreenRect.bottom * 10) / 10}`
+        : 'none';
+      const currentRenderKey = `${zoomRect.left},${zoomRect.top},${zoomRect.width},${zoomRect.height},${containerWidth},${containerHeight},${selKey}`;
       if (currentRenderKey === lastRenderKey) return;
       lastRenderKey = currentRenderKey;
 
@@ -115,11 +231,49 @@ const CanvasRuler = ({
 
       hCtx.fillStyle = bgColor;
       hCtx.fillRect(0, 0, containerWidth, thickness);
-      hCtx.fillStyle = tickColor;
-      hCtx.fillRect(0, thickness - 1, containerWidth, 1);
 
       vCtx.fillStyle = bgColor;
       vCtx.fillRect(0, 0, thickness, containerHeight);
+
+      // ── Draw selection range highlight on rulers (light orange) ──
+      if (selScreenRect) {
+        const selBgColor = '#e5f4ff'; // Light orange highlight fill (Tailwind orange-200)
+        const selBorderColor = '#e5f4ff'; // Crisp orange boundary border (Tailwind orange-400)
+
+        // Horizontal ruler highlight
+        const hStart = Math.max(thickness, selScreenRect.left - rulerRect.left);
+        const hEnd = Math.min(containerWidth, selScreenRect.right - rulerRect.left);
+        const hWidth = hEnd - hStart;
+
+        if (hWidth > 0) {
+          hCtx.fillStyle = selBgColor;
+          hCtx.fillRect(hStart, 0, hWidth, thickness - 1);
+
+          // Subtle boundary lines on ruler edges
+          hCtx.fillStyle = selBorderColor;
+          hCtx.fillRect(hStart, 0, 1, thickness - 1);
+          hCtx.fillRect(hEnd - 1, 0, 1, thickness - 1);
+        }
+
+        // Vertical ruler highlight
+        const vStart = Math.max(thickness, selScreenRect.top - rulerRect.top);
+        const vEnd = Math.min(containerHeight, selScreenRect.bottom - rulerRect.top);
+        const vHeight = vEnd - vStart;
+
+        if (vHeight > 0) {
+          vCtx.fillStyle = selBgColor;
+          vCtx.fillRect(0, vStart, thickness - 1, vHeight);
+
+          // Subtle boundary lines on ruler edges
+          vCtx.fillStyle = selBorderColor;
+          vCtx.fillRect(0, vStart, thickness - 1, 1);
+          vCtx.fillRect(0, vEnd - 1, thickness - 1, 1);
+        }
+      }
+
+      hCtx.fillStyle = tickColor;
+      hCtx.fillRect(0, thickness - 1, containerWidth, 1);
+
       vCtx.fillStyle = tickColor;
       vCtx.fillRect(thickness - 1, 0, 1, containerHeight);
 

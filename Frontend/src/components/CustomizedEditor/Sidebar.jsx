@@ -6,7 +6,7 @@ import axios from 'axios';
 import SidebarItem from './SidebarItem';
 import Appearance from './Appearance';
 import MenuBar from './MenuBar';
-import OtherSetup from './OtherSetup';
+import AdvancedSettings from './AdvancedSettings';
 import LeadForm from './LeadForm';
 import Visibility from './Visibility';
 import Statistic from './Statistic';

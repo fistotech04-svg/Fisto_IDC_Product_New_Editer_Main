@@ -26,7 +26,7 @@ import { EffectControlRow, ImageCropOverlay } from './AppearanceShared';
 import { CoverPicturePopup } from '../FlipbookInfoModal';
 import BookmarkStylesPopup from './BookmarkStylesPopup';
 import AlertModal from '../AlertModal';
-import ReplaceMediaModal from '../TemplateEditor/ReplaceMediaModal';
+import ReplaceMediaModal from '../TemplateEditor/properties/ReplaceMediaModal';
 import cover1 from '../../assets/cover/cover1.svg';
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
@@ -172,7 +172,7 @@ const AccordionItem = ({ title, isOpen, onToggle, children }) => (
 
 const MAX_GALLERY_IMAGES = 12;
 
-const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = [], targetAccordion, inlineMode }) => {
+const AdvancedSettings = ({ onBack, settings, onUpdate, folderName, bookName, pages = [], targetAccordion, inlineMode }) => {
   const [openAccordion, setOpenAccordion] = useState(targetAccordion || 'layout');
   const [bookAppearance, setBookAppearance] = useState({});
 
@@ -2085,4 +2085,4 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   );
 };
 
-export default OtherSetup;
+export default AdvancedSettings;

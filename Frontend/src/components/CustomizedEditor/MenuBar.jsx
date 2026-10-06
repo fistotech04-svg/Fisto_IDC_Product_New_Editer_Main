@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PremiumDropdown from './PremiumDropdown';
 import { Plus, Trash2, Edit2, ChevronDown, ChevronRight } from 'lucide-react';
 import BookmarkStylesPopup, { getBookmarkClipPath, getBookmarkBorderRadius } from './BookmarkStylesPopup';
-import OtherSetup from './OtherSetup';
+import AdvancedSettings from './AdvancedSettings';
 import ColorPicker from './ColorPallet';
 
 
@@ -792,7 +792,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                   className="bg-gray-50/50 rounded-b-[0.8vw] relative z-10 !overflow-visible"
                 >
                   <div className="border-t border-gray-50">
-                    <OtherSetup 
+                    <AdvancedSettings 
                       inlineMode="gallery" 
                       settings={otherSettings} 
                       onUpdate={onUpdateOther} 
@@ -884,7 +884,7 @@ const MenuBar = ({ onBack, settings, onUpdate, otherSettings, onUpdateOther, pag
                   className="bg-gray-50/50 rounded-b-[0.8vw] relative z-10 !overflow-visible"
                 >
                   <div className="border-t border-gray-50">
-                    <OtherSetup 
+                    <AdvancedSettings 
                       inlineMode="sound" 
                       settings={otherSettings} 
                       onUpdate={onUpdateOther} 

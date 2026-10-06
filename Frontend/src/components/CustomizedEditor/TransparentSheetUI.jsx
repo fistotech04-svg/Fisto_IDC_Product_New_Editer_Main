@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import PremiumDropdown from './PremiumDropdown';
-import ReplaceMediaModal from '../TemplateEditor/ReplaceMediaModal';
+import ReplaceMediaModal from '../TemplateEditor/properties/ReplaceMediaModal';
 
 const SectionHeader = ({ label }) => (
   <div className="flex items-center gap-[1vw] mb-[0.5vw]">

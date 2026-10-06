@@ -1,158 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getVisualBBox, getCanvasBounds } from './MainEditor';
+import { getVisualBBox, getCanvasBounds } from './mainEditor/geometryUtils';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { checkIsAnimatedWebp } from './editorUtils';
-import ShapeProperties from './ShapeProperties';
-import PenToolProperties from './PenToolProperties';
-import ImageEditor from './ImageEditor';
-import TextEditor from './TextEditor';
+import {
+  DimensionProperties,
+  PageProperties,
+  ShapeProperties,
+  PenToolProperties,
+  ImageEditor,
+  TextEditor,
+  VideoEditor,
+  GifEditor,
+  Model3DEditor,
+  GroupProperties,
+  ImportViaUrlModal,
+  MediaGalleryPopup
+} from './properties';
 import IconGallery from './icons';
-import VideoEditor from './VideoEditor';
-import GifEditor from './Gif';
 import AnimationPanel from './AnimationPanel';
 import InteractionPanel from './InteractionPanel';
 import PopupTemplateSelection from './PopupTemplateSelection';
-import Model3DEditor from './Model3DEditor';
-import GroupProperties from './GroupProperties';
-import ImportViaUrlModal from './ImportViaUrlModal';
-import ColorPicker, { parseGradient } from './ColorPicker';
-import MediaGalleryPopup from './MediaGalleryPopup';
-import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useToast } from '../CustomToast';
-const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, className }) => {
-  const [localVal, setLocalVal] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [liveVal, setLiveVal] = useState(null);
-
-  useEffect(() => {
-    if (!targetId || readOnly) {
-      setLiveVal(null);
-      return;
-    }
-
-    let frameId;
-    const poll = () => {
-      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-      const el = editorDoc.getElementById(targetId);
-      if (el && typeof el.getBBox === 'function') {
-        try {
-          let bbox;
-          if (el.getAttribute('data-is-hotspot') === 'true') {
-            bbox = { x: 0, y: 0, width: 52, height: 52 };
-          } else {
-            bbox = getVisualBBox(el);
-          }
-          let rawVal = 0;
-          let m = [1, 0, 0, 1, 0, 0];
-          const transform = el.getAttribute('transform');
-          if (transform) {
-            try {
-              const domM = new DOMMatrix(transform);
-              m = [domM.a, domM.b, domM.c, domM.d, domM.e, domM.f];
-            } catch (_) {
-              if (transform.includes('matrix')) {
-                const match = transform.match(/matrix\(([^)]+)\)/);
-                if (match) {
-                  const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
-                  if (parsedM.length === 6) m = parsedM;
-                }
-              }
-            }
-          }
-
-          if (targetAttr === 'width') rawVal = bbox.width * Math.abs(m[0]);
-          else if (targetAttr === 'height') rawVal = bbox.height * Math.abs(m[3]);
-          else if (targetAttr === 'x') rawVal = bbox.x * m[0] + (m[0] < 0 ? bbox.width * m[0] : 0) + m[4];
-          else if (targetAttr === 'y') rawVal = bbox.y * m[3] + (m[3] < 0 ? bbox.height * m[3] : 0) + m[5];
-
-          if (el.tagName === 'circle' && (!transform || !transform.includes('matrix'))) {
-            const r = parseFloat(el.getAttribute('r')) || 0;
-            if (targetAttr === 'width' || targetAttr === 'height') rawVal = r * 2;
-            else if (targetAttr === 'x') rawVal = (parseFloat(el.getAttribute('cx')) || 0) - r;
-            else if (targetAttr === 'y') rawVal = (parseFloat(el.getAttribute('cy')) || 0) - r;
-          }
-
-          const finalLiveVal = Number(rawVal.toFixed(1)).toString();
-
-          setLiveVal((prev) => (prev !== finalLiveVal ? finalLiveVal : prev));
-        } catch (e) { }
-      } else {
-        setLiveVal(null);
-      }
-      frameId = requestAnimationFrame(poll);
-    };
-    poll();
-    return () => cancelAnimationFrame(frameId);
-  }, [targetId, targetAttr, readOnly]);
-
-  const displayValue = isEditing ? localVal : (liveVal !== null ? liveVal : value);
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.target.blur();
-      return;
-    }
-    const allowedControlKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
-    if (allowedControlKeys.includes(e.key) || e.ctrlKey || e.metaKey) {
-      return;
-    }
-    if (e.key === '-' && (targetAttr === 'x' || targetAttr === 'y')) {
-      if (e.target.value.includes('-')) e.preventDefault();
-      return;
-    }
-    if (e.key === '.') {
-      if (e.target.value.includes('.')) e.preventDefault();
-      return;
-    }
-    if (!/^[0-9]$/.test(e.key)) {
-      e.preventDefault();
-    }
-  };
-
-  const handleChange = (e) => {
-    let val = e.target.value;
-    if (targetAttr === 'x' || targetAttr === 'y') {
-      val = val.replace(/[^0-9.-]/g, '');
-    } else {
-      val = val.replace(/[^0-9.]/g, '');
-    }
-    setLocalVal(val);
-  };
-
-  return (
-    <input
-      className={className}
-      value={displayValue}
-      readOnly={readOnly}
-      disabled={readOnly}
-      tabIndex={readOnly ? -1 : 0}
-      onFocus={() => {
-        if (readOnly) return;
-        setIsEditing(true);
-        setLocalVal(displayValue);
-      }}
-      onBlur={() => {
-        if (readOnly) return;
-        setIsEditing(false);
-        if (localVal !== '' && localVal !== (liveVal !== null ? liveVal : value).toString()) {
-          onChange(localVal);
-        }
-      }}
-      onChange={(e) => {
-        if (readOnly) return;
-        handleChange(e);
-      }}
-      onKeyDown={(e) => {
-        if (readOnly) return;
-        handleKeyDown(e);
-      }}
-    />
-  );
-};
 
 const RightSidebar = ({
   isDoublePage,
@@ -230,46 +101,6 @@ const RightSidebar = ({
     window.addEventListener('node-edit-mode-changed', handleNodeEditChange);
     return () => window.removeEventListener('node-edit-mode-changed', handleNodeEditChange);
   }, []);
-  // Convert mm to pixels at 96 DPI for the input display if no element selected
-  const baseWidthPx = Math.round(baseWidth * 96 / 25.4);
-  const baseHeightPx = Math.round(baseHeight * 96 / 25.4);
-
-  const getDocumentInfo = (w, h) => {
-    const roundedW = Math.round(w || 210);
-    const roundedH = Math.round(h || 297);
-    const minDim = Math.min(roundedW, roundedH);
-    const maxDim = Math.max(roundedW, roundedH);
-
-    let formatName = 'Custom Sheet';
-    if (Math.abs(minDim - 210) <= 3 && Math.abs(maxDim - 297) <= 3) {
-      formatName = 'A4';
-    } else if (Math.abs(minDim - 297) <= 3 && Math.abs(maxDim - 420) <= 3) {
-      formatName = 'A3';
-    } else if (Math.abs(minDim - 148) <= 3 && Math.abs(maxDim - 210) <= 3) {
-      formatName = 'A5';
-    } else if (Math.abs(minDim - 216) <= 3 && Math.abs(maxDim - 279) <= 3) {
-      formatName = 'Letter';
-    } else if (Math.abs(minDim - 216) <= 3 && Math.abs(maxDim - 356) <= 3) {
-      formatName = 'Legal';
-    } else if (Math.abs(minDim - 99) <= 3 && Math.abs(maxDim - 210) <= 3) {
-      formatName = 'DL';
-    } else if (Math.abs(roundedW - roundedH) <= 3) {
-      formatName = 'Square';
-    }
-
-    let orientationName = 'Portrait';
-    if (roundedW > roundedH) {
-      orientationName = 'Landscape';
-    } else if (roundedW === roundedH) {
-      orientationName = 'Square';
-    }
-
-    return {
-      format: formatName,
-      orientation: orientationName,
-      dimensions: `${roundedW} x ${roundedH} mm`
-    };
-  };
   const fileInputRef = useRef(null);
   const toast = useToast();
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
@@ -890,179 +721,15 @@ const RightSidebar = ({
 
       {/* Persistent Dimension Section (Common for all) */}
       {!is3DModalOpen && (
-        <div className="bg-white px-[1.5vw] pt-[1.4vw] pb-[0.85vw] border-b border-gray-100 flex-shrink-0">
-          <div className="space-y-[0.8vw]">
-            <div className="flex flex-col gap-[1vw]">
-              {/* Position Row */}
-              <div className="flex items-center gap-[2vw]">
-                <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Position :</span>
-                <div className="flex items-center gap-[1.5vw]">
-                  {/* X Input */}
-                  <div className="flex items-center gap-[0.2vw]">
-                    {!isDimensionDisabled ? (
-                      <ChevronLeft
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.x || 0) - 1;
-                          updatePosition(val.toString(), 'x');
-                        }}
-                      />
-                    ) : (
-                      <ChevronLeft size="0.85vw" className="text-transparent" />
-                    )}
-                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">X</span>
-                      <DimensionInput
-                        targetId={selectedLayerId}
-                        targetAttr="x"
-                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                        value={convertValue(selectedElementProps?.x || 0)}
-                        readOnly={isDimensionDisabled}
-                        onChange={(val) => updatePosition(val, 'x')}
-                      />
-                    </div>
-                    {!isDimensionDisabled ? (
-                      <ChevronRight
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.x || 0) + 1;
-                          updatePosition(val.toString(), 'x');
-                        }}
-                      />
-                    ) : (
-                      <ChevronRight size="0.85vw" className="text-transparent" />
-                    )}
-                  </div>
-
-                  {/* Y Input */}
-                  <div className="flex items-center gap-[0.2vw]">
-                    {!isDimensionDisabled ? (
-                      <ChevronLeft
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.y || 0) - 1;
-                          updatePosition(val.toString(), 'y');
-                        }}
-                      />
-                    ) : (
-                      <ChevronLeft size="0.85vw" className="text-transparent" />
-                    )}
-                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">Y</span>
-                      <DimensionInput
-                        targetId={selectedLayerId}
-                        targetAttr="y"
-                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                        value={convertValue(selectedElementProps?.y || 0)}
-                        readOnly={isDimensionDisabled}
-                        onChange={(val) => updatePosition(val, 'y')}
-                      />
-                    </div>
-                    {!isDimensionDisabled ? (
-                      <ChevronRight
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.y || 0) + 1;
-                          updatePosition(val.toString(), 'y');
-                        }}
-                      />
-                    ) : (
-                      <ChevronRight size="0.85vw" className="text-transparent" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Resizing Row */}
-              <div className="flex items-center gap-[2vw]">
-                <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Resizing :</span>
-                <div className="flex items-center gap-[1.5vw]">
-                  {/* W Input */}
-                  <div className="flex items-center gap-[0.2vw]">
-                    {!isDimensionDisabled ? (
-                      <ChevronLeft
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.w || 0) - 1;
-                          updateDimensionWithScale(val.toString(), 'width');
-                        }}
-                      />
-                    ) : (
-                      <ChevronLeft size="0.85vw" className="text-transparent" />
-                    )}
-                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">W</span>
-                      <DimensionInput
-                        targetId={selectedLayerId}
-                        targetAttr="width"
-                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                        value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
-                        readOnly={isDimensionDisabled}
-                        onChange={(val) => updateDimensionWithScale(val, 'width')}
-                      />
-                    </div>
-                    {!isDimensionDisabled ? (
-                      <ChevronRight
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.w || 0) + 1;
-                          updateDimensionWithScale(val.toString(), 'width');
-                        }}
-                      />
-                    ) : (
-                      <ChevronRight size="0.85vw" className="text-transparent" />
-                    )}
-                  </div>
-
-                  {/* H Input */}
-                  <div className="flex items-center gap-[0.2vw]">
-                    {!isDimensionDisabled ? (
-                      <ChevronLeft
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.h || 0) - 1;
-                          updateDimensionWithScale(val.toString(), 'height');
-                        }}
-                      />
-                    ) : (
-                      <ChevronLeft size="0.85vw" className="text-transparent" />
-                    )}
-                    <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${isDimensionDisabled ? 'bg-gray-50/50' : 'bg-white'}`}>
-                      <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">H</span>
-                      <DimensionInput
-                        targetId={selectedLayerId}
-                        targetAttr="height"
-                        className={`w-full text-center outline-none text-[0.85vw] font-semibold ${isDimensionDisabled ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#111827] bg-white'}`}
-                        value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
-                        readOnly={isDimensionDisabled}
-                        onChange={(val) => updateDimensionWithScale(val, 'height')}
-                      />
-                    </div>
-                    {!isDimensionDisabled ? (
-                      <ChevronRight
-                        size="0.85vw"
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(selectedElementProps?.h || 0) + 1;
-                          updateDimensionWithScale(val.toString(), 'height');
-                        }}
-                      />
-                    ) : (
-                      <ChevronRight size="0.85vw" className="text-transparent" />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DimensionProperties
+          selectedLayerId={selectedLayerId}
+          selectedElementProps={selectedElementProps}
+          isDimensionDisabled={isDimensionDisabled}
+          updatePosition={updatePosition}
+          updateDimensionWithScale={updateDimensionWithScale}
+          convertValue={convertValue}
+          flipbookDimensions={flipbookDimensions}
+        />
       )}
 
       <div className={`flex-1 flex flex-col overflow-hidden bg-[#fbfbfb] ${pages[activePageIndex]?.isHidden ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -1507,146 +1174,14 @@ const RightSidebar = ({
                     </div>
                   ) : (
                     /* Page Properties (Default View) */
-                    (() => {
-                      const page = pages[activePageIndex];
-                      const parser = new DOMParser();
-                      const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-                      const overlay = doc.querySelector('[data-name="Overlay"]');
-                      const currentBg = overlay?.getAttribute('fill') || '#ffffff';
-                      const fillType = overlay?.getAttribute('fill-type') || 'solid';
-
-                      let currentBgStr = currentBg;
-                      if (fillType === 'gradient' || currentBg.toLowerCase().includes('url(#')) {
-                        const stopsJson = overlay?.getAttribute('fill-stops');
-                        const stops = stopsJson ? JSON.parse(stopsJson) : [];
-                        const gType = overlay?.getAttribute('fill-gradient-type') || 'linear';
-                        if (stops.length > 0) {
-                          currentBgStr = generateGradientString(
-                            gType.charAt(0).toUpperCase() + gType.slice(1),
-                            stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
-                            parseInt(overlay?.getAttribute('fill-angle') || '0'),
-                            parseInt(overlay?.getAttribute('fill-radius') || '100')
-                          );
-                        }
-                      }
-
-                      return (
-                        <div className="flex flex-col gap-[3vh]">
-                          <div className="flex flex-col gap-[1.5vh]">
-                            <div className="flex items-center gap-[0.75vw]">
-                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
-                                Page Background
-                              </span>
-                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                            </div>
-
-                            <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
-                              <div className="flex items-center justify-between mb-[1.5vh]">
-                                <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
-                                <div
-                                  className="flex items-center gap-[0.5vw] cursor-pointer hover:bg-gray-50 p-[0.3vw] rounded-[0.4vw] transition-colors"
-                                  onClick={() => setIsPageBgPickerOpen(!isPageBgPickerOpen)}
-                                >
-                                  <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner flex-shrink-0" style={{ background: currentBgStr }} />
-                                  <span className="text-[0.7vw] font-mono text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap max-w-[8vw]">
-                                    {currentBgStr.toUpperCase()}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-8 gap-[0.4vw]">
-                                {presetColors.map((color) => (
-                                  <button
-                                    key={color}
-                                    onClick={() => {
-                                      updateElementAttribute(activePageIndex, 'Overlay', {
-                                        'fill-type': 'solid',
-                                        'fill': color
-                                      });
-                                    }}
-                                    className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
-                                    style={{ backgroundColor: color }}
-                                    title={color}
-                                  />
-                                ))}
-                              </div>
-
-                              {isPageBgPickerOpen && createPortal(
-                                <div
-                                  className="fixed z-[5000]"
-                                  style={{
-                                    top: '50%',
-                                    right: '19.5vw', // Left of the right sidebar
-                                    transform: 'translateY(-50%)'
-                                  }}
-                                >
-                                  <div className="animate-in fade-in zoom-in-95 duration-200 relative">
-                                    <ColorPicker
-                                      color={currentBgStr}
-                                      onChange={(newVal) => {
-                                        if (newVal.includes('gradient')) {
-                                          const parsed = parseGradient(newVal);
-                                          if (parsed) {
-                                            updateElementAttribute(activePageIndex, 'Overlay', {
-                                              'fill-type': 'gradient',
-                                              'fill-gradient-type': parsed.type.toLowerCase(),
-                                              'fill-stops': JSON.stringify(parsed.stops.map(s => ({
-                                                color: s.color,
-                                                offset: s.offset,
-                                                opacity: s.opacity / 100
-                                              }))),
-                                              'fill-angle': (parsed.angle || 0).toString(),
-                                              'fill-radius': (parsed.radius || 100).toString(),
-                                              'fill': newVal
-                                            });
-                                          }
-                                        } else {
-                                          updateElementAttribute(activePageIndex, 'Overlay', {
-                                            'fill-type': 'solid',
-                                            'fill': newVal
-                                          });
-                                        }
-                                      }}
-                                      opacity={100}
-                                      onClose={() => setIsPageBgPickerOpen(false)}
-                                    />
-                                  </div>
-                                </div>,
-                                document.body
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-[1.5vh]">
-                            <div className="flex items-center gap-[0.75vw]">
-                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Document info</span>
-                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                            </div>
-                            <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
-                              {(() => {
-                                const info = getDocumentInfo(baseWidth, baseHeight);
-                                return (
-                                  <>
-                                    <div className="flex justify-between items-center text-[0.75vw]">
-                                      <span className="text-gray-500 font-medium">Format</span>
-                                      <span className="text-gray-900 font-semibold">{info.format}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[0.75vw]">
-                                      <span className="text-gray-500 font-medium">Orientation</span>
-                                      <span className="text-gray-900 font-semibold">{info.orientation}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[0.75vw]">
-                                      <span className="text-gray-500 font-medium">Dimensions</span>
-                                      <span className="text-gray-900 font-semibold">{info.dimensions}</span>
-                                    </div>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()
+                    <PageProperties
+                      pages={pages}
+                      activePageIndex={activePageIndex}
+                      updateElementAttribute={updateElementAttribute}
+                      baseWidth={baseWidth}
+                      baseHeight={baseHeight}
+                      presetColors={presetColors}
+                    />
                   )}
                 </div>
               )}

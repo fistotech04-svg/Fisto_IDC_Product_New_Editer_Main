@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import { Icon } from '@iconify/react';
@@ -982,6 +983,23 @@ const AnimationPanel = ({ selectedElement, onUpdate }) => {
     window.addEventListener('animation-force-add', handleForceAdd);
     return () => window.removeEventListener('animation-force-add', handleForceAdd);
   }, [onUpdate]);
+
+  React.useEffect(() => {
+    const handleAnimationRemoved = (e) => {
+      const id = e.detail?.id;
+      if (id) {
+        setForceIncludeIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setExpandedElementId(prev => (prev === id ? null : prev));
+      }
+      setTick(t => t + 1);
+    };
+    window.addEventListener('animation-removed', handleAnimationRemoved);
+    return () => window.removeEventListener('animation-removed', handleAnimationRemoved);
+  }, []);
 
   const handleGlobalPreview = () => {
     if (previewCleanupRef.current.length > 0) {

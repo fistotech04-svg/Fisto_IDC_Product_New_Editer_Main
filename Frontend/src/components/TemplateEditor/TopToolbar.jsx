@@ -19,20 +19,22 @@ const TopToolbar = ({
   hasSelection,
   hideTools = false
 }) => {
-  const [showRotationOptions, setShowRotationOptions] = useState(false);
-  const rotationRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragStartValue = useRef(0);
   const [localRotation, setLocalRotation] = useState(rotation);
+  const localRotationRef = useRef(rotation);
 
   useEffect(() => {
     setLocalRotation(rotation);
+    localRotationRef.current = rotation;
   }, [rotation]);
 
   const handleRotationChange = (e) => {
     const val = parseInt(e.target.value);
-    setLocalRotation(isNaN(val) ? '' : val);
+    const updatedVal = isNaN(val) ? '' : val;
+    setLocalRotation(updatedVal);
+    localRotationRef.current = updatedVal;
   };
 
   const handleRotationBlur = () => {
@@ -40,7 +42,8 @@ const TopToolbar = ({
     if (isNaN(val)) val = 0;
     const wrappedVal = ((val % 360) + 360) % 360;
     setLocalRotation(wrappedVal);
-    if (onRotate) onRotate(wrappedVal);
+    localRotationRef.current = wrappedVal;
+    if (onRotate) onRotate(wrappedVal, true);
   };
 
   const handleRotationKeyDown = (e) => {
@@ -53,11 +56,11 @@ const TopToolbar = ({
   const hasMoved = useRef(false);
 
   const handleMouseDown = (e) => {
-    e.stopPropagation(); // Prevent dropdown from closing due to outside click logic
+    e.stopPropagation();
     setIsDragging(true);
     hasMoved.current = false;
     dragStartPos.current = { x: e.clientX, y: e.clientY };
-    dragStartValue.current = localRotation || 0;
+    dragStartValue.current = Number(localRotationRef.current) || 0;
     document.body.style.cursor = 'ew-resize';
     e.preventDefault();
   };
@@ -78,12 +81,16 @@ const TopToolbar = ({
       newValue = ((newValue % 360) + 360) % 360;
       
       setLocalRotation(newValue);
-      if (onRotate) onRotate(newValue);
+      localRotationRef.current = newValue;
+      if (onRotate) onRotate(newValue, false);
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
       document.body.style.cursor = 'default';
+      if (hasMoved.current && onRotate) {
+        onRotate(localRotationRef.current, true);
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -94,16 +101,7 @@ const TopToolbar = ({
     };
   }, [isDragging, onRotate]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (rotationRef.current && !rotationRef.current.contains(event.target)) {
-        setShowRotationOptions(false);
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   return (
     <div 
@@ -156,7 +154,7 @@ const TopToolbar = ({
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
             <div className="relative group/tt flex items-center justify-center">
               <div onClick={() => onAlign && onAlign('top')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-                <Icon icon="mdi:format-align-top" width="1.1vw" className="text-[#374151]" />
+                <Icon icon="line-md:arrow-align-top" width="1.1vw" className="text-[#374151]" />
               </div>
               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] hidden group-hover/tt:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
                 <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
@@ -168,7 +166,7 @@ const TopToolbar = ({
 
             <div className="relative group/tt flex items-center justify-center">
               <div onClick={() => onAlign && onAlign('middle')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-                <Icon icon="mdi:format-align-middle" width="1.1vw" className="text-[#374151]" />
+                <Icon icon="line-md:arrow-align-middle" width="1.1vw" className="text-[#374151]" />
               </div>
               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] hidden group-hover/tt:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
                 <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
@@ -180,7 +178,7 @@ const TopToolbar = ({
 
             <div className="relative group/tt flex items-center justify-center">
               <div onClick={() => onAlign && onAlign('bottom')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-                <Icon icon="mdi:format-align-bottom" width="1.1vw" className="text-[#374151]" />
+                <Icon icon="line-md:arrow-align-bottom" width="1.1vw" className="text-[#374151]" />
               </div>
               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] hidden group-hover/tt:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
                 <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
@@ -295,71 +293,49 @@ const TopToolbar = ({
       {/* Right Section: Zoom & Extra */}
       <div className="flex items-center gap-[1vw]">
         {!hideTools && (
-          <div className="relative" ref={rotationRef}>
-            <div className="relative group/tt flex items-center justify-center">
+          <div className="relative group/tt flex items-center justify-center">
+            <div 
+              className={`flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] transition-all ${
+                !hasSelection ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''
+              }`}
+            >
+              {/* Rotate Tool With Degree Input Direct */}
               <div 
-                onClick={hasSelection ? () => setShowRotationOptions(!showRotationOptions) : undefined}
-                className={`flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] transition-all ${
-                  !hasSelection ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
-                } ${showRotationOptions ? 'ring-1 ring-gray-300 shadow-sm' : ''}`}
+                onMouseDown={hasSelection ? handleMouseDown : undefined}
+                className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-ew-resize transition-all hover:shadow-sm flex items-center justify-center text-[#374151] hover:text-black"
+                title="Drag horizontally to rotate"
               >
-                <div className={`p-[0.4vw] rounded-[0.4vw] transition-all ${
-                  !hasSelection ? '' : 
-                  showRotationOptions ? 'bg-white shadow-sm text-black' : 'hover:bg-white text-[#374151] hover:text-black'
-                }`}>
-                  <Icon icon="icon-park-outline:rotate" width="1.1vw" height="1.1vw" />
-                </div>
+                <Icon icon="icon-park-outline:rotate" width="1.1vw" height="1.1vw" />
               </div>
-              {hasSelection && !showRotationOptions && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] hidden group-hover/tt:flex flex-col items-center pointer-events-none z-50 whitespace-nowrap">
-                  <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
-                  <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.2vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
-                    Rotate
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center pr-[0.4vw] pl-[0.1vw]">
+                <input 
+                  type="text"
+                  disabled={!hasSelection}
+                  value={localRotation !== undefined && localRotation !== null ? localRotation : 0}
+                  onChange={handleRotationChange}
+                  onBlur={handleRotationBlur}
+                  onKeyDown={handleRotationKeyDown}
+                  className="w-[1.6vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0 disabled:text-gray-400"
+                />
+                <span className="text-[0.65vw] font-bold text-gray-500 ml-[0.1vw] select-none">°</span>
+              </div>
             </div>
-
-            {/* Rotation Options Dropdown */}
-            {showRotationOptions && hasSelection && (
-              <div 
-                onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-[3.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.8vw] flex items-center gap-[0.8vw] shadow-lg z-[100] border border-gray-200/50"
-              >
-                {/* Rotate Tool With Degree Input */}
-                <div className="flex items-center bg-white px-[0.6vw] py-[0.3vw] rounded-[0.6vw] gap-[0.3vw] shadow-sm border border-gray-100">
-                  <div 
-                    onMouseDown={handleMouseDown}
-                    className="cursor-ew-resize flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors"
-                  >
-                    <Icon icon="icon-park-outline:rotate" width="0.9vw" height="0.9vw" className="text-gray-500" />
-                  </div>
-                  <div className="flex items-center">
-                    <input 
-                      type="text"
-                      value={localRotation}
-                      onChange={handleRotationChange}
-                      onBlur={handleRotationBlur}
-                      onKeyDown={handleRotationKeyDown}
-                      className="w-[1.8vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
-                    />
-                    <span 
-                      className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw] select-none"
-                    >°</span>
-                  </div>
-                </div>
+            <div className={`absolute left-1/2 -translate-x-1/2 top-full mt-[0.35vw] ${isDragging ? 'hidden' : 'hidden group-hover/tt:flex'} flex-col items-center pointer-events-none z-50 whitespace-nowrap`}>
+              <div className="w-0 h-0 border-x-[0.3vw] border-x-transparent border-b-[0.3vw] border-b-gray-900/90" />
+              <div className="bg-gray-900/90 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.2vw] rounded-[0.3vw] shadow-md backdrop-blur-xs">
+                Rotation Angle
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        <div className="flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-full gap-[0.1vw]">
+        <div className="flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] gap-[0.1vw]">
           {/* Zoom Out */}
           <div className="relative group/tt flex items-center justify-center">
             <button 
               onClick={onZoomOut}
               tabIndex={-1}
-              className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
+              className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
             >
               <Minus size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
             </button>
@@ -381,7 +357,7 @@ const TopToolbar = ({
             <button 
               onClick={onZoomIn}
               tabIndex={-1}
-              className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
+              className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
             >
               <Plus size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
             </button>
@@ -401,7 +377,7 @@ const TopToolbar = ({
             <button 
               onClick={onReset}
               tabIndex={-1}
-              className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
+              className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
             >
               <RotateCcw size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
             </button>

@@ -10,6 +10,18 @@ body,
   overflow: hidden;
 }
 
+/* Hide corner dots, sides, and rotate handles while moving elements */
+body.dragging-active .resize-handle,
+body.dragging-active .rotate-handle,
+body.dragging-active .rotate-hotspot,
+body.dragging-active [id^="resize-handle-"],
+body.dragging-active [id^="rotate-handle-"],
+body.dragging-active [id^="rotate-hotspot-"],
+body.dragging-active [id^="rotation-degree-badge-"] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 /* Custom Scrollbar Global */
 ::-webkit-scrollbar {
   width: 8px;
@@ -215,6 +227,11 @@ foreignObject[data-scrollable="true"]>div.flipbook-text-outer {
 /* Allow dragging of scrollable text boxes in editor by ignoring pointer events when not editing */
 .page-svg-container foreignObject[data-scrollable="true"]:not([data-editing="true"])>div {
   pointer-events: none !important;
+}
+
+[data-hidden="true"],
+.page-svg-container [data-hidden="true"] {
+  display: none !important;
 }
 
 /* Removed duplicate scrollbar styles (now consolidated with high specificity above) */

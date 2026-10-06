@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import ColorPallet from '../../../components/CustomizedEditor/ColorPallet';
-import ColorPicker from '../../../components/TemplateEditor/ColorPicker';
+import ColorPicker from '../../../components/TemplateEditor/properties/ColorPicker';
 import { resolveUploadsPath } from '../../../utils/supabaseUtils';
 
 const ThumbnailPopup = ({ isOpen, onClose, bannerBg, setBannerBg }) => {
