@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
@@ -1570,7 +1570,8 @@ export default function ThreedEditor() {
         file: converted.file,
         type: converted.type || 'glb',
         name: converted.name,
-        transform: initialTransform
+        transform: initialTransform,
+        initialTransform: JSON.parse(JSON.stringify(initialTransform))
       };
 
       const nextModels = [...models, newModel];
@@ -1696,236 +1697,139 @@ export default function ThreedEditor() {
       numVal = numVal * (Math.PI / 180);
     }
 
-    const isChildSelection = selectedMaterial && selectedMaterial.name !== modelName && selectedMaterial.name !== 'Scene' && !selectedMaterial.isAll;
+    const isSelectAll = selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+    let activeModelIndex = models.findIndex(m =>
+      (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+      (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+      (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+      (selectedMaterial?.name && m.name === selectedMaterial.name)
+    );
+    if (activeModelIndex < 0) activeModelIndex = 0;
+    const activeModel = models[activeModelIndex];
 
-    if (isChildSelection) {
-      let nextMeshTransforms = meshTransformsRef.current ? { ...meshTransformsRef.current } : {};
-      const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.name;
+    const defaultOffset = activeModelIndex === 0
+      ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+      : { position: { x: (activeModelIndex % 2 === 1 ? 1 : -1) * Math.ceil(activeModelIndex / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
 
-      const prevMTransform = nextMeshTransforms[targetUuid] ||
-        (selectedMaterial.name ? nextMeshTransforms[selectedMaterial.name] : null) ||
-        (selectedMaterial.meshName ? nextMeshTransforms[selectedMaterial.meshName] : null) ||
-      {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 }
-      };
+    const prev = isSelectAll
+      ? (rootTransformRef.current || defaultTransform)
+      : ((activeModel && activeModel.transform) || defaultOffset);
 
-      const updatedAxisValues = axis === 'all'
-        ? { x: numVal, y: numVal, z: numVal }
-        : { [axis]: numVal };
+    const next = {
+      position: { ...(prev.position || defaultOffset.position) },
+      rotation: { ...(prev.rotation || defaultOffset.rotation) },
+      scale: { ...(prev.scale || defaultOffset.scale) }
+    };
 
-      const updatedMTransform = {
-        ...prevMTransform,
-        [type]: {
-          ...(prevMTransform[type] || {}),
-          ...updatedAxisValues
-        }
-      };
-
-      const keysToSet = new Set([
-        targetUuid,
-        selectedMaterial.uuid,
-        selectedMaterial.meshUuid,
-        selectedMaterial.name,
-        selectedMaterial.meshName,
-        selectedMaterial.material
-      ].filter(Boolean));
-
-      if (Array.isArray(selectedMaterial.uuids)) {
-        selectedMaterial.uuids.forEach(u => keysToSet.add(u));
-      }
-      if (Array.isArray(selectedMaterial.items)) {
-        selectedMaterial.items.forEach(it => {
-          if (it.uuid) keysToSet.add(it.uuid);
-          if (it.meshUuid) keysToSet.add(it.meshUuid);
-          if (it.name) keysToSet.add(it.name);
-        });
-      }
-      if (Array.isArray(selectedMaterial.materials)) {
-        selectedMaterial.materials.forEach(m => keysToSet.add(typeof m === 'string' ? m : m?.name));
-      }
-
-      keysToSet.forEach(k => {
-        if (k) nextMeshTransforms[k] = updatedMTransform;
-      });
-
-      meshTransformsRef.current = nextMeshTransforms;
-      setMeshTransformsState(nextMeshTransforms);
-      setTransformValues(updatedMTransform);
-
-      const snapshot = buildSnapshot({
-        transformValues: updatedMTransform,
-        meshTransforms: nextMeshTransforms,
-        rootTransform: rootTransformRef.current
-      });
-      if (isDragging) {
-        commitHistoryDebounced(snapshot, 300);
-      } else {
-        commitHistoryNow(snapshot);
-      }
+    if (axis === 'all') {
+      next[type] = { x: numVal, y: numVal, z: numVal };
     } else {
-      const activeModel = models.find(m =>
-        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
-        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
-        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
-        (selectedMaterial?.name && m.name === selectedMaterial.name)
-      ) || models[0];
-
-      const prev = (activeModel && activeModel.transform) || rootTransformRef.current || defaultTransform;
-      const next = {
-        position: { ...(prev.position || { x: 0, y: 0, z: 0 }) },
-        rotation: { ...(prev.rotation || { x: 0, y: 0, z: 0 }) },
-        scale: { ...(prev.scale || { x: 1, y: 1, z: 1 }) }
+      next[type] = {
+        ...(next[type] || {}),
+        [axis]: numVal
       };
+    }
 
-      if (axis === 'all') {
-        next[type] = { x: numVal, y: numVal, z: numVal };
-      } else {
-        next[type] = {
-          ...(next[type] || {}),
-          [axis]: numVal
-        };
-      }
+    const nextModels = isSelectAll
+      ? (modelsRef.current || models).map(m => ({ ...m, transform: next }))
+      : models.map((m, idx) => {
+          if (idx === activeModelIndex) {
+            return { ...m, transform: next };
+          }
+          return m;
+        });
 
-      const nextModels = models.map(m => {
-        if (activeModel && m.id === activeModel.id) {
-          return { ...m, transform: next };
-        }
-        return m;
-      });
-
-      setModels(nextModels);
+    modelsRef.current = nextModels;
+    setModels(nextModels);
+    if (isSelectAll) {
       rootTransformRef.current = next;
       setRootTransform(next);
-      setTransformValues(next);
+    }
+    setTransformValues(next);
 
-      const snapshot = buildSnapshot({
-        models: nextModels,
-        transformValues: next,
-        rootTransform: next,
-        meshTransforms: meshTransformsRef.current
-      });
-      if (isDragging) {
-        commitHistoryDebounced(snapshot, 300);
-      } else {
-        commitHistoryNow(snapshot);
-      }
+    const snapshot = buildSnapshot({
+      models: nextModels,
+      transformValues: next,
+      rootTransform: rootTransformRef.current,
+      meshTransforms: meshTransformsRef.current
+    });
+    if (isDragging) {
+      commitHistoryDebounced(snapshot, 300);
+    } else {
+      commitHistoryNow(snapshot);
     }
   };
 
   const handleResetTransform = (type) => {
-    if (type === 'all') {
-      setSceneResetTrigger(prev => prev + 1);
+    // 1. Identify which model to reset
+    let activeModelIndex = models.findIndex(m =>
+      (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+      (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+      (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+      (selectedMaterial?.name && m.name === selectedMaterial.name)
+    );
+    if (activeModelIndex < 0) activeModelIndex = 0;
+    const activeModel = models[activeModelIndex];
+
+    // 2. Determine default imported root coordinates for this model
+    const defaultOffset = activeModelIndex === 0
+      ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+      : { position: { x: (activeModelIndex % 2 === 1 ? 1 : -1) * Math.ceil(activeModelIndex / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+
+    const getXYZ = (obj) => ({ x: obj?.x ?? 0, y: obj?.y ?? 0, z: obj?.z ?? 0 });
+    const getScaleXYZ = (obj) => ({ x: obj?.x ?? 1, y: obj?.y ?? 1, z: obj?.z ?? 1 });
+
+    const curRoot = (activeModel && activeModel.transform) || defaultOffset;
+    const next = {
+      position: { ...(curRoot.position || defaultOffset.position) },
+      rotation: { ...(curRoot.rotation || defaultOffset.rotation) },
+      scale: { ...(curRoot.scale || defaultOffset.scale) }
+    };
+
+    if (!type || type === 'all') {
+      next.position = getXYZ(defaultOffset.position);
+      next.rotation = getXYZ(defaultOffset.rotation);
+      next.scale = getScaleXYZ(defaultOffset.scale);
+    } else if (type === 'position') {
+      next.position = getXYZ(defaultOffset.position);
+    } else if (type === 'rotation') {
+      next.rotation = getXYZ(defaultOffset.rotation);
+    } else if (type === 'scale') {
+      next.scale = getScaleXYZ(defaultOffset.scale);
     }
 
-    const isChildSelection = selectedMaterial && selectedMaterial.name !== modelName && selectedMaterial.name !== 'Scene' && !selectedMaterial.isAll;
-
-    if (isChildSelection) {
-      const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.name;
-      let nextMeshTransforms = meshTransformsRef.current ? { ...meshTransformsRef.current } : {};
-      const defaultChild = {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 }
-      };
-      const prevM = nextMeshTransforms[targetUuid] || defaultChild;
-      const next = {
-        position: { ...prevM.position },
-        rotation: { ...prevM.rotation },
-        scale: { ...prevM.scale }
-      };
-
-      if (!type || type === 'all') {
-        next.position = { x: 0, y: 0, z: 0 };
-        next.rotation = { x: 0, y: 0, z: 0 };
-        next.scale = { x: 1, y: 1, z: 1 };
-      } else if (type === 'position') {
-        next.position = { x: 0, y: 0, z: 0 };
-      } else if (type === 'rotation') {
-        next.rotation = { x: 0, y: 0, z: 0 };
-      } else if (type === 'scale') {
-        next.scale = { x: 1, y: 1, z: 1 };
-      }
-
-      const keysToSet = new Set([
-        targetUuid,
-        selectedMaterial.uuid,
-        selectedMaterial.meshUuid,
-        selectedMaterial.name,
-        selectedMaterial.meshName,
-        selectedMaterial.material
-      ].filter(Boolean));
-
-      if (Array.isArray(selectedMaterial.uuids)) {
-        selectedMaterial.uuids.forEach(u => keysToSet.add(u));
-      }
-      if (Array.isArray(selectedMaterial.items)) {
-        selectedMaterial.items.forEach(it => {
-          if (it.uuid) keysToSet.add(it.uuid);
-          if (it.meshUuid) keysToSet.add(it.meshUuid);
-          if (it.name) keysToSet.add(it.name);
+    const isSelectAll = selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+    const nextModels = isSelectAll
+      ? models.map((m, idx) => {
+          const mOffset = idx === 0
+            ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+            : { position: { x: (idx % 2 === 1 ? 1 : -1) * Math.ceil(idx / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+          return { ...m, transform: mOffset };
+        })
+      : models.map((m, idx) => {
+          if (idx === activeModelIndex) {
+            return { ...m, transform: next };
+          }
+          return m;
         });
-      }
-      if (Array.isArray(selectedMaterial.materials)) {
-        selectedMaterial.materials.forEach(m => keysToSet.add(typeof m === 'string' ? m : m?.name));
-      }
 
-      keysToSet.forEach(k => {
-        if (k) nextMeshTransforms[k] = next;
-      });
-
-      meshTransformsRef.current = nextMeshTransforms;
-      setMeshTransformsState(nextMeshTransforms);
-      setTransformValues(next);
-      commitHistoryNow(buildSnapshot({ transformValues: next, meshTransforms: nextMeshTransforms, rootTransform: rootTransformRef.current }));
-    } else {
-      const activeModel = models.find(m =>
-        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
-        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
-        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
-        (selectedMaterial?.name && m.name === selectedMaterial.name)
-      ) || models[0];
-
-      const defaults = originalTransformRef.current || defaultTransform;
-      const getXYZ = (obj) => ({ x: obj.x, y: obj.y, z: obj.z });
-      const curRoot = (activeModel && activeModel.transform) || rootTransformRef.current || defaultTransform;
-      const next = {
-        position: { ...curRoot.position },
-        rotation: { ...curRoot.rotation },
-        scale: { ...curRoot.scale }
-      };
-
-      if (!type || type === 'all') {
-        next.position = getXYZ(defaults.position);
-        next.rotation = getXYZ(defaults.rotation);
-        next.scale = getXYZ(defaults.scale);
-      } else if (type === 'position') {
-        next.position = getXYZ(defaults.position);
-      } else if (type === 'rotation') {
-        next.rotation = getXYZ(defaults.rotation);
-      } else if (type === 'scale') {
-        next.scale = getXYZ(defaults.scale);
-      }
-
-      const nextModels = models.map(m => {
-        if (activeModel && m.id === activeModel.id) {
-          return { ...m, transform: next };
-        }
-        return m;
-      });
-
-      setModels(nextModels);
-      rootTransformRef.current = next;
-      setRootTransform(next);
-      setTransformValues(next);
-      commitHistoryNow(buildSnapshot({
-        models: nextModels,
-        transformValues: next,
-        rootTransform: next,
-        meshTransforms: meshTransformsRef.current
-      }));
+    modelsRef.current = nextModels;
+    setModels(nextModels);
+    if (isSelectAll) {
+      rootTransformRef.current = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+      setRootTransform(rootTransformRef.current);
     }
+
+    // Always update transformValues to reflect the model's new transform
+    setTransformValues(next);
+    setResetKey(Date.now());
+
+    commitHistoryNow(buildSnapshot({
+      models: nextModels,
+      transformValues: next,
+      rootTransform: rootTransformRef.current,
+      meshTransforms: meshTransformsRef.current
+    }));
   };
 
   const handleTransformStart = useCallback(() => {
@@ -2403,41 +2307,24 @@ export default function ThreedEditor() {
 
   useEffect(() => {
     if (isRestoringHistoryRef.current) return;
-    const isModelLevel = !selectedMaterial || !selectedMaterial.name || selectedMaterial.isModel || selectedMaterial.name === modelName || selectedMaterial.name === 'Scene' || selectedMaterial.isAll;
-    if (isModelLevel) {
-      const activeModel = models.find(m =>
-        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
-        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
-        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
-        (selectedMaterial?.name && m.name === selectedMaterial.name)
-      );
-      const activeTransform = activeModel?.transform || rootTransformRef.current || defaultTransform;
-      setTransformValues(activeTransform);
-    } else {
-      const lookupKeys = [
-        selectedMaterial.uuid,
-        selectedMaterial.meshUuid,
-        selectedMaterial.name,
-        selectedMaterial.meshName,
-        selectedMaterial.material
-      ].filter(Boolean);
-      let found = null;
-      for (const k of lookupKeys) {
-        if (meshTransformsRef.current && meshTransformsRef.current[k]) {
-          found = meshTransformsRef.current[k];
-          break;
-        }
-      }
-      if (found) {
-        setTransformValues(found);
-      } else {
-        setTransformValues({
-          position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 },
-          scale: { x: 1, y: 1, z: 1 }
-        });
-      }
-    }
+    const isSelectAll = selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+    let activeModelIndex = models.findIndex(m =>
+      (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+      (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+      (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+      (selectedMaterial?.name && m.name === selectedMaterial.name)
+    );
+    if (activeModelIndex < 0) activeModelIndex = 0;
+    const activeModel = models[activeModelIndex];
+    const defaultOffset = activeModelIndex === 0
+      ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+      : { position: { x: (activeModelIndex % 2 === 1 ? 1 : -1) * Math.ceil(activeModelIndex / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+
+    const activeTransform = isSelectAll
+      ? (rootTransformRef.current || defaultTransform)
+      : (activeModel?.transform || defaultOffset);
+
+    setTransformValues(activeTransform);
   }, [selectedMaterial, modelName, models, defaultTransform, setTransformValues]);
 
   const handleTransformChange = useCallback((t) => {
@@ -2454,27 +2341,31 @@ export default function ThreedEditor() {
     };
 
     if (t.isModelLevel) {
-      const targetModelId = t.modelId || selectedMaterial?.id || selectedMaterial?.modelId;
-      const targetModelName = t.modelName || selectedMaterial?.parentGroup || selectedMaterial?.name;
+      const isSelectAll = t.isAll || selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+      if (isSelectAll) {
+        rootTransformRef.current = nextTransform;
+        setRootTransform(nextTransform);
+      } else {
+        const targetModelId = t.modelId || selectedMaterial?.id || selectedMaterial?.modelId;
+        const targetModelName = t.modelName || selectedMaterial?.parentGroup || selectedMaterial?.name;
 
-      let found = false;
-      const updatedModels = (modelsRef.current || models).map(m => {
-        if ((targetModelId && m.id === targetModelId) || (targetModelName && m.name === targetModelName)) {
-          found = true;
-          return { ...m, transform: nextTransform };
-        }
-        return m;
-      });
+        let found = false;
+        const updatedModels = (modelsRef.current || models).map(m => {
+          if ((targetModelId && m.id === targetModelId) || (targetModelName && m.name === targetModelName)) {
+            found = true;
+            return { ...m, transform: nextTransform };
+          }
+          return m;
+        });
 
-      const finalModels = found ? updatedModels : (modelsRef.current || models).map((m, idx) => {
-        if (idx === 0) return { ...m, transform: nextTransform };
-        return m;
-      });
+        const finalModels = found ? updatedModels : (modelsRef.current || models).map((m, idx) => {
+          if (idx === 0) return { ...m, transform: nextTransform };
+          return m;
+        });
 
-      modelsRef.current = finalModels;
-      setModels(finalModels);
-      rootTransformRef.current = nextTransform;
-      setRootTransform(nextTransform);
+        modelsRef.current = finalModels;
+        setModels(finalModels);
+      }
     }
 
     setTransformValues(prev => {
@@ -2623,6 +2514,7 @@ export default function ThreedEditor() {
             if (modelItem) {
               handleSelectMaterial({
                 id: modelItem.id,
+                modelId: modelItem.id,
                 name: modelItem.name,
                 parentGroup: modelItem.name,
                 isModel: true,

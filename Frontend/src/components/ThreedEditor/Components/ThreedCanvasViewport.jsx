@@ -1,14 +1,52 @@
-import React, { Suspense } from "react";
+﻿import React, { Suspense } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { TransformControls, Environment } from "@react-three/drei";
 import { DirectionalSunLight, SceneEnvironmentController } from "./SceneEnvironmentController";
 import RenderModel from "./ModelLoaders";
+import MeshSelectionHighlight from "./MeshSelectionHighlight";
 import FloorRenderer from "./FloorRenderer";
 import SmoothOrbitControls from "./SmoothOrbitControls";
 import AnimatedGizmo from "./AnimatedGizmo";
 import Hotspot3DOverlay from "./Hotspot3DOverlay";
 import { builtInHdris } from "../../../data/hdriData";
+
+class ModelErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.warn('[ModelErrorBoundary] Failed to render model:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+function SceneWrapperSync({ sceneWrapperRef, rootTransform, resetKey }) {
+  React.useEffect(() => {
+    if (sceneWrapperRef && sceneWrapperRef.current && rootTransform) {
+      const pos = rootTransform.position || { x: 0, y: 0, z: 0 };
+      const rot = rootTransform.rotation || { x: 0, y: 0, z: 0 };
+      const sc = rootTransform.scale || { x: 1, y: 1, z: 1 };
+
+      sceneWrapperRef.current.position.set(pos.x ?? 0, pos.y ?? 0, pos.z ?? 0);
+      sceneWrapperRef.current.rotation.set(rot.x ?? 0, rot.y ?? 0, rot.z ?? 0);
+      sceneWrapperRef.current.scale.set(sc.x ?? 1, sc.y ?? 1, sc.z ?? 1);
+      sceneWrapperRef.current.updateMatrix();
+      sceneWrapperRef.current.updateMatrixWorld(true);
+    }
+  }, [resetKey, rootTransform]);
+
+  return null;
+}
 
 export default function ThreedCanvasViewport({
   models,
@@ -113,7 +151,7 @@ export default function ThreedCanvasViewport({
           }}
         >
           {activeLeftTab !== "camera" && !isCapturing && (
-            <color attach="background" args={['#1e2025']} />
+            <color attach="background" args={['#424242']} />
           )}
 
                     {/* Dynamic Multi-Light Setup */}
@@ -166,16 +204,17 @@ export default function ThreedCanvasViewport({
           })}
 
           <Suspense fallback={null}>
+            <SceneWrapperSync sceneWrapperRef={sceneWrapperRef} rootTransform={rootTransform} resetKey={resetKey} />
             <group ref={sceneWrapperRef}>
               {models.map((model, index) => {
                 const defaultOffset = index === 0
-                  ? rootTransform
+                  ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
                   : { position: { x: (index % 2 === 1 ? 1 : -1) * Math.ceil(index / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
                 const modelRootTransform = model.transform || defaultOffset;
                 return (
-                  <RenderModel
-                    key={model.id}
-                    modelId={model.id}
+                  <ModelErrorBoundary key={model.id} modelId={model.id}>
+                    <RenderModel
+                      modelId={model.id}
                     ref={(r) => {
                       if (index === 0) modelRef.current = r;
                       if (r) modelRefs.current.set(model.id, r);
@@ -216,11 +255,12 @@ export default function ThreedCanvasViewport({
                     isAnimationPlaying={isAnimationPlaying}
                     onHasAnimationsChange={(hasAnim) => handleHasAnimationsChange(model.id, hasAnim)}
                   />
+                  </ModelErrorBoundary>
                 );
               })}
             </group>
 
-            {transformMode && (selectedMaterial?.name === "Scene") && (
+            {transformMode && (selectedMaterial?.name === "Scene" || selectedMaterial?.isAll || selectedMaterial?.name === "All Models" || (models && models.length > 1 && selectedMaterial?.isAll)) && (
               <TransformControls
                 object={sceneWrapperRef.current}
                 mode={transformMode}
@@ -229,6 +269,8 @@ export default function ThreedCanvasViewport({
                 onChange={() => {
                   if (handleTransformChange && sceneWrapperRef.current) {
                     handleTransformChange({
+                      isModelLevel: true,
+                      isAll: true,
                       position: sceneWrapperRef.current.position,
                       rotation: sceneWrapperRef.current.rotation,
                       scale: sceneWrapperRef.current.scale
@@ -238,6 +280,22 @@ export default function ThreedCanvasViewport({
                 onMouseUp={handleTransformEnd}
               />
             )}
+
+            {/* Global Scene Highlight when Select All is active across multiple models */}
+            {(() => {
+              if (!selectedMaterial || (!selectedMaterial.isAll && selectedMaterial.name !== "All Models")) return null;
+              const allMeshes = [];
+              if (sceneWrapperRef && sceneWrapperRef.current) {
+                sceneWrapperRef.current.traverse((child) => {
+                  if (child.isMesh && child.visible !== false) {
+                    if (deletedMaterials && (deletedMaterials.has(child.uuid) || (child.name && deletedMaterials.has(child.name)))) return;
+                    allMeshes.push(child);
+                  }
+                });
+              }
+              if (allMeshes.length === 0) return null;
+              return <MeshSelectionHighlight key="all_models_highlight" target={allMeshes} />;
+            })()}
           </Suspense>
 
           <FloorRenderer

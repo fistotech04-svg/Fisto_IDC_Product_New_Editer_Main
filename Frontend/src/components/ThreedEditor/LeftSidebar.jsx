@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
 
@@ -101,11 +101,8 @@ export default function LeftSidebar({
     }));
   };
 
-  // Determine model items to display
-  const modelItems =
-    models && models.length > 0
-      ? models
-      : [{ id: "model_1", name: modelName || "3D Model" }];
+  // Determine model items to display (empty when no models are loaded)
+  const modelItems = models && models.length > 0 ? models : [];
 
   // Helper to check if a specific model item is selected
   const isModelSelected = (item) => {
@@ -114,15 +111,27 @@ export default function LeftSidebar({
 
     // Check if selectedMaterial belongs to or matches this model
     if (selectedMaterial) {
+      // If "Select All" is active, all models in scene are selected
+      if (selectedMaterial.isAll) return true;
+
       if (typeof selectedMaterial === "string") {
-        if (selectedMaterial === item.name || selectedMaterial === item.id) return true;
+        if (selectedMaterial === item.id || selectedMaterial === item.name) return true;
       } else if (typeof selectedMaterial === "object") {
-        if (selectedMaterial.id === item.id) return true;
-        if (selectedMaterial.parentGroup && (selectedMaterial.parentGroup === item.name || selectedMaterial.parentGroup === item.id)) {
-          return true;
+        // Priority 1: Exact model instance ID match
+        if (selectedMaterial.id && selectedMaterial.id === item.id) return true;
+        if (selectedMaterial.modelId && selectedMaterial.modelId === item.id) return true;
+
+        // Priority 2: parentGroup match (if parentGroup matches item.id or item.name)
+        if (selectedMaterial.parentGroup) {
+          if (selectedMaterial.parentGroup === item.id || selectedMaterial.parentGroup === item.name) {
+            return true;
+          }
         }
+
+        // Priority 3: Fallback match ONLY if this model is the sole match
         if (selectedMaterial.name === item.name || selectedMaterial.group === item.name) {
-          return true;
+          const sameNameCount = (models || []).filter(m => m.name === item.name).length;
+          if (sameNameCount <= 1) return true;
         }
       }
     }
@@ -133,14 +142,14 @@ export default function LeftSidebar({
   // Helper to get materials for a specific model
   const getModelMaterials = (item) => {
     if (!item) return [];
+    if (modelMaterialLists && modelMaterialLists[item.id]) {
+      return modelMaterialLists[item.id];
+    }
     if (Array.isArray(materialList) && materialList.length > 0) {
       const match = materialList.find(
         (m) => m.id === item.id || m.group === item.name || m.name === item.name
       );
       if (match) return [match];
-    }
-    if (modelMaterialLists && modelMaterialLists[item.id]) {
-      return modelMaterialLists[item.id];
     }
     return materialList;
   };
@@ -243,14 +252,14 @@ export default function LeftSidebar({
             ) : (
               <>
                 <h3
-                  onClick={startEdit}
-                  title={modelName || "Electric motor"}
-                  className="text-[0.82vw] font-bold text-gray-900 cursor-pointer hover:text-[#ea543a] transition-colors leading-tight truncate"
+                  onClick={models && models.length > 0 ? startEdit : undefined}
+                  title={models && models.length > 0 ? (modelName || "3D Model") : "No Model Loaded"}
+                  className={`text-[0.82vw] font-bold leading-tight truncate ${models && models.length > 0 ? "text-gray-900 cursor-pointer hover:text-[#ea543a]" : "text-gray-400"}`}
                 >
-                  {modelName || "Electric motor"}
+                  {models && models.length > 0 ? (modelName || "3D Model") : "No Model Loaded"}
                 </h3>
                 <span className="text-[0.65vw] text-gray-400 font-medium leading-tight mt-[0.2vw] block">
-                  Total Size : {fileSize || "18MB"}
+                  Total Size : {models && models.length > 0 ? (fileSize || "0 MB") : "0 MB"}
                 </span>
               </>
             )}
@@ -262,7 +271,7 @@ export default function LeftSidebar({
           <button
             type="button"
             onClick={startEdit}
-            disabled={disableRename}
+            disabled={disableRename || !models || models.length === 0}
             className="text-gray-400 hover:text-[#ea543a] hover:scale-110 active:scale-95 transition-all cursor-pointer p-[0.2vw] rounded"
             title="Rename Model"
           >
@@ -320,8 +329,9 @@ export default function LeftSidebar({
                 <div className="absolute -left-[0.75vw] top-[0.85vw] w-[0.6vw] h-[2px] bg-[#ea543a]/30 pointer-events-none rounded-r-full" />
 
                 {/* Model Capsule / Header */}
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     onSelectTab && onSelectTab("model");
                     onSelectModel && onSelectModel(item.id, item);
@@ -330,7 +340,7 @@ export default function LeftSidebar({
                       [item.id]: prev[item.id] === undefined ? false : !prev[item.id],
                     }));
                   }}
-                  className={`w-full flex items-center justify-between px-[0.7vw] py-[0.48vw] rounded-[0.5vw] text-left transition-all duration-150 cursor-pointer ${
+                  className={`w-full group flex items-center justify-between px-[0.7vw] py-[0.48vw] rounded-[0.5vw] text-left transition-all duration-150 cursor-pointer ${
                     isModelActive
                       ? "bg-[#fdeee9] text-[#ea543a] font-semibold border border-[#ea543a]/35 shadow-2xs"
                       : "text-gray-700 hover:bg-gray-100/90 hover:text-gray-950 font-medium border border-gray-200/60 bg-white"
@@ -346,8 +356,21 @@ export default function LeftSidebar({
                     <span className="text-[0.78vw] truncate">{displayName}</span>
                   </div>
 
-                  {/* Layers / Chevron Toggle Indicator */}
-                  <div className="flex items-center gap-[0.3vw] shrink-0">
+                  {/* Action Buttons: Delete on hover/selected + Chevron Toggle */}
+                  <div className="flex items-center gap-[0.2vw] shrink-0">
+                    {onDeleteModel && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteModel(item.id);
+                        }}
+                        className="w-[1.2vw] h-[1.2vw] flex items-center justify-center rounded-[0.25vw] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                        title="Delete model"
+                      >
+                        <Icon icon="heroicons:trash-20-solid" className="w-[0.8vw] h-[0.8vw]" />
+                      </button>
+                    )}
                     <div
                       className={`w-[1.2vw] h-[1.2vw] flex items-center justify-center rounded-[0.25vw] transition-transform ${
                         isExpanded ? "rotate-0" : "-rotate-90"
@@ -361,7 +384,7 @@ export default function LeftSidebar({
                       />
                     </div>
                   </div>
-                </button>
+                </div>
 
                 {/* Nested Layers (MaterialList) inside this Model */}
                 {isExpanded && (

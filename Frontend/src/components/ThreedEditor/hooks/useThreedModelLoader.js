@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect } from "react";
+﻿import React, { useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { checkFbxLegacyVersion, convertModelFileIfNeeded } from "../utils/modelConversionUtils";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
@@ -82,7 +82,7 @@ export function useThreedModelLoader({
       return;
     }
 
-    const modelId = Date.now().toString();
+    const modelId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const ext = name.split('.').pop();
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
 
@@ -107,13 +107,21 @@ export function useThreedModelLoader({
             scale: { x: 1, y: 1, z: 1 }
           };
 
+      const baseCleanName = (converted.name || "Model").replace(/\.[^/.]+$/, "");
+      const matchingCount = models.filter(m => {
+        const mBase = (m.name || "").replace(/\s\(\d+\)$/, "");
+        return mBase === baseCleanName;
+      }).length;
+      const uniqueModelName = matchingCount > 0 ? `${baseCleanName} (${matchingCount + 1})` : baseCleanName;
+
       const newModel = {
         id: modelId,
         url: converted.url,
         file: converted.file,
         type: converted.type || 'glb',
-        name: converted.name,
-        transform: initialTransform
+        name: uniqueModelName,
+        transform: initialTransform,
+        initialTransform: JSON.parse(JSON.stringify(initialTransform))
       };
 
       const nextModels = [...models, newModel];
@@ -127,7 +135,7 @@ export function useThreedModelLoader({
         setModelName(nextModelName);
       }
 
-      setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
+      setSelectedMaterial({ id: modelId, modelId: modelId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true });
 
       setThreedState(prev => ({
         ...prev,
@@ -139,7 +147,7 @@ export function useThreedModelLoader({
       commitHistoryNow(buildSnapshot({
         models: nextModels,
         modelName: nextModelName,
-        selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
+        selectedMaterial: { id: modelId, modelId: modelId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
       }));
 
       setIsSidebarCollapsed(false);
@@ -171,9 +179,12 @@ export function useThreedModelLoader({
   const handleSelectGalleryModel = useCallback(async (model) => {
     if (!model) return;
 
-    const modelId = model.modelId || Date.now().toString();
+    // Ensure unique instance ID so duplicate imports have independent keys & refs
+    const baseModelId = model.modelId || model.id || 'model';
+    const instanceId = `${baseModelId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
     startModelLoading({
-      id: modelId,
+      id: instanceId,
       name: model.name,
       size: model.size || "Unknown",
       type: model.type || 'glb'
@@ -206,15 +217,23 @@ export function useThreedModelLoader({
           scale: { x: 1, y: 1, z: 1 }
         };
 
+    const baseCleanName = (model.name || "Model").replace(/\.[^/.]+$/, "");
+    const matchingCount = models.filter(m => {
+      const mBase = (m.name || "").replace(/\s\(\d+\)$/, "");
+      return mBase === baseCleanName;
+    }).length;
+    const uniqueModelName = matchingCount > 0 ? `${baseCleanName} (${matchingCount + 1})` : baseCleanName;
+
     const newModel = {
-      id: modelId,
-      modelId: model.modelId || modelId,
+      id: instanceId,
+      modelId: model.modelId || instanceId,
       url: fullUrl,
       file: null,
-      type: model.type,
-      name: model.name.replace(/\.[^/.]+$/, ""),
+      type: model.type || 'glb',
+      name: uniqueModelName,
       hotspots: modelHotspots,
-      transform: initialTransform
+      transform: initialTransform,
+      initialTransform: JSON.parse(JSON.stringify(initialTransform))
     };
 
     const nextModels = [...models, newModel];
@@ -228,7 +247,7 @@ export function useThreedModelLoader({
       setModelName(nextModelName);
     }
 
-    setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
+    setSelectedMaterial({ id: instanceId, modelId: instanceId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true });
     setModelStats({ fileSize: model.size || "0 MB" });
 
     if (modelHotspots && modelHotspots.length > 0) {
@@ -245,7 +264,7 @@ export function useThreedModelLoader({
     commitHistoryNow(buildSnapshot({
       models: nextModels,
       modelName: nextModelName,
-      selectedMaterial: { name: newModel.name, parentGroup: newModel.name }
+      selectedMaterial: { id: instanceId, modelId: instanceId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
     }));
 
     setIsSidebarCollapsed(false);

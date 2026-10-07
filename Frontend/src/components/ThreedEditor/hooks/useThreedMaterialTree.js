@@ -265,9 +265,19 @@ export function useThreedMaterialTree({
       }
     }
 
+    if (nextModels.length === 0) {
+      setModelName("");
+      setModelUrl(null);
+    } else if (modelToDelete && modelToDelete.name === modelName) {
+      setModelName(nextModels[0]?.name || "");
+      if (nextModels[0]?.url) setModelUrl(nextModels[0].url);
+    }
+
     setThreedState(prev => ({
       ...prev,
       models: nextModels,
+      modelUrl: nextModels.length === 0 ? null : (nextModels[0]?.url || prev.modelUrl),
+      modelName: nextModels.length === 0 ? "" : (nextModels[0]?.name || prev.modelName),
       hotspots: nextHotspots
     }));
 
@@ -520,8 +530,8 @@ export function useThreedMaterialTree({
     const uniqueNames = Array.from(new Set(allMeshNames));
 
     setSelectedMaterial({
-      name: modelName || "All Meshes",
-      parentGroup: modelName,
+      name: models.length > 1 ? "All Models" : (modelName || "All Meshes"),
+      parentGroup: models.length > 1 ? "All Models" : modelName,
       isAll: true,
       isGroup: true,
       isMultiSelect: true,
@@ -540,22 +550,68 @@ export function useThreedMaterialTree({
       return;
     }
 
+    // 1. Explicit model selection (e.g. selected from Left Sidebar or root model node)
+    if (selectedMaterial.isModel) {
+      const targetModelId = selectedMaterial.id || selectedMaterial.modelId;
+      const matchedModel = models.find(m => m.id === targetModelId || m.name === selectedMaterial.name || m.name === selectedMaterial.parentGroup);
+      handleDeleteModel(matchedModel ? matchedModel.id : (targetModelId || models[0]?.id));
+      return;
+    }
+
+    // 2. Select All / Scene selection (delete all models when Select All is active)
     if (selectedMaterial.isAll) {
       if (models.length > 0) {
-        handleDeleteModel(models[0]?.id);
+        setModels([]);
+        setModelMaterialLists({});
+        setModelStatsMap({});
+        setModelHasAnimationsMap({});
+        setSelectedMaterial(null);
+        setHotspots([]);
+        setActiveHotspotId(null);
+        setEditingHotspot(null);
+        setShowHotspotModal(false);
+        setIsPlacingHotspot(false);
+        if (isPlacingHotspotRef) isPlacingHotspotRef.current = false;
+        setRightPanelMode('edit');
+        setModelName("");
+        setModelUrl(null);
+        setThreedState(prev => ({
+          ...prev,
+          models: [],
+          modelUrl: null,
+          modelName: "",
+          hotspots: []
+        }));
+        commitHistoryNow(buildSnapshot({
+          models: [],
+          modelMaterialLists: {},
+          selectedMaterial: null,
+          hotspots: []
+        }));
       } else {
         handleDeleteMaterial(selectedMaterial);
       }
       return;
     }
 
+    // 3. Group / Multi-select (sub-groups inside model hierarchy)
     if (selectedMaterial.isGroup || selectedMaterial.isMultiSelect || Array.isArray(selectedMaterial.items) || Array.isArray(selectedMaterial.uuids)) {
+      // Check if this group is actually a root model header
+      const matchingModel = models.find(m => m.id === selectedMaterial.id || m.name === selectedMaterial.name);
+      if (matchingModel && (selectedMaterial.id === matchingModel.id || (!selectedMaterial.parentGroup || selectedMaterial.parentGroup === matchingModel.name))) {
+        handleDeleteModel(matchingModel.id);
+        return;
+      }
       handleDeleteMaterial(selectedMaterial);
       return;
     }
 
+    // 4. Match by name / single mesh / root model name
     const matName = selectedMaterial.name;
-    if (matName === modelName || matName === "Scene") {
+    const directModel = models.find(m => m.id === selectedMaterial.id || m.id === selectedMaterial.modelId || m.name === matName);
+    if (directModel && (selectedMaterial.isModel || matName === directModel.name)) {
+      handleDeleteModel(directModel.id);
+    } else if (matName === modelName || matName === "Scene") {
       handleDeleteModel(models[0]?.id || matName);
     } else {
       handleDeleteMaterial(selectedMaterial);

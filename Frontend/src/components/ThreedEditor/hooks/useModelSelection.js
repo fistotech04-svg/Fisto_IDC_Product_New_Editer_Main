@@ -32,7 +32,7 @@ export function useModelSelection({ scene, modelName, modelId, deletedMaterials,
             (modelName && selParent && selParent === modelName)
         );
 
-        const isExplicitOtherModel = Boolean(
+        const isExplicitOtherModel = !selMat.isAll && selMat.name !== 'All Models' && selParent !== 'All Models' && Boolean(
             (modelId && selModelId && selModelId !== modelId && selModelId !== sceneModelId) ||
             (modelName && selParent && selParent !== modelName && selParent !== 'Scene' && selParent !== 'All Meshes')
         );

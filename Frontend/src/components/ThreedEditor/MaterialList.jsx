@@ -293,9 +293,24 @@ const TreeItem = ({
     const isSelected = useMemo(() => {
         if (!selectedMaterial) return false;
 
+        // If Select All is active across all models, select this node
+        if (selectedMaterial.isAll) {
+            return true;
+        }
+
+        // Verify model affiliation if parentGroup or modelName is specified
+        if (selectedMaterial.parentGroup && node.parentGroup) {
+            if (selectedMaterial.parentGroup !== node.parentGroup && selectedMaterial.parentGroup !== modelName) {
+                return false;
+            }
+        }
+
         // Group / Object Folder Selection
         if (selectedMaterial.isGroup) {
             if (node.isGroup) {
+                if (selectedMaterial.parentGroup && node.parentGroup && selectedMaterial.parentGroup !== node.parentGroup) {
+                    return false;
+                }
                 return selectedMaterial.name === node.name;
             }
             // Multi-selection (explicit)
@@ -339,7 +354,7 @@ const TreeItem = ({
             return selName === node.name;
         }
         return false;
-    }, [selectedMaterial, node]);
+    }, [selectedMaterial, node, modelName]);
 
     // Visibility Check
     const isVisible = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { TransformControls } from "@react-three/drei";
@@ -1160,27 +1160,26 @@ const GenericModel = React.memo(React.forwardRef(({
         const TARGET_SIZE = 4.2;
         let targetScale = maxDim > 0 ? (TARGET_SIZE / maxDim) : 1;
 
-        const centeredX = -center.x * targetScale;
-        const centeredZ = -center.z * targetScale;
-        const bottomY = -box.min.y * targetScale;
-
-        scene.position.set(0, 0, 0);
+        // Offset the inner scene so its geometric center is at X=0, Z=0 and its bottom sits on the ground floor Y=0.
+        // This guarantees the parent modelGroup's origin (0, 0, 0) matches the model's visual center pivot.
+        scene.position.set(-center.x, -box.min.y, -center.z);
         scene.scale.set(1, 1, 1);
         scene.updateMatrixWorld(true);
 
         setScale(targetScale);
-        setPosition([centeredX, bottomY, centeredZ]);
+        setPosition([0, 0, 0]);
 
         scene.userData.normalization = {
-            position: [centeredX, bottomY, centeredZ],
-            scale: targetScale
+            position: [-center.x, -box.min.y, -center.z],
+            scale: targetScale,
+            centerOffset: { x: center.x, y: box.min.y, z: center.z }
         };
         if (modelId) {
             scene.userData.modelId = modelId;
         }
         if (modelGroup) {
             modelGroup.userData.originalTransform = {
-                position: new THREE.Vector3(centeredX, bottomY, centeredZ),
+                position: new THREE.Vector3(0, 0, 0),
                 rotation: new THREE.Euler(0, 0, 0),
                 scale: new THREE.Vector3(targetScale, targetScale, targetScale)
             };
@@ -1943,6 +1942,10 @@ const GenericModel = React.memo(React.forwardRef(({
 
         // Check if the selection belongs to this specific model instance
         const isSelectedThisModel =
+            isAll ||
+            selectedMaterial.isAll ||
+            parentGroup === 'All Models' ||
+            targetName === 'All Models' ||
             (selectedId && (selectedId === modelId || selectedId === scene?.userData?.modelId)) ||
             (parentGroup && (parentGroup === modelName || parentGroup === scene?.name)) ||
             (selectedMaterial && (selectedMaterial.name === modelName || targetName === modelName));
@@ -2036,29 +2039,7 @@ const GenericModel = React.memo(React.forwardRef(({
             return;
         }
 
-        if (transformTarget === modelGroup) {
-            const norm = scene.userData?.normalization;
-            const [bx, by, bz] = norm?.position || [0, 0, 0];
-            const bScale = norm?.scale || 1;
-            const activeTransform = rootTransform || transformValues || { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
-            transformTarget.position.set(
-                bx + (activeTransform.position?.x || 0),
-                by + (activeTransform.position?.y || 0),
-                bz + (activeTransform.position?.z || 0)
-            );
-            transformTarget.rotation.set(
-                activeTransform.rotation?.x || 0,
-                activeTransform.rotation?.y || 0,
-                activeTransform.rotation?.z || 0
-            );
-            transformTarget.scale.set(
-                bScale * (activeTransform.scale?.x || 1),
-                bScale * (activeTransform.scale?.y || 1),
-                bScale * (activeTransform.scale?.z || 1)
-            );
-            transformTarget.updateMatrixWorld?.(true);
-            return;
-        }
+        // ModelGroup transform is managed declaratively via rootTransform JSX props
     }, [transformTarget, rootTransform, transformValues,
         transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z,
         transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
@@ -2099,21 +2080,50 @@ const GenericModel = React.memo(React.forwardRef(({
 
             if (modelGroup) {
                 const norm = scene.userData?.normalization;
+                const activeRoot = rootTransform || { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
                 if (norm) {
                     const [bx, by, bz] = norm.position || [0, 0, 0];
                     const bScale = norm.scale || 1;
-                    modelGroup.position.set(bx, by, bz);
-                    modelGroup.rotation.set(0, 0, 0);
-                    modelGroup.scale.set(bScale, bScale, bScale);
+                    modelGroup.position.set(
+                        bx + (activeRoot?.position?.x || 0),
+                        by + (activeRoot?.position?.y || 0),
+                        bz + (activeRoot?.position?.z || 0)
+                    );
+                    modelGroup.rotation.set(
+                        activeRoot?.rotation?.x || 0,
+                        activeRoot?.rotation?.y || 0,
+                        activeRoot?.rotation?.z || 0
+                    );
+                    modelGroup.scale.set(
+                        bScale * (activeRoot?.scale?.x || 1),
+                        bScale * (activeRoot?.scale?.y || 1),
+                        bScale * (activeRoot?.scale?.z || 1)
+                    );
                 } else if (modelGroup.userData.originalTransform) {
                     const original = modelGroup.userData.originalTransform;
-                    modelGroup.position.copy(original.position);
+                    modelGroup.position.set(
+                        original.position.x + (activeRoot?.position?.x || 0),
+                        original.position.y + (activeRoot?.position?.y || 0),
+                        original.position.z + (activeRoot?.position?.z || 0)
+                    );
                     modelGroup.rotation.copy(original.rotation);
                     modelGroup.scale.copy(original.scale);
                 } else {
-                    modelGroup.position.set(0, 0, 0);
-                    modelGroup.rotation.set(0, 0, 0);
-                    modelGroup.scale.set(1, 1, 1);
+                    modelGroup.position.set(
+                        activeRoot?.position?.x || 0,
+                        activeRoot?.position?.y || 0,
+                        activeRoot?.position?.z || 0
+                    );
+                    modelGroup.rotation.set(
+                        activeRoot?.rotation?.x || 0,
+                        activeRoot?.rotation?.y || 0,
+                        activeRoot?.rotation?.z || 0
+                    );
+                    modelGroup.scale.set(
+                        activeRoot?.scale?.x || 1,
+                        activeRoot?.scale?.y || 1,
+                        activeRoot?.scale?.z || 1
+                    );
                 }
                 modelGroup.updateMatrix();
                 modelGroup.updateMatrixWorld(true);
@@ -2156,7 +2166,7 @@ const GenericModel = React.memo(React.forwardRef(({
     return (
         <>
             <primitive object={pivotRef.current} />
-            {transformMode && transformTarget && (
+            {transformMode && transformTarget && !selectedMaterial?.isAll && selectedMaterial?.name !== 'All Models' && (
                 <TransformControls
                     key={`gizmo_${transformMode}_${selectedMaterial?.isAll ? 'all' : (selectedMaterial?.name || 'sel')}_${relatedMeshesRef.current.length}_${transformTarget === modelGroup ? 'mg' : (transformTarget?.uuid || 'pv')}`}
                     object={transformTarget === modelGroup ? modelGroup : pivotRef.current}
@@ -2406,7 +2416,7 @@ const GenericModel = React.memo(React.forwardRef(({
             })()}
 
             {(() => {
-                if (!selectedMaterial || selectedMaterial.name === 'Scene') return null;
+                if (!selectedMaterial || selectedMaterial.name === 'Scene' || selectedMaterial.isAll || selectedMaterial.name === 'All Models') return null;
                 const target = resolveTargetMeshes(selectedMaterial);
                 if (!target || (Array.isArray(target) && target.length === 0)) return null;
                 const targetKey = Array.isArray(target) ? target.map(m => m.uuid).join('_') : (target.uuid || 'sel');
