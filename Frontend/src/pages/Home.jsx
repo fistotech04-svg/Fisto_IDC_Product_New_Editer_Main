@@ -59,13 +59,18 @@ import AR_image_model from '../assets/Home/AR_image_model.png';
 import icon360 from '../assets/Home/360-icon.svg';
 import PumpImage from '../assets/Home/Pump-image.png';
 import exampleSvg from '../assets/Home/example svg.svg';
+import catalogueBtn from '../assets/Home/catalogue-image-btn.png';
+import brochureBtn from '../assets/Home/brochure-image-btn.png';
+import magazineBtn from '../assets/Home/magazine-image-btn.png';
+import presentationBtn from '../assets/Home/presentation-image-btn.png';
+import ecommerceBtn from '../assets/Home/e-commerce-image-btn.png';
 import workImg1 from '../assets/Home/work-img-1.png';
 import workImg2 from '../assets/Home/work-img-2.png';
 import workImg3 from '../assets/Home/work-img-3.png';
 import workImg4 from '../assets/Home/work-img-4.png';
 import aboutUsImg from '../assets/Home/abou-us-image.png';
 import testimonialIcon from '../assets/Home/testimonial-icon.png';
-import flipibookImg from '../assets/Home/Hero_book.png'
+import flipibookImg from '../assets/Home/Hero_book.png';
 
 // Testimonials Section Component - Stacked Animated Card Carousel with Autoplay (4s)
 const TestimonialsSection = () => {
@@ -115,19 +120,19 @@ const TestimonialsSection = () => {
   }, [testimonials.length]);
 
   return (
-    <section className="w-full bg-[#f8f9fb] pt-[10vh] px-[5vw] flex flex-col items-center justify-center font-sans relative overflow-hidden">
+    <section className="w-full bg-[#f8f9fb] py-6 sm:py-10 lg:pt-[6vh] lg:pb-[2vh] px-4 sm:px-[5vw] flex flex-col items-center justify-center font-sans relative overflow-hidden">
       {/* Top Header & Subtitle */}
-      <div className="text-center max-w-[60vw] mb-[8vh] space-y-[1.5vh]">
-        <h2 className="text-[3.4vw] sm:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
+      <div className="text-center w-full max-w-xl lg:max-w-[60vw] mb-4 sm:mb-[4vh] space-y-2 lg:space-y-[1.2vh]">
+        <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
           The Smarter Way to <br/> Present products
         </h2>
-        <p className="text-[1.3vw] sm:text-[1.25vw] text-[#262F3B] font-normal leading-relaxed">
+        <p className="text-xs sm:text-base lg:text-[1.25vw] text-[#262F3B] font-normal leading-relaxed">
           Turn static PDFs into engaging digital catalogue experiences.
         </p>
       </div>
 
       {/* Stacked Cards Container */}
-      <div className="relative w-full max-w-[56vw] h-[32vw] min-h-[420px] flex items-center justify-center mb-[4vh]">
+      <div className="relative w-full max-w-md sm:max-w-xl lg:max-w-[56vw] h-[220px] sm:h-[280px] lg:h-[28vw] min-h-[200px] flex items-center justify-center mb-2 sm:mb-[2vh]">
         {testimonials.map((item, index) => {
           // Compute relative position in stack
           const total = testimonials.length;
@@ -156,16 +161,16 @@ const TestimonialsSection = () => {
                 duration: 0.6,
                 ease: [0.32, 0.72, 0, 1]
               }}
-              className="absolute top-0 left-0 right-0 mx-auto w-full bg-white rounded-[1.6vw] p-[3.2vw] border border-gray-100/80 flex flex-col justify-between"
+              className="absolute top-0 left-0 right-0 mx-auto w-full bg-white rounded-2xl lg:rounded-[1.6vw] p-4 sm:p-6 lg:p-[3.2vw] border border-gray-100/80 flex flex-col justify-between"
               style={{
                 boxShadow: offset === 0 
-                  ? '0 30px 70px -15px rgba(0, 0, 0, 0.09), 0 12px 25px -5px rgba(0, 0, 0, 0.04)' 
-                  : '0 15px 35px -10px rgba(0,0,0,0.05)'
+                  ? '0 20px 50px -15px rgba(0, 0, 0, 0.09), 0 8px 20px -5px rgba(0, 0, 0, 0.04)' 
+                  : '0 10px 25px -10px rgba(0,0,0,0.05)'
               }}
             >
               {/* 3D Orange Quote Icon overlapping top-right of active top card */}
               {offset === 0 && (
-                <div className="absolute -top-[3vw] right-[1.8vw] w-[8vw] h-[8vw] min-w-[70px] min-h-[70px] z-30 pointer-events-none drop-shadow-2xl">
+                <div className="absolute -top-4 sm:-top-[3vw] right-4 sm:right-[1.8vw] w-10 sm:w-[8vw] h-10 sm:h-[8vw] min-w-[40px] min-h-[40px] z-30 pointer-events-none drop-shadow-xl">
                   <img 
                     src={testimonialIcon} 
                     alt="Quote Icon" 
@@ -175,19 +180,19 @@ const TestimonialsSection = () => {
               )}
 
               {/* Author & Header Info Row */}
-              <div className="flex items-center gap-[1.8vw] mb-[2.5vh]">
+              <div className="flex items-center gap-3 sm:gap-[1.8vw] mb-2 sm:mb-[2.5vh]">
                 <img
                   src={item.avatar}
                   alt={item.name}
-                  className="w-[5.2vw] h-[5.2vw] min-w-[60px] min-h-[60px] rounded-full object-cover border-2 border-white shadow-md flex-shrink-0"
+                  className="w-11 h-11 sm:w-[5.2vw] sm:h-[5.2vw] min-w-[44px] min-h-[44px] rounded-full object-cover border-2 border-white shadow-md flex-shrink-0"
                 />
                 <div className="flex flex-col text-left">
-                  <h4 className="text-[1.45vw] font-bold text-[#1e232d] leading-tight tracking-tight">
+                  <h4 className="text-sm sm:text-lg lg:text-[1.45vw] font-bold text-[#1e232d] leading-tight tracking-tight">
                     {item.name}
                   </h4>
-                  <div className="flex items-center gap-[0.4vw]">
+                  <div className="flex items-center gap-1 sm:gap-[0.4vw]">
                     <p 
-                      className="text-[1.1vw] text-[#4a5264] font-medium leading-tight inline-block pb-[0.2vh]"
+                      className="text-xs sm:text-sm lg:text-[1.1vw] text-[#4a5264] font-medium leading-tight inline-block pb-[0.2vh]"
                       style={{
                         backgroundImage: 'linear-gradient(to right, #7b8fae 35%, rgba(255,255,255,0) 0%)',
                         backgroundPosition: 'bottom',
@@ -200,9 +205,9 @@ const TestimonialsSection = () => {
                   </div>
                   
                   {/* Star Rating Row */}
-                  <div className="flex items-center gap-[0.3vw] mt-[0.8vh]">
+                  <div className="flex items-center gap-1 sm:gap-[0.3vw] mt-1 sm:mt-[0.8vh]">
                     {[...Array(item.rating)].map((_, i) => (
-                      <span key={i} className="text-[#ff9500] text-[1.3vw] font-bold leading-none">
+                      <span key={i} className="text-[#ff9500] text-xs sm:text-base lg:text-[1.3vw] font-bold leading-none">
                         ★
                       </span>
                     ))}
@@ -211,7 +216,7 @@ const TestimonialsSection = () => {
               </div>
 
               {/* Quote Body Paragraph */}
-              <p className="text-[1.35vw] text-[#4b5262] font-normal leading-[1.65] tracking-normal text-left pl-[0.2vw]">
+              <p className="text-xs sm:text-base lg:text-[1.35vw] text-[#4b5262] font-normal leading-relaxed text-left pl-1">
                 &ldquo;{item.quote}&rdquo;
               </p>
             </motion.div>
@@ -258,41 +263,41 @@ const FAQSection = ({ navigate }) => {
   };
 
   return (
-    <section className="w-full bg-[#f8f9fb] pb-[5vh] px-[5vw] flex flex-col items-center justify-center font-sans relative">
+    <section className="w-full bg-[#f8f9fb] py-8 sm:py-[6vh] pb-[6vh] px-4 sm:px-[5vw] flex flex-col items-center justify-center font-sans relative">
       {/* Section Header */}
-      <div className="text-center max-w-[60vw] mb-[7vh] space-y-[1.2vh]">
-        <h2 className="text-[3.4vw] sm:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
+      <div className="text-center w-full max-w-xl lg:max-w-[60vw] mb-6 sm:mb-[7vh] space-y-2 sm:space-y-[1.2vh]">
+        <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
           Common Questions About <br />
           <span className="text-[#f15a24]">Flipibook</span>
         </h2>
-        <p className="text-[1.3vw] sm:text-[1.25vw] text-[#5e636e] font-normal leading-relaxed">
+        <p className="text-xs sm:text-base lg:text-[1.25vw] text-[#5e636e] font-normal leading-relaxed">
           Turn static PDFs into engaging digital catalogue experiences.
         </p>
       </div>
 
       {/* 2-Column FAQ Grid */}
-      <div className="w-full max-w-[75vw] grid grid-cols-1 md:grid-cols-2 gap-[1.5vw] items-start">
+      <div className="w-full max-w-full lg:max-w-[75vw] grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-[1.5vw] items-start">
         {faqs.map((faq, index) => {
           const isOpen = openIndex === index;
           return (
             <div
               key={index}
               onClick={() => toggleFAQ(index)}
-              className={`bg-white border rounded-[0.9vw] p-[1.6vw] cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${
+              className={`bg-white border rounded-xl lg:rounded-[0.9vw] p-4 sm:p-5 lg:p-[1.6vw] cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${
                 isOpen ? 'border-[#f15a24]/40 bg-white ring-2 ring-[#f15a24]/10' : 'border-gray-200/90 hover:border-gray-300'
               }`}
             >
               {/* Question Header Row */}
-              <div className="flex items-center justify-between gap-[1vw]">
-                <h3 className="text-[1.5vw] font-semibold text-[#1e232d] leading-snug text-left">
+              <div className="flex items-center justify-between gap-3 sm:gap-[1vw]">
+                <h3 className="text-base sm:text-lg lg:text-[1.5vw] font-semibold text-[#1e232d] leading-snug text-left">
                   {faq.question}
                 </h3>
                 <div
-                  className={`w-[1.8vw] h-[1.8vw] min-w-[26px] min-h-[26px] flex items-center justify-center rounded-full text-gray-500 transition-transform duration-300 flex-shrink-0 ${
+                  className={`w-6 h-6 sm:w-[1.8vw] sm:h-[1.8vw] min-w-[24px] min-h-[24px] flex items-center justify-center rounded-full text-gray-500 transition-transform duration-300 flex-shrink-0 ${
                     isOpen ? 'rotate-90 text-[#f15a24]' : ''
                   }`}
                 >
-                  <Icon icon="ep:arrow-right" className="w-[2vw] h-[2vw] stroke-[2.5]" />
+                  <Icon icon="ep:arrow-right" className="w-4 h-4 sm:w-[1.8vw] sm:h-[1.8vw] stroke-[2.5]" />
                 </div>
               </div>
 
@@ -306,7 +311,7 @@ const FAQSection = ({ navigate }) => {
                     transition={{ duration: 0.35, ease: "easeInOut" }}
                     className="overflow-hidden"
                   >
-                    <p className="text-[1.05vw] text-[#5e636e] font-normal leading-relaxed text-left pt-[1.5vh] border-t border-gray-100 mt-[1.5vh]">
+                    <p className="text-sm sm:text-base lg:text-[1.05vw] text-[#5e636e] font-normal leading-relaxed text-left pt-3 border-t border-gray-100 mt-3">
                       {faq.answer}
                     </p>
                   </motion.div>
@@ -405,25 +410,25 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
         {/* Center Orange Interactive Hero Container */}
         <motion.div 
           style={{ scale: orangeScale, y: orangeY }}
-          className="relative flex-1 min-h-[65vh] lg:min-h-[75vh] bg-[#e65c00] rounded-2xl md:rounded-[2vw] shadow-2xl p-3 sm:p-5 pt-16 sm:pt-20 lg:p-[1.2vw] flex flex-col justify-between overflow-visible transition-all duration-300 w-full"
+          className="relative flex-1 min-h-[70vh] lg:min-h-[75vh] bg-[#e65c00] rounded-2xl md:rounded-[2vw] shadow-2xl p-3 sm:p-5 pt-10 sm:pt-16 pb-4 lg:p-[1.2vw] flex flex-col justify-between overflow-visible transition-all duration-300 w-full mt-14 sm:mt-16 lg:mt-0"
         >
           {/* AR / 360° Card overlapping upper-left edge */}
           <motion.div 
             initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.5 }}
-            className="absolute -top-10 sm:-top-14 lg:-top-[7.5vw] left-2 sm:left-6 lg:left-[3.5vw] z-30 bg-white/30 backdrop-blur-sm border border-white/40 rounded-xl sm:rounded-2xl lg:rounded-[1.8vw] shadow-[0_1vw_2.5vw_rgba(0,0,0,0.2)] p-2 sm:p-3 lg:p-[0.7vw] lg:pb-[0.4vw] flex flex-col items-center w-32 sm:w-44 lg:w-[13.5vw] min-w-[125px] sm:min-w-[170px] overflow-hidden group hover:scale-105 transition-transform duration-300"
+            className="absolute top-[-48px] sm:-top-14 lg:-top-[7.5vw] left-2 sm:left-6 lg:left-[3.5vw] z-30 bg-white/30 backdrop-blur-sm border border-white/40 rounded-xl sm:rounded-2xl lg:rounded-[1.8vw] shadow-[0_1vw_2.5vw_rgba(0,0,0,0.2)] p-2 sm:p-3 lg:p-[0.7vw] lg:pb-[0.4vw] flex flex-col items-center w-28 sm:w-44 lg:w-[13.5vw] min-w-[110px] sm:min-w-[170px] overflow-hidden group hover:scale-105 transition-transform duration-300"
           >
             {/* Top Solid White Container for AR, 360 Icon & Motor Image */}
             <div className="w-full bg-white rounded-lg sm:rounded-xl lg:rounded-[1.3vw] p-1.5 sm:p-2 lg:p-[0.8vw] lg:pt-[0.6vw] lg:pb-[0.4vw] flex flex-col items-center shadow-inner">
               {/* Header row: AR + 360° icon */}
               <div className="w-full flex justify-between items-center px-1 lg:px-[0.2vw] mb-0.5 lg:mb-[0.2vw]">
-                <span className="text-sm sm:text-lg lg:text-[1.8vw] font-medium text-[#2d2d2d] leading-none tracking-tight font-sans">AR</span>
-                <img src={icon360} alt="360-icon" className="w-5 sm:w-8 lg:w-[3.4vw] h-auto object-contain" />
+                <span className="text-xs sm:text-lg lg:text-[1.8vw] font-medium text-[#2d2d2d] leading-none tracking-tight font-sans">AR</span>
+                <img src={icon360} alt="360-icon" className="w-4 sm:w-8 lg:w-[3.4vw] h-auto object-contain" />
               </div>
 
               {/* AR Motor Image on pure white background */}
-              <div className="relative w-full h-12 sm:h-18 lg:h-[6.5vw] min-h-[50px] sm:min-h-[80px] flex items-center justify-center my-0.5 lg:my-[0.3vw] bg-white">
+              <div className="relative w-full h-10 sm:h-18 lg:h-[6.5vw] min-h-[40px] sm:min-h-[80px] flex items-center justify-center my-0.5 lg:my-[0.3vw] bg-white">
                 <img 
                   src={AR_image_model} 
                   alt="AR Product Motor"
@@ -434,14 +439,14 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
 
             {/* Bottom Label Container */}
             <div className="w-full py-0.5 sm:py-1 lg:py-[0.55vw] px-0.5 lg:px-[0.2vw] flex items-center justify-center">
-              <span className="text-[9px] sm:text-xs lg:text-[0.8vw] font-bold text-[#111111] text-center leading-none tracking-tight">
+              <span className="text-[8px] sm:text-xs lg:text-[0.8vw] font-bold text-[#111111] text-center leading-none tracking-tight">
                 One Interaactive Experience
               </span>
             </div>
           </motion.div>
 
           {/* Customer Reviews */}
-          <div className="flex flex-col absolute -top-10 sm:-top-14 lg:-top-[5.8vw] right-2 sm:right-6 lg:right-[3.5vw] z-30 items-end">
+          <div className="flex flex-col absolute top-[-48px] sm:-top-14 lg:-top-[5.8vw] right-2 sm:right-6 lg:right-[3.5vw] z-30 items-end">
             <div className="flex -space-x-1.5 sm:-space-x-2 lg:-space-x-[0.4vw]">
               <img className="inline-block w-5 h-5 sm:w-7 sm:h-7 lg:w-[2vw] lg:h-[2vw] rounded-full ring-1 ring-[#FD9F0D] object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="user" />
               <img className="inline-block w-5 h-5 sm:w-7 sm:h-7 lg:w-[2vw] lg:h-[2vw] rounded-full ring-1 ring-[#FD9F0D] object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80" alt="user" />
@@ -596,13 +601,39 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
             style={{ scale: bookScale }}
             className="relative my-auto mx-auto w-full max-w-[92vw] sm:max-w-[80vw] lg:w-[50vw] lg:max-w-[880px] h-[55vw] sm:h-[42vw] lg:h-[34vw] min-h-[220px] max-h-[750px] flex items-center justify-center z-10 drop-shadow-[0_1.5vw_2.5vw_rgba(0,0,0,0.3)] my-2 lg:my-auto"
           >
-            <img src={flipibookImg} className="w-full h-full object-contain" />
+            <HTMLFlipBook
+              width={1000}
+              height={1414}
+              size="stretch"
+              minWidth={200}
+              maxWidth={2000}
+              minHeight={300}
+              maxHeight={3000}
+              maxShadowOpacity={0.5}
+              showCover={false}
+              mobileScrollSupport={true}
+              clickEventForward={false}
+              useMouseEvents={true}
+              onFlip={onHeroBookFlip}
+              flippingTime={1000}
+              swipeDistance={30}
+              ref={heroBookRef}
+              className="w-full h-full drop-shadow-2xl"
+            >
+              <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
+              <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
+              <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
+              <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
+              <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
+              <div className="bg-white"><img src={page6} alt="" className="w-full h-full object-cover" /></div>
+            </HTMLFlipBook>
           </motion.div>
 
           {/* Bottom Bar Controls */}
-          <div className="relative z-20 flex flex-col md:flex-row items-center justify-between pt-2 lg:pt-[0.8vw] pb-1 lg:pb-[0.2vw] px-2 sm:px-4 lg:px-[3vw] w-full max-w-full lg:max-w-[63vw] mx-auto gap-2 md:gap-0">
-            {/* Pagination Controls on Mobile (First) */}
-            <div className="flex items-center justify-center gap-2 sm:gap-3 lg:gap-[1vw] w-full md:w-auto">
+          <div className="relative z-20 flex flex-col items-center justify-center pt-2 pb-2 lg:pt-[0.8vw] lg:pb-[0.2vw] px-2 sm:px-4 lg:px-[3vw] w-full max-w-full lg:max-w-[63vw] mx-auto gap-2">
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-center gap-2 sm:gap-3 lg:gap-[1vw] w-full">
               <button 
                 onClick={handlePrevPage}
                 className="w-7 h-7 sm:w-8 sm:h-8 lg:w-[2.2vw] lg:h-[2.2vw] rounded-full bg-white text-gray-700 flex items-center justify-center hover:bg-orange-500 hover:text-white transition-all shadow-md active:scale-95 flex-shrink-0"
@@ -615,7 +646,7 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
                   <div className="h-full bg-white/40 rounded-full transition-all duration-300" />
                 </div>
                 <span className="text-white text-xs sm:text-sm lg:text-[0.85vw] font-medium tracking-wide whitespace-nowrap">
-                  0{currentPage} / 30
+                  0{currentPage} / 06
                 </span>
                 <div className="w-10 sm:w-24 lg:w-[14vw] h-[2px] bg-white/40 rounded-full overflow-hidden">
                   <div className="h-full bg-white/40 rounded-full transition-all duration-300" />
@@ -630,26 +661,22 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
               </button>
             </div>
 
-            {/* Bottom Actions Row: Thumbnails on Left, Share & Fullscreen on Right */}
-            <div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-[1.8vw] pt-1 md:pt-0">
-              {/* Thumbnails */}
-              <button className="flex items-center md:flex-col gap-1 lg:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
-                <Icon icon="hugeicons:menu-square" className="text-base sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] sm:text-xs lg:text-[0.75vw] font-medium">Thumbnails</span>
+            {/* Icons Row: Thumbnails, Share, Full Screen together on mobile */}
+            <div className="flex items-center justify-center gap-6 sm:gap-8 lg:gap-[2.5vw] pt-1">
+              <button className="flex items-center gap-1.5 sm:flex-col sm:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
+                <Icon icon="hugeicons:menu-square" className="text-sm sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs lg:text-[0.75vw] font-medium">Thumbnails</span>
               </button>
 
-              {/* Share & Fullscreen */}
-              <div className="flex items-center gap-3 sm:gap-4 lg:gap-[1.8vw]">
-                <button className="flex items-center md:flex-col gap-1 lg:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
-                  <Icon icon="ph:share-network" className="text-base sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs lg:text-[0.75vw] font-medium">Share</span>
-                </button>
+              <button className="flex items-center gap-1.5 sm:flex-col sm:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
+                <Icon icon="ph:share-network" className="text-sm sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs lg:text-[0.75vw] font-medium">Share</span>
+              </button>
 
-                <button className="flex items-center md:flex-col gap-1 lg:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
-                  <Icon icon="akar-icons:full-screen" className="text-base sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs lg:text-[0.75vw] font-medium">Full Screen</span>
-                </button>
-              </div>
+              <button className="flex items-center gap-1.5 sm:flex-col sm:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
+                <Icon icon="akar-icons:full-screen" className="text-sm sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs lg:text-[0.75vw] font-medium">Full Screen</span>
+              </button>
             </div>
           </div>
         </motion.div>
@@ -685,21 +712,12 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
 // Smart Solutions for Modern Industries Section Component
 const SmartSolutionsSection = () => {
   const sectionRef = useRef(null);
-  const [activeCategory, setActiveCategory] = useState('Industries');
-
-  const industryNodes = [
-    { id: 'Architecture', label: 'Architecture', icon: 'fluent:building-16-regular', left: '8%', top: '61%' },
-    { id: 'Industries', label: 'Industries', icon: 'fluent-emoji-high-contrast:factory', left: '25%', top: '14%' },
-    { id: 'Education', label: 'Education', icon: 'boxicons:education-filled', left: '50%', top: '6%' },
-    { id: 'Medical', label: 'Medical', icon: 'mdi:hospital', left: '75%', top: '14%' },
-    { id: 'Agriculture', label: 'Agriculture', icon: 'fluent-emoji-high-contrast:factory', left: '92%', top: '61%' },
-  ];
 
   return (
-    <section ref={sectionRef} className="relative w-full min-h-screen lg:h-[100vh] bg-white font-sans py-8 lg:pt-[1vw] lg:pb-[1.5vw] px-4 sm:px-8 lg:px-[5vw] flex flex-col justify-between overflow-hidden">
+    <section ref={sectionRef} className="relative w-full min-h-screen lg:h-[100vh] bg-white font-sans py-8 lg:py-[1.2vw] px-4 sm:px-8 lg:px-[6vw] flex flex-col justify-between items-center overflow-hidden">
       
       {/* 1. BACKGROUND HEADING WITH TEXT SMOKE GRADIENT FADE */}
-      <div className="relative w-full flex justify-center pointer-events-none select-none z-0">
+      <div className="relative w-full flex justify-center pointer-events-none select-none z-0 lg:pt-[0.2vw]">
         <motion.h2 
           initial={{ opacity: 0, y: -20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -711,19 +729,19 @@ const SmartSolutionsSection = () => {
         </motion.h2>
       </div>
 
-      {/* CENTER & RIGHT MAIN CONTENT CONTAINER (Grid 5: col-span-3 for pump image, col-span-2 for text) */}
+      {/* 2. CENTER & RIGHT MAIN CONTENT CONTAINER (Flex Row for Desktop) */}
       <div 
-        className="relative lg:absolute lg:top-[4vw] lg:left-1/2 lg:-translate-x-1/2 z-10 w-full max-w-[1600px] h-auto lg:h-[20vw] grid grid-cols-1 lg:grid-cols-5 items-center gap-6 lg:gap-[2vw] my-6 lg:my-0"
+        className="relative z-10 w-full max-w-[1600px] mx-auto flex flex-col lg:flex-row items-center justify-between lg:gap-[3vw] my-4 lg:my-0"
       >
         
-        {/* CENTER 3D MODEL & CIRCULAR ORBIT NAVIGATION (Grid col-span-3) */}
-        <div className="relative w-full lg:w-[84vw] col-span-1 lg:col-span-3 flex items-center justify-center min-h-[220px] sm:min-h-[280px] lg:min-h-[28vw] py-4 lg:py-0">
+        {/* CENTER 3D MODEL & CIRCULAR ORBIT NAVIGATION */}
+        <div className="relative w-full lg:w-[50vw] flex items-center justify-center min-h-[200px] sm:min-h-[280px] lg:h-[26vw] py-2 lg:py-0">
           
           {/* Exact Figma Vector Orbit (Arc + Dashed lines + Orange Badges + Labels) */}
           <img 
             src={exampleSvg} 
             alt="IDC Industry Categories Orbit" 
-            className="absolute w-[88vw] sm:w-[65vw] lg:w-[36vw] max-w-[660px] h-auto pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-[45%] z-10 select-none" 
+            className="absolute w-[92vw] sm:w-[65vw] lg:w-[37.5vw] h-auto pointer-events-none top-[0vw] sm:top-1/2 left-1/2 -translate-x-1/2 sm:-translate-y-[48%] z-10 select-none" 
           />
 
           {/* Center 3D Motor Image */}
@@ -732,62 +750,62 @@ const SmartSolutionsSection = () => {
             whileInView={{ scale: 1, opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
-            className="relative z-20 w-[60vw] sm:w-[40vw] lg:w-[22vw] max-w-[500px] flex flex-col items-center justify-center pt-16 sm:pt-24 lg:pt-[15vw]"
+            className="relative z-20 w-[65vw] sm:w-[40vw] lg:w-[25.5vw] flex flex-col items-center justify-center pt-6 sm:pt-12 lg:pt-[2.2vw]"
           >
             <img 
               src={PumpImage} 
               alt="Industrial Machinery Motor 3D Model"
-              className="w-full h-auto max-h-[180px] sm:max-h-[240px] lg:max-h-[20vw] object-contain drop-shadow-[0_1.5vw_2vw_rgba(0,0,0,0.18)] hover:scale-105 transition-transform duration-700" 
+              className="w-full h-auto lg:w-[25.5vw] object-contain drop-shadow-[0_1.5vw_2vw_rgba(0,0,0,0.18)] hover:scale-105 transition-transform duration-700" 
             />
             
             {/* Soft Ground Shadow */}
-            <div className="w-[85%] h-3 lg:h-[1.2vw] bg-black/15 rounded-full filter blur-md -mt-2 lg:-mt-[0.6vw] pointer-events-none" />
+            <div className="w-[85%] h-3 lg:h-[0.9vw] bg-black/15 rounded-full filter blur-md -mt-2 lg:-mt-[0.4vw] pointer-events-none" />
           </motion.div>
         </div>
 
-        {/* RIGHT SIDE TEXT CONTENT (Grid col-span-2) */}
+        {/* RIGHT SIDE TEXT CONTENT */}
         <motion.div 
           initial={{ opacity: 0, x: 40 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-full lg:w-[80%] col-span-1 lg:col-span-2 ml-0 lg:ml-[5vw] flex flex-col justify-center space-y-2.5 lg:space-y-[0.8vw] text-center lg:text-left items-center lg:items-start z-10 pl-0 lg:pl-[1vw] px-4 lg:px-0"
+          className="w-full lg:w-[33vw] flex flex-col justify-center space-y-2.5 lg:space-y-[0.8vw] text-center lg:text-left items-center lg:items-start z-10 px-4 lg:px-0 mt-4 lg:mt-0"
         >
           {/* Main Heading */}
-          <h2 className="text-2xl sm:text-4xl lg:text-[2.8vw] font-bold text-gray-900 leading-[1.15] tracking-tight font-sans">
-            Smart Solutions for <br />
+          <h2 className="text-2xl sm:text-4xl lg:text-[2.7vw] font-bold text-gray-900 leading-[1.15] tracking-tight font-sans">
+            Smart Solutions for <br className="hidden sm:block" />
             Modern Industries
           </h2>
 
           {/* Thin Black Accent Line under heading */}
-          <div className="w-10 lg:w-[2.2vw] h-[2.5px] bg-gray-900 rounded-full my-1 lg:my-[0.2vw]" />
+          <div className="w-10 lg:w-[2.2vw] h-[2.5px] lg:h-[0.2vw] bg-gray-900 rounded-full my-1 lg:my-[0.2vw]" />
 
           {/* Description */}
-          <p className="text-xs sm:text-base lg:text-[1vw] text-gray-500 font-normal leading-relaxed max-w-full lg:max-w-[70%]">
+          <p className="text-xs sm:text-base lg:text-[1.05vw] text-gray-500 font-normal leading-relaxed w-full max-w-md lg:w-[28vw]">
             Turn static pages into immersive, interactive digital experiences that engage, respond and feel alive with every interaction.
           </p>
         </motion.div>
       </div>
 
-      {/* 6. BOTTOM FEATURE CARDS */}
+      {/* 3. BOTTOM FEATURE CARDS */}
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.8, delay: 0.4 }}
-        className="relative z-10 w-full max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-[1.5vw] mt-6 lg:mt-[-0.5vw] mb-4 lg:mb-[0.8vw] px-2 lg:px-0"
+        className="relative z-10 w-full lg:w-[88vw] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 lg:gap-[1.5vw] mt-6 lg:mt-0 mb-4 lg:mb-[0.5vw] px-2 lg:px-0"
       >
         {/* CARD 1: Immersive 3D */}
         <motion.div 
           whileHover={{ y: -4, boxShadow: '0 1vw 2vw rgba(0,0,0,0.06)' }}
-          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full lg:w-[22vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
+          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full sm:w-1/3 lg:w-[27.5vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
         >
           <div className="w-10 h-10 lg:w-[3vw] lg:h-[3vw] bg-black text-white rounded-lg lg:rounded-[0.6vw] flex items-center justify-center shadow-sm shrink-0">
-            <Icon icon="lucide:box" className="w-5 h-5 lg:w-[2vw] lg:h-[2vw] text-white" />
+            <Icon icon="lucide:box" className="w-5 h-5 lg:w-[1.8vw] lg:h-[1.8vw] text-white" />
           </div>
           <div className="text-left">
             <h3 className="text-sm sm:text-base lg:text-[1vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.1vw]">Immersive 3D</h3>
-            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 leading-snug">
+            <p className="text-xs sm:text-sm lg:text-[0.88vw] text-gray-500 leading-snug">
               Add depth with realistic models and smooth page-turn effects.
             </p>
           </div>
@@ -796,14 +814,14 @@ const SmartSolutionsSection = () => {
         {/* CARD 2: Interactive Elements */}
         <motion.div 
           whileHover={{ y: -4, boxShadow: '0 1vw 2vw rgba(0,0,0,0.06)' }}
-          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full lg:w-[22vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
+          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full sm:w-1/3 lg:w-[27.5vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
         >
           <div className="w-10 h-10 lg:w-[3vw] lg:h-[3vw] bg-black text-white rounded-lg lg:rounded-[0.6vw] flex items-center justify-center shadow-sm shrink-0">
-            <Icon icon="mdi:cursor-default-click-outline" className="w-5 h-5 lg:w-[2vw] lg:h-[2vw] text-white" />
+            <Icon icon="mdi:cursor-default-click-outline" className="w-5 h-5 lg:w-[1.8vw] lg:h-[1.8vw] text-white" />
           </div>
           <div className="text-left">
             <h3 className="text-sm sm:text-base lg:text-[1vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.1vw]">Interactive Elements</h3>
-            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 leading-snug">
+            <p className="text-xs sm:text-sm lg:text-[0.88vw] text-gray-500 leading-snug">
               Engage your users with rich interactive content.
             </p>
           </div>
@@ -812,19 +830,138 @@ const SmartSolutionsSection = () => {
         {/* CARD 3: Publish Anywhere */}
         <motion.div 
           whileHover={{ y: -4, boxShadow: '0 1vw 2vw rgba(0,0,0,0.06)' }}
-          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full lg:w-[22vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
+          className="bg-white p-3 sm:p-4 lg:p-[1vw] w-full sm:w-1/3 lg:w-[27.5vw] rounded-xl lg:rounded-[1vw] border border-gray-100/80 shadow-sm flex items-center gap-3 lg:gap-[1vw] transition-all duration-300"
         >
           <div className="w-10 h-10 lg:w-[3vw] lg:h-[3vw] bg-black text-white rounded-lg lg:rounded-[0.6vw] flex items-center justify-center shadow-sm shrink-0">
-            <Icon icon="clarity:world-line" className="w-5 h-5 lg:w-[2vw] lg:h-[2vw] text-white" />
+            <Icon icon="clarity:world-line" className="w-5 h-5 lg:w-[1.8vw] lg:h-[1.8vw] text-white" />
           </div>
           <div className="text-left">
             <h3 className="text-sm sm:text-base lg:text-[1vw] font-bold text-gray-900 mb-0.5 lg:mb-[0.1vw]">Publish Anywhere</h3>
-            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 leading-snug">
+            <p className="text-xs sm:text-sm lg:text-[0.88vw] text-gray-500 leading-snug">
               Share and publish across all platforms and devices.
             </p>
           </div>
         </motion.div>
       </motion.div>
+    </section>
+  );
+};
+
+// Interactive Demo Section Component (With Left Category Buttons & Right HTMLFlipBook)
+const InteractiveDemoSection = () => {
+  const [activeCategory, setActiveCategory] = useState('cataloger');
+  const demoBookRef = useRef(null);
+
+  const categories = [
+    { id: 'cataloger', title: 'Cataloger', img: catalogueBtn, pages: [page1, page2, page3, page4, page5, page6] },
+    { id: 'brochure', title: 'Brochure', img: brochureBtn, pages: [cover1, cover2, cover3, cover4, cover5] },
+    { id: 'magazine', title: 'magazine', img: magazineBtn, pages: [slide1, slide2, slide3, slide4] },
+    { id: 'presentation', title: 'Presentation', img: presentationBtn, pages: [page1, page3, page5, page2, page4] },
+    { id: 'ecommerce', title: 'E-Commerce', img: ecommerceBtn, pages: [cover5, cover4, cover3, cover2, cover1] },
+  ];
+
+  const currentItem = categories.find(c => c.id === activeCategory) || categories[0];
+
+  return (
+    <section className="relative w-full min-h-screen lg:h-auto bg-white font-sans py-6 lg:py-[2vw] px-4 sm:px-8 lg:px-[4vw] flex flex-col justify-center items-center overflow-hidden">
+      
+      {/* Solid Orange Card Outer Container (#EA7233) */}
+      <div className="relative w-full h-auto min-h-[460px] lg:min-h-[520px] bg-[#EA7233] rounded-2xl lg:rounded-[2vw] shadow-2xl p-4 sm:p-6 lg:p-[2vw] flex flex-col justify-between overflow-hidden">
+        
+        {/* Header Row: Large Title */}
+        <div className="relative z-10 w-full flex flex-col items-center justify-center text-center select-none mb-1 lg:mb-[0.5vw]">
+          <h2 className="text-3xl sm:text-5xl lg:text-[5.5vw] font-black tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-b from-white/70 via-white/40 to-white/10 leading-none select-none">
+            INTERACTIVE DEMO
+          </h2>
+        </div>
+
+        {/* Center Main Area: Left Category List + Right Interactive Flipbook */}
+        <div className="relative z-10 w-full flex-1 flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-[3vw] my-auto py-2">
+          
+          {/* LEFT SIDE: 5 Category Buttons (Mobile: Row 1 has 3 buttons, Row 2 has 2 buttons) */}
+          <div className="w-full lg:w-[24vw] grid grid-cols-6 sm:flex sm:flex-col items-center justify-center sm:justify-start gap-2 sm:gap-2.5 lg:gap-[0.7vw] pb-1 lg:pb-0 shrink-0 my-auto px-1">
+            {categories.map((cat, idx) => {
+              const isActive = activeCategory === cat.id;
+              // Row 1: First 3 buttons take 2 grid columns each (out of 6 = 3 per row)
+              // Row 2: Last 2 buttons take 3 grid columns each (out of 6 = 2 per row)
+              const colSpanClass = idx < 3 ? 'col-span-2' : 'col-span-3';
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`relative flex items-center justify-center sm:justify-start gap-1 sm:gap-3.5 lg:gap-[0.7vw] px-2 py-2 sm:p-2.5 lg:p-[0.5vw] rounded-lg sm:rounded-xl lg:rounded-[0.9vw] backdrop-blur-md transition-all duration-300 ${colSpanClass} sm:col-span-auto sm:flex-none w-full cursor-pointer ${
+                    isActive 
+                      ? 'bg-white/35 border border-white shadow-md scale-[1.02]' 
+                      : 'bg-white/15 border border-white/20 hover:bg-white/25 hover:border-white/40'
+                  }`}
+                >
+                  {/* Category Image - Hidden on mobile view, visible on tablet & desktop */}
+                  <img 
+                    src={cat.img} 
+                    alt={cat.title} 
+                    className="hidden sm:block w-9 sm:w-11 lg:w-[3vw] h-12 sm:h-15 lg:h-[4.2vw] object-cover rounded-md lg:rounded-[0.4vw] shadow-md border border-white/60 shrink-0" 
+                  />
+                  <span className="text-white font-bold text-xs sm:text-sm lg:text-[1vw] tracking-tight sm:tracking-wide text-center sm:text-left capitalize whitespace-nowrap">
+                    {cat.title}
+                  </span>
+                  
+                  {/* Active Indicator Dot */}
+                  {isActive && (
+                    <div className="hidden sm:block ml-auto w-2 h-2 lg:w-[0.5vw] lg:h-[0.5vw] rounded-full bg-white shadow-md animate-pulse shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* RIGHT SIDE: Subtitle + Interactive Flipbook Container */}
+          <div className="w-full lg:w-[58vw] flex flex-col items-center justify-center my-auto">
+            
+            {/* Subtitle centered directly above Flipbook */}
+            <p className="text-white font-semibold text-xs sm:text-base lg:text-[1.15vw] drop-shadow-sm mb-3 lg:mb-[0.8vw] text-center select-none">
+              Experience Flipibook in Action
+            </p>
+
+            {/* Interactive Flipbook */}
+            <div className="relative w-full h-[350px] sm:h-[450px] lg:h-[420px] max-h-[80vh] flex items-center justify-center z-10 drop-shadow-[0_2vw_3vw_rgba(0,0,0,0.35)] overflow-hidden">
+              <HTMLFlipBook
+                key={activeCategory}
+                width={1000}
+                height={1414}
+                size="stretch"
+                minWidth={200}
+                maxWidth={2000}
+                minHeight={300}
+                maxHeight={3000}
+                maxShadowOpacity={0.5}
+                showCover={false}
+                mobileScrollSupport={true}
+                clickEventForward={false}
+                useMouseEvents={true}
+                flippingTime={1000}
+                swipeDistance={30}
+                ref={demoBookRef}
+                className="w-full h-full drop-shadow-2xl"
+              >
+                {currentItem.pages.map((pg, idx) => (
+                  <div key={idx} className="bg-white">
+                    <img src={pg} alt={`Page ${idx + 1}`} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </HTMLFlipBook>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Description Footer Line (Outside of orange container) */}
+      <div className="relative z-10 w-full max-w-[1600px] pt-3 lg:pt-[1vw] mt-2 lg:mt-[0.5vw] flex items-center gap-2.5 sm:gap-3 text-gray-700 text-xs sm:text-sm lg:text-[0.9vw] font-medium leading-snug px-1">
+        <span className="w-[3px] h-4 lg:h-[1.1vw] bg-[#EA7233] rounded-full inline-block shrink-0"></span>
+        <p>
+          Explore our handpicked demo Books: flip, zoom and interact to discover how immersive and engaging digital reading can be.
+        </p>
+      </div>
     </section>
   );
 };
@@ -2020,6 +2157,11 @@ export default function Home() {
       {/* Smart Solutions for Modern Industries Section */}
       <section className="relative lg:sticky lg:top-0 z-20 snap-start snap-always w-full bg-white">
         <SmartSolutionsSection />
+      </section>
+
+      {/* Interactive Demo Section */}
+      <section className="relative lg:sticky lg:top-0 z-25 snap-start snap-always w-full bg-white">
+        <InteractiveDemoSection />
       </section>
 
       {/* How It Works - 4 Simple Steps Section */}
