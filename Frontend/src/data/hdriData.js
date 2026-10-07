@@ -122,8 +122,11 @@ export const builtInHdris = [
 let cachedHdris = [...builtInHdris];
 let isFetchingHdris = false;
 
-export const fetchHdris = async () => {
+export const fetchHdris = async (forceRefresh = false) => {
   if (isFetchingHdris) return cachedHdris;
+  if (!forceRefresh && cachedHdris.length > 0 && cachedHdris !== builtInHdris) {
+    // If already loaded and not forcing refresh
+  }
   isFetchingHdris = true;
   try {
     const response = await fetch(`${BACKEND_URL}/api/presets/hdri`);

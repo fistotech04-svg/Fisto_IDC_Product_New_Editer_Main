@@ -131,10 +131,11 @@ const LightingSlider = ({
       {/* Editable Value Pill */}
       <div
         onMouseDown={handlePillPointerDown}
-        className={`w-[3.4vw] h-[1.55vw] bg-gray-100 hover:bg-gray-200/80 rounded-[0.3vw] flex items-center justify-center shrink-0 border transition-all cursor-ew-resize px-[0.2vw] ${isFocused
+        className={`w-[3.4vw] h-[1.55vw] bg-gray-100 hover:bg-gray-200/80 rounded-[0.3vw] flex items-center justify-center shrink-0 border transition-all cursor-ew-resize px-[0.2vw] ${
+          isFocused
             ? "border-[#ea543a] bg-white ring-1 ring-[#ea543a]/25 shadow-2xs"
             : "border-transparent"
-          }`}
+        }`}
         title="Click to edit or drag left/right to adjust"
       >
         <input
@@ -184,13 +185,29 @@ export function LightingPanel({
   updateControl,
 }) {
   const currentControls = materialSettings || controls || {};
-  const handleUpdate = onUpdateMaterialSetting || updateControl || (() => { });
+  const handleUpdate = onUpdateMaterialSetting || updateControl || (() => {});
 
   // State for See All environments expansion
   const [showAllEnvironments, setShowAllEnvironments] = useState(false);
 
   // State for Color Picker popover
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [isLightSelectOpen, setIsLightSelectOpen] = useState(false);
+  const lightSelectRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (lightSelectRef.current && !lightSelectRef.current.contains(e.target)) {
+        setIsLightSelectOpen(false);
+      }
+    };
+    if (isLightSelectOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isLightSelectOpen]);
 
   // State for dynamic HDRI list loaded from backend database
   const [dynamicHdris, setDynamicHdris] = useState(() => [...builtInHdris]);
@@ -212,9 +229,8 @@ export function LightingPanel({
       envValue: `builtin_${hdr.id}`,
     })),
   ], [dynamicHdris]);
+
   const colorPickerContainerRef = useRef(null);
-  const [isFloorColorPickerOpen, setIsFloorColorPickerOpen] = useState(false);
-  const floorColorPickerRef = useRef(null);
 
   // Close color picker on outside click
   useEffect(() => {
@@ -222,34 +238,121 @@ export function LightingPanel({
       if (colorPickerContainerRef.current && !colorPickerContainerRef.current.contains(e.target)) {
         setIsColorPickerOpen(false);
       }
-      if (floorColorPickerRef.current && !floorColorPickerRef.current.contains(e.target)) {
-        setIsFloorColorPickerOpen(false);
-      }
     };
-    if (isColorPickerOpen || isFloorColorPickerOpen) {
+    if (isColorPickerOpen) {
       document.addEventListener("mousedown", handleOutsideClick);
     }
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isColorPickerOpen, isFloorColorPickerOpen]);
+  }, [isColorPickerOpen]);
 
-  // Current values
-  const lightColor = currentControls.lightColor || "#EC5137";
-  const lightIntensity = currentControls.lightIntensity ?? 100;
-  const shadowDensity = currentControls.shadowDensity ?? currentControls.shadow ?? 100;
-  const shadowSoftness = currentControls.shadowSoftness ?? currentControls.softness ?? 100;
+  // Multi-light management
+  const [activeLightIndex, setActiveLightIndex] = useState(0);
 
+  // Fallback / legacy compatibility
+  const lightsArray = useMemo(() => {
+    if (Array.isArray(currentControls.lights) && currentControls.lights.length > 0) {
+      return currentControls.lights;
+    }
+    return [
+      {
+        id: "light_1",
+        name: "Key Light",
+        enabled: true,
+        position: currentControls.lightPosition || { x: 0, y: 10, z: 10 },
+        color: currentControls.lightColor || "#EC5137",
+        intensity: currentControls.lightIntensity ?? 100,
+        shadowDensity: currentControls.shadowDensity ?? currentControls.shadow ?? 100,
+        shadowSoftness: currentControls.shadowSoftness ?? currentControls.softness ?? 100,
+        castShadow: true,
+      },
+    ];
+  }, [currentControls.lights, currentControls.lightPosition, currentControls.lightColor, currentControls.lightIntensity, currentControls.shadowDensity, currentControls.shadow, currentControls.shadowSoftness, currentControls.softness]);
+
+  const activeLight = lightsArray[activeLightIndex] || lightsArray[0] || {};
+
+  // Update a single light's property
+  const updateActiveLight = useCallback((key, value) => {
+    const updated = lightsArray.map((l, i) => {
+      if (i === activeLightIndex) {
+        return { ...l, [key]: value };
+      }
+      return l;
+    });
+    handleUpdate("lights", updated);
+
+    // Sync legacy properties for Light 1 for backward compatibility
+    if (activeLightIndex === 0) {
+      if (key === "position") handleUpdate("lightPosition", value);
+      if (key === "color") handleUpdate("lightColor", value);
+      if (key === "intensity") handleUpdate("lightIntensity", value);
+      if (key === "shadowDensity") {
+        handleUpdate("shadowDensity", value);
+        handleUpdate("shadow", value);
+      }
+      if (key === "shadowSoftness") {
+        handleUpdate("shadowSoftness", value);
+        handleUpdate("softness", value);
+      }
+    }
+  }, [lightsArray, activeLightIndex, handleUpdate]);
+
+  // Add a new light (max 3)
+  const handleAddLight = () => {
+    if (lightsArray.length >= 3) return;
+    const nextIdx = lightsArray.length + 1;
+    const newLight = {
+      id: `light_${Date.now()}`,
+      name: nextIdx === 2 ? "Fill Light" : "Rim Light",
+      enabled: true,
+      position: nextIdx === 2 ? { x: -8, y: 8, z: 8 } : { x: 0, y: -10, z: 12 },
+      color: nextIdx === 2 ? "#5D5EFC" : "#FFA500",
+      intensity: 70,
+      shadowDensity: 50,
+      shadowSoftness: 80,
+      castShadow: false,
+    };
+    const updated = [...lightsArray, newLight];
+    handleUpdate("lights", updated);
+    setActiveLightIndex(updated.length - 1);
+  };
+
+  // Remove a light (always keep at least 1)
+  const handleRemoveLight = (indexToRemove, e) => {
+    e.stopPropagation();
+    if (lightsArray.length <= 1) return;
+    const updated = lightsArray.filter((_, i) => i !== indexToRemove);
+    handleUpdate("lights", updated);
+    setActiveLightIndex((prev) => Math.min(prev, updated.length - 1));
+  };
+
+  // Toggle light enabled state
+  const handleToggleLightEnabled = (indexToToggle, e) => {
+    e.stopPropagation();
+    const updated = lightsArray.map((l, i) => {
+      if (i === indexToToggle) {
+        return { ...l, enabled: !l.enabled };
+      }
+      return l;
+    });
+    handleUpdate("lights", updated);
+  };
+
+  // Active Light parameters
+  const lightColor = activeLight.color || "#EC5137";
+  const lightIntensity = activeLight.intensity ?? 100;
+  const shadowDensity = activeLight.shadowDensity ?? 100;
+  const shadowSoftness = activeLight.shadowSoftness ?? 100;
+  const lightPos = activeLight.position || { x: 0, y: 10, z: 10 };
+  const posX = lightPos.x ?? 0;
+  const posY = lightPos.y ?? 10;
+  const posZ = lightPos.z ?? 10;
+
+  // Environment parameters
   const envRotation = currentControls.envRotation ?? 0;
   const envBrightness = currentControls.reflection ?? 100;
   const envBlur = currentControls.worldBlur ?? 0;
   const envOpacity = currentControls.worldOpacity ?? 100;
-
   const activeEnv = currentControls.environment || "studio";
-
-  // Light position (Sun placement in compass + Sun height)
-  const lightPos = currentControls.lightPosition || { x: 0, y: 10, z: 10 };
-  const posX = lightPos.x ?? 0;
-  const posY = lightPos.y ?? 10;
-  const posZ = lightPos.z ?? 10;
 
   // Compass 2D dragging state
   const compassRef = useRef(null);
@@ -262,11 +365,8 @@ export function LightingPanel({
   // Compass geometry & calculations (Radius maps to 20 units)
   const MAX_RADIUS_UNITS = 20;
   const compassRadiusNorm = Math.min(1, Math.sqrt(posX * posX + posY * posY) / MAX_RADIUS_UNITS);
-  const compassAngle = Math.atan2(posY, posX); // radians
 
   // Percentage from center for the sun icon inside the compass (center is 50%, 50%)
-  // Max visual radius is 40% of container width
-  const visualRadiusPercent = 40 * compassRadiusNorm;
   const sunCompassX = 50 + (posX / MAX_RADIUS_UNITS) * 40;
   const sunCompassY = 50 - (posY / MAX_RADIUS_UNITS) * 40; // inverted Y for screen coords
 
@@ -285,7 +385,6 @@ export function LightingPanel({
 
     const dx = e.clientX - centerX;
     const dy = e.clientY - centerY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
 
     const maxVisual = radius * 0.85;
     let normX = dx / maxVisual;
@@ -300,130 +399,140 @@ export function LightingPanel({
     const newX = Math.round(normX * MAX_RADIUS_UNITS * 10) / 10;
     const newY = Math.round(-normY * MAX_RADIUS_UNITS * 10) / 10;
 
-    handleUpdate("lightPosition", {
-      ...lightPos,
-      x: newX,
-      y: newY,
-    });
+    updateActiveLight("position", { ...lightPos, x: newX, y: newY });
   };
+
+  useEffect(() => {
+    const handleMove = (e) => {
+      if (isDraggingCompass) {
+        handleCompassPointer(e);
+      }
+    };
+    const handleUp = () => {
+      setIsDraggingCompass(false);
+    };
+
+    if (isDraggingCompass) {
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [isDraggingCompass, lightPos]);
 
   // Height slider interaction
   const handleHeightPointer = (e) => {
     if (!heightTrackRef.current) return;
     const rect = heightTrackRef.current.getBoundingClientRect();
-    const clientY = e.clientY;
-    const top = rect.top;
+    const clickY = e.clientY;
+    const bottomY = rect.bottom;
     const height = rect.height;
 
-    // Invert: top is high (MAX_Z), bottom is low (MIN_Z)
-    const ratio = Math.max(0, Math.min(1, (rect.bottom - clientY) / height));
-    const newZ = Math.round(MIN_Z + ratio * (MAX_Z - MIN_Z));
+    const distFromBottom = Math.max(0, Math.min(height, bottomY - clickY));
+    const fraction = distFromBottom / height;
 
-    handleUpdate("lightPosition", {
-      ...lightPos,
-      z: newZ,
-    });
+    const newZ = Math.round((MIN_Z + fraction * (MAX_Z - MIN_Z)) * 10) / 10;
+    updateActiveLight("position", { ...lightPos, z: newZ });
   };
 
-  // Global mousemove/mouseup listeners for dragging
   useEffect(() => {
-    if (!isDraggingCompass && !isDraggingHeight) return;
-
-    const handleMouseMove = (e) => {
-      if (isDraggingCompass) handleCompassPointer(e);
-      if (isDraggingHeight) handleHeightPointer(e);
+    const handleMove = (e) => {
+      if (isDraggingHeight) {
+        handleHeightPointer(e);
+      }
     };
-
-    const handleMouseUp = () => {
-      setIsDraggingCompass(false);
+    const handleUp = () => {
       setIsDraggingHeight(false);
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    if (isDraggingHeight) {
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    }
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
     };
-  }, [isDraggingCompass, isDraggingHeight, lightPos]);
+  }, [isDraggingHeight, lightPos]);
 
   return (
-    <div className="flex flex-col gap-[1.3vw] pb-[2vw] text-gray-800">
+    <div className="flex flex-col gap-[1.1vw] select-none">
       {/* ── 1. SECTION: ENVIRONMENT ── */}
-      <div className="flex flex-col gap-[0.75vw]">
-        <div className="flex items-center gap-[0.6vw]">
-          <span className="text-[0.84vw] font-bold text-gray-900 shrink-0">Environment</span>
-          <div className="h-[0.08vw] bg-gray-200 flex-1 min-w-[1vw]"></div>
+      <div className="flex flex-col gap-[0.6vw]">
+        {/* Header with See All Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-[0.5vw] flex-1">
+            <span className="text-[0.82vw] font-bold text-gray-900">Environment</span>
+            <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+          </div>
 
-          {/* "See All" Toggle Button */}
           <button
             type="button"
             onClick={() => setShowAllEnvironments((prev) => !prev)}
-            className="flex items-center gap-[0.25vw] text-[#ea543a] hover:text-[#d43d23] text-[0.74vw] font-medium transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-[0.2vw] text-[0.72vw] font-semibold text-[#ea543a] hover:text-[#d43f26] transition-colors cursor-pointer ml-[0.6vw] shrink-0"
           >
-            <span>See All</span>
+            <span>{showAllEnvironments ? "Show Less" : "See All"}</span>
             <Icon
               icon="heroicons:chevron-down-20-solid"
-              className={`w-[0.9vw] h-[0.9vw] transition-transform duration-200 ${showAllEnvironments ? "rotate-180" : ""
-                }`}
+              className={`w-[0.85vw] h-[0.85vw] transition-transform duration-200 ${
+                showAllEnvironments ? "rotate-180" : "rotate-0"
+              }`}
             />
           </button>
         </div>
 
-        {/* 3-Column Environment Grid (Shows first 3 or all based on showAllEnvironments) */}
-        <div
-          className={`grid grid-cols-3 gap-[0.65vw] pt-[0.2vw] ${showAllEnvironments
-              ? "max-h-[16vw] overflow-y-auto pr-[0.2vw] custom-left-scrollbar"
-              : ""
-            }`}
-        >
-          {(showAllEnvironments ? environmentOptions : environmentOptions.slice(0, 3)).map((env) => {
-            const isSelected =
-              activeEnv === env.envValue ||
-              activeEnv === env.id ||
-              (env.id === "daylight" && activeEnv.includes("day"));
-
+        {/* Environment Cards Grid */}
+        <div className="grid grid-cols-3 gap-[0.6vw]">
+          {(showAllEnvironments ? environmentOptions : environmentOptions.slice(0, 3)).map((item) => {
+            const isSelected = activeEnv === item.envValue || (item.id === "studio" && activeEnv === "studio");
             return (
               <button
-                key={env.id}
+                key={item.id}
                 type="button"
-                onClick={() => handleUpdate("environment", env.envValue)}
-                className="flex flex-col items-center gap-[0.35vw] group cursor-pointer focus:outline-none"
+                onClick={() => handleUpdate("environment", item.envValue)}
+                className="flex flex-col items-center gap-[0.35vw] group cursor-pointer text-left"
               >
                 <div
-                  className={`w-full aspect-[16/9] rounded-[0.45vw] overflow-hidden border-2 transition-all bg-gray-100 ${isSelected
-                      ? "border-[#ea543a] shadow-sm ring-1 ring-[#ea543a]/30"
-                      : "border-gray-200 group-hover:border-gray-300"
-                    }`}
+                  className={`relative w-full aspect-16/10 rounded-[0.45vw] overflow-hidden border-2 transition-all duration-200 shadow-2xs ${
+                    isSelected
+                      ? "border-[#ea543a] ring-2 ring-[#ea543a]/20 scale-102"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
                 >
                   <img
-                    src={env.preview}
-                    alt={env.name}
+                    src={item.preview}
+                    alt={item.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    onError={(e) => {
-                      e.target.style.opacity = "0.7";
-                    }}
                   />
+                  {isSelected && (
+                    <div className="absolute top-[0.2vw] right-[0.2vw] w-[0.9vw] h-[0.9vw] bg-[#ea543a] rounded-full flex items-center justify-center shadow-xs">
+                      <Icon icon="heroicons:check-20-solid" className="w-[0.65vw] h-[0.65vw] text-white" />
+                    </div>
+                  )}
                 </div>
                 <span
-                  className={`text-[0.74vw] font-medium transition-colors truncate w-full text-center ${isSelected ? "text-[#ea543a] font-semibold" : "text-gray-600 group-hover:text-gray-900"
-                    }`}
-                  title={env.name}
+                  className={`text-[0.7vw] font-semibold tracking-tight truncate w-full text-center transition-colors ${
+                    isSelected ? "text-[#ea543a]" : "text-gray-600 group-hover:text-gray-900"
+                  }`}
                 >
-                  {env.name}
+                  {item.name}
                 </span>
               </button>
             );
           })}
         </div>
 
-        {/* Environment Sliders */}
-        <div className="flex flex-col gap-[0.45vw] mt-[0.3vw]">
+        {/* Environment Adjustment Sliders */}
+        <div className="flex flex-col gap-[0.4vw] mt-[0.3vw]">
           <LightingSlider
             label="Env Rotation"
-            value={Math.round((envRotation / 360) * 100)}
-            onChange={(pct) => handleUpdate("envRotation", Math.round((pct / 100) * 360))}
-            unit="%"
+            value={envRotation}
+            onChange={(val) => handleUpdate("envRotation", val)}
+            min={0}
+            max={360}
+            unit="°"
           />
           <LightingSlider
             label="Env Brightness"
@@ -446,16 +555,208 @@ export function LightingPanel({
         </div>
       </div>
 
-      {/* ── 2. SECTION: SHADOW PROPERTIES ── */}
-      <div className="flex flex-col gap-[0.75vw]">
-        <div className="flex items-center gap-[0.6vw]">
-          <span className="text-[0.84vw] font-bold text-gray-900">Shadow Properties</span>
-          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+      {/* ── 2. SECTION: LIGHTS (MULTI-LIGHT CONTROLS) ── */}
+      <div className="flex flex-col gap-[0.6vw]">
+        {/* Section Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-[0.5vw] flex-1">
+            <span className="text-[0.82vw] font-bold text-gray-900">Lights & Shadows</span>
+            <span className="text-[0.65vw] font-bold px-[0.4vw] py-[0.08vw] rounded-full bg-orange-50 text-[#ea543a] border border-orange-200/60">
+              {lightsArray.filter((l) => l.enabled).length}/{lightsArray.length} Active
+            </span>
+            <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+          </div>
+
+          {lightsArray.length < 3 && (
+            <button
+              type="button"
+              onClick={handleAddLight}
+              className="flex items-center gap-[0.25vw] ml-[0.6vw] px-[0.55vw] py-[0.2vw] rounded-[0.4vw] bg-[#ea543a]/10 hover:bg-[#ea543a]/15 text-[#ea543a] border border-[#ea543a]/30 text-[0.7vw] font-bold transition-all cursor-pointer shadow-2xs shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+              title="Add another light source (Max 3)"
+            >
+              <Icon icon="heroicons:plus-20-solid" className="w-[0.8vw] h-[0.8vw]" />
+              <span>Add Light</span>
+            </button>
+          )}
         </div>
 
-        {/* Compass & Height Card */}
-        <div className="w-full bg-[#fdfdfd] border border-gray-100 rounded-[0.7vw] p-[0.9vw] shadow-xs flex items-center justify-around gap-[0.5vw]">
-          {/* Sun Placement Dial (Compass) */}
+        {/* Clean Light Selector Dropdown & Active Action Bar */}
+        <div className="flex items-center gap-[0.35vw] w-full">
+          {/* Custom Dropdown */}
+          <div className="relative flex-1 min-w-0" ref={lightSelectRef}>
+            <button
+              type="button"
+              onClick={() => setIsLightSelectOpen((prev) => !prev)}
+              className="w-full h-[2.1vw] px-[0.5vw] rounded-[0.45vw] bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 shadow-2xs flex items-center justify-between transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-[0.35vw] min-w-0">
+                <div
+                  className="w-[0.65vw] h-[0.65vw] rounded-full shrink-0 shadow-2xs border border-black/10"
+                  style={{ backgroundColor: activeLight.enabled ? (activeLight.color || "#EC5137") : "#9ca3af" }}
+                />
+                <span className="text-[0.74vw] font-bold text-gray-800 truncate">
+                  Light {activeLightIndex + 1}
+                  <span className="text-[0.65vw] font-medium text-gray-500 ml-[0.25vw]">
+                    ({activeLightIndex === 0 ? "Key" : activeLightIndex === 1 ? "Fill" : "Rim"})
+                  </span>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-[0.2vw] shrink-0 ml-[0.2vw]">
+                {!activeLight.enabled && (
+                  <span className="text-[0.58vw] font-semibold px-[0.25vw] py-[0.02vw] rounded bg-gray-100 text-gray-500">
+                    Off
+                  </span>
+                )}
+                <Icon
+                  icon="heroicons:chevron-up-down-20-solid"
+                  className="w-[0.85vw] h-[0.85vw] text-gray-400 group-hover:text-gray-600 transition-transform"
+                />
+              </div>
+            </button>
+
+            {/* Dropdown Menu Popup */}
+            {isLightSelectOpen && (
+              <div className="absolute top-[108%] left-0 right-0 z-50 bg-white rounded-[0.55vw] border border-gray-200 shadow-xl py-[0.25vw] flex flex-col gap-[0.1vw] animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="px-[0.55vw] py-[0.15vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                  Select Light Source
+                </div>
+
+                {lightsArray.map((light, idx) => {
+                  const isCurrent = activeLightIndex === idx;
+                  const isEnabled = light.enabled !== false;
+                  return (
+                    <div
+                      key={light.id || idx}
+                      onClick={() => {
+                        setActiveLightIndex(idx);
+                        setIsLightSelectOpen(false);
+                      }}
+                      className={`flex items-center justify-between px-[0.55vw] py-[0.35vw] mx-[0.2vw] rounded-[0.35vw] cursor-pointer transition-colors ${
+                        isCurrent
+                          ? "bg-orange-50 text-[#ea543a] font-bold"
+                          : "hover:bg-gray-100/80 text-gray-700 font-medium"
+                      }`}
+                    >
+                      <div className="flex items-center gap-[0.4vw] min-w-0">
+                        <div
+                          className="w-[0.6vw] h-[0.6vw] rounded-full shrink-0 shadow-2xs border border-black/10"
+                          style={{ backgroundColor: isEnabled ? (light.color || "#EC5137") : "#9ca3af" }}
+                        />
+                        <span className="text-[0.72vw] truncate">
+                          Light {idx + 1}
+                          <span className="text-[0.65vw] opacity-70 ml-[0.25vw]">
+                            ({idx === 0 ? "Key" : idx === 1 ? "Fill" : "Rim"})
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-[0.3vw] shrink-0">
+                        <span
+                          className={`text-[0.58vw] font-bold px-[0.3vw] py-[0.05vw] rounded ${
+                            isEnabled
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-200/50"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          {isEnabled ? "ON" : "OFF"}
+                        </span>
+                        {isCurrent && (
+                          <Icon icon="heroicons:check-20-solid" className="w-[0.8vw] h-[0.8vw] text-[#ea543a]" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Add Light button inside dropdown if < 3 */}
+                {lightsArray.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddLight();
+                      setIsLightSelectOpen(false);
+                    }}
+                    className="flex items-center justify-center gap-[0.25vw] mx-[0.2vw] mt-[0.15vw] pt-[0.25vw] pb-[0.2vw] border-t border-gray-100 text-[#ea543a] hover:bg-orange-50/70 rounded-[0.35vw] text-[0.7vw] font-bold transition-colors cursor-pointer"
+                  >
+                    <Icon icon="heroicons:plus-20-solid" className="w-[0.75vw] h-[0.75vw]" />
+                    <span>Add New Light ({lightsArray.length}/3)</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Active Light Toggle ON/OFF Button */}
+          <button
+            type="button"
+            onClick={(e) => handleToggleLightEnabled(activeLightIndex, e)}
+            className={`h-[2.1vw] px-[0.5vw] rounded-[0.45vw] flex items-center gap-[0.2vw] border text-[0.68vw] font-bold transition-all cursor-pointer shrink-0 shadow-2xs ${
+              activeLight.enabled
+                ? "bg-emerald-50 border-emerald-300/80 text-emerald-600 hover:bg-emerald-100"
+                : "bg-gray-100 border-gray-300/80 text-gray-500 hover:bg-gray-200"
+            }`}
+            title={activeLight.enabled ? "Turn Off Light" : "Turn On Light"}
+          >
+            <Icon
+              icon={activeLight.enabled ? "solar:sun-2-bold" : "solar:sun-dim-outline"}
+              className="w-[0.85vw] h-[0.85vw]"
+            />
+            <span>{activeLight.enabled ? "ON" : "OFF"}</span>
+          </button>
+
+          {/* Delete Active Light (only if > 1 light) */}
+          {lightsArray.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => handleRemoveLight(activeLightIndex, e)}
+              className="h-[2.1vw] w-[2.1vw] rounded-[0.45vw] bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 text-gray-400 hover:text-red-500 flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-2xs"
+              title="Delete this light"
+            >
+              <Icon icon="heroicons:trash-20-solid" className="w-[0.85vw] h-[0.85vw]" />
+            </button>
+          )}
+        </div>
+
+        {/* Quick Position Presets (Equal 4-column Grid) */}
+        <div className="grid grid-cols-4 gap-[0.3vw] w-full">
+          <button
+            type="button"
+            onClick={() => updateActiveLight("position", { x: -8, y: 12, z: 12 })}
+            className="py-[0.22vw] px-[0.2vw] rounded-[0.35vw] bg-[#f9fafb] hover:bg-orange-50 hover:text-[#ea543a] hover:border-orange-200 text-gray-600 text-[0.66vw] font-semibold border border-gray-200 shadow-2xs transition-all cursor-pointer text-center truncate"
+            title="Front-Left Key Light"
+          >
+            Front-L
+          </button>
+          <button
+            type="button"
+            onClick={() => updateActiveLight("position", { x: 8, y: 8, z: 10 })}
+            className="py-[0.22vw] px-[0.2vw] rounded-[0.35vw] bg-[#f9fafb] hover:bg-orange-50 hover:text-[#ea543a] hover:border-orange-200 text-gray-600 text-[0.66vw] font-semibold border border-gray-200 shadow-2xs transition-all cursor-pointer text-center truncate"
+            title="Front-Right Fill Light"
+          >
+            Front-R
+          </button>
+          <button
+            type="button"
+            onClick={() => updateActiveLight("position", { x: 0, y: -12, z: 14 })}
+            className="py-[0.22vw] px-[0.2vw] rounded-[0.35vw] bg-[#f9fafb] hover:bg-orange-50 hover:text-[#ea543a] hover:border-orange-200 text-gray-600 text-[0.66vw] font-semibold border border-gray-200 shadow-2xs transition-all cursor-pointer text-center truncate"
+            title="Backlight / Rim Light"
+          >
+            Back Rim
+          </button>
+          <button
+            type="button"
+            onClick={() => updateActiveLight("position", { x: 0, y: 0, z: 25 })}
+            className="py-[0.22vw] px-[0.2vw] rounded-[0.35vw] bg-[#f9fafb] hover:bg-orange-50 hover:text-[#ea543a] hover:border-orange-200 text-gray-600 text-[0.66vw] font-semibold border border-gray-200 shadow-2xs transition-all cursor-pointer text-center truncate"
+            title="Overhead Top Light"
+          >
+            Overhead
+          </button>
+        </div>
+
+        {/* Compass & Sun Height Widget for Active Light */}
+        <div className="bg-[#fafafa] border border-gray-200/90 rounded-[0.6vw] p-[0.7vw] flex items-center justify-around shadow-2xs relative">
+          {/* Compass Disk (2D Plane Position) */}
           <div className="flex flex-col items-center gap-[0.45vw]">
             <div
               ref={compassRef}
@@ -463,40 +764,35 @@ export function LightingPanel({
                 setIsDraggingCompass(true);
                 handleCompassPointer(e);
               }}
-              className="relative w-[8.2vw] h-[8.2vw] rounded-full border border-gray-200/90 flex items-center justify-center cursor-crosshair select-none bg-white shadow-inner"
+              className="relative w-[8.2vw] h-[8.2vw] rounded-full bg-white border border-gray-200 shadow-inner flex items-center justify-center cursor-crosshair select-none overflow-hidden"
             >
-              {/* Outer guide orbit */}
-              <div className="absolute w-[80%] h-[80%] rounded-full border border-amber-200/40 pointer-events-none" />
-              {/* Inner guide orbit */}
-              <div className="absolute w-[44%] h-[44%] rounded-full border border-gray-200/70 pointer-events-none" />
+              {/* Polar Compass Rings */}
+              <div className="absolute inset-[10%] rounded-full border border-gray-100 pointer-events-none" />
+              <div className="absolute inset-[25%] rounded-full border border-gray-100 pointer-events-none" />
+              <div className="absolute inset-[40%] rounded-full border border-gray-100 pointer-events-none" />
 
-              {/* Crosshair lines */}
-              <div className="absolute w-full h-[1px] bg-gray-200/70 pointer-events-none" />
-              <div className="absolute h-full w-[1px] bg-gray-200/70 pointer-events-none" />
+              {/* Cardinal axis crosshairs */}
+              <div className="absolute w-full h-[1px] bg-gray-100 pointer-events-none" />
+              <div className="absolute h-full w-[1px] bg-gray-100 pointer-events-none" />
 
-              {/* Direction Labels */}
-              <span className="absolute top-[0.2vw] text-[0.55vw] font-bold text-gray-400 pointer-events-none">N</span>
-              <span className="absolute bottom-[0.2vw] text-[0.55vw] font-bold text-gray-400 pointer-events-none">S</span>
-              <span className="absolute left-[0.35vw] text-[0.55vw] font-bold text-gray-400 pointer-events-none">W</span>
-              <span className="absolute right-[0.35vw] text-[0.55vw] font-bold text-gray-400 pointer-events-none">E</span>
+              {/* Cardinal direction labels */}
+              <span className="absolute top-[0.25vw] text-[0.55vw] font-bold text-gray-400 select-none pointer-events-none">N</span>
+              <span className="absolute bottom-[0.25vw] text-[0.55vw] font-bold text-gray-400 select-none pointer-events-none">S</span>
+              <span className="absolute right-[0.35vw] text-[0.55vw] font-bold text-gray-400 select-none pointer-events-none">E</span>
+              <span className="absolute left-[0.35vw] text-[0.55vw] font-bold text-gray-400 select-none pointer-events-none">W</span>
 
-              {/* Sun dashed connecting line */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none z-1">
-                <line
-                  x1="50%"
-                  y1="50%"
-                  x2={`${sunCompassX}%`}
-                  y2={`${sunCompassY}%`}
-                  stroke="#ea543a"
-                  strokeWidth="1.2"
-                  strokeDasharray="3 2"
-                  strokeOpacity="0.75"
-                />
-              </svg>
+              {/* Central Ray line towards sun */}
+              <div
+                className="absolute left-1/2 top-1/2 h-[1px] bg-amber-400/80 pointer-events-none origin-left"
+                style={{
+                  width: `${Math.min(100, Math.sqrt((sunCompassX - 50) ** 2 + (sunCompassY - 50) ** 2))}%`,
+                  transform: `rotate(${Math.atan2(sunCompassY - 50, sunCompassX - 50)}rad)`
+                }}
+              />
 
-              {/* Center Model Icon */}
-              <div className="flex flex-col items-center justify-center z-2 pointer-events-none text-gray-600">
-                <Icon icon="f7:cube" className="w-[1.05vw] h-[1.05vw] text-gray-600" />
+              {/* Center Model Node */}
+              <div className="relative z-2 w-[2.2vw] h-[2.2vw] rounded-[0.35vw] bg-white border border-gray-200 shadow-2xs flex flex-col items-center justify-center pointer-events-none">
+                <Icon icon="f7:cube" className="w-[0.9vw] h-[0.9vw] text-gray-600" />
                 <span className="text-[0.44vw] font-bold text-gray-500 tracking-wider">MODEL</span>
               </div>
 
@@ -509,7 +805,7 @@ export function LightingPanel({
               </div>
             </div>
 
-            <span className="text-[0.72vw] font-medium text-gray-500">Sun Placement</span>
+            <span className="text-[0.72vw] font-medium text-gray-500">Placement</span>
           </div>
 
           {/* Sun Height Vertical Slider Track */}
@@ -531,7 +827,7 @@ export function LightingPanel({
               </div>
             </div>
 
-            <span className="text-[0.72vw] font-medium text-gray-500">Sun Height</span>
+            <span className="text-[0.72vw] font-medium text-gray-500">Height</span>
           </div>
         </div>
 
@@ -545,19 +841,19 @@ export function LightingPanel({
             <AxisInput
               axis="X"
               value={posX}
-              onChange={(v) => handleUpdate("lightPosition", { ...lightPos, x: v })}
+              onChange={(v) => updateActiveLight("position", { ...lightPos, x: v })}
               step={1}
             />
             <AxisInput
               axis="Y"
               value={posY}
-              onChange={(v) => handleUpdate("lightPosition", { ...lightPos, y: v })}
+              onChange={(v) => updateActiveLight("position", { ...lightPos, y: v })}
               step={1}
             />
             <AxisInput
               axis="Z"
               value={posZ}
-              onChange={(v) => handleUpdate("lightPosition", { ...lightPos, z: v })}
+              onChange={(v) => updateActiveLight("position", { ...lightPos, z: v })}
               step={1}
             />
           </div>
@@ -590,7 +886,7 @@ export function LightingPanel({
               <div className="absolute z-50 right-[1.2vw] bottom-[4.5vw] bg-white rounded-[0.6vw] shadow-2xl border border-gray-100 p-[0.7vw]">
                 <ColorPicker
                   color={lightColor}
-                  onChange={(c) => handleUpdate("lightColor", c)}
+                  onChange={(c) => updateActiveLight("color", c)}
                   onClose={() => setIsColorPickerOpen(false)}
                 />
               </div>
@@ -598,30 +894,24 @@ export function LightingPanel({
           </div>
         </div>
 
-        {/* Remaining Lighting Sliders */}
+        {/* Sliders for Active Light */}
         <div className="flex flex-col gap-[0.45vw] mt-[0.2vw]">
           <LightingSlider
             label="Light Intensity"
             value={lightIntensity}
-            onChange={(val) => handleUpdate("lightIntensity", val)}
+            onChange={(val) => updateActiveLight("intensity", val)}
             unit="%"
           />
           <LightingSlider
             label="Shadow Density"
             value={shadowDensity}
-            onChange={(val) => {
-              handleUpdate("shadowDensity", val);
-              handleUpdate("shadow", val);
-            }}
+            onChange={(val) => updateActiveLight("shadowDensity", val)}
             unit="%"
           />
           <LightingSlider
             label="Shadow Softness"
             value={shadowSoftness}
-            onChange={(val) => {
-              handleUpdate("shadowSoftness", val);
-              handleUpdate("softness", val);
-            }}
+            onChange={(val) => updateActiveLight("shadowSoftness", val)}
             unit="%"
           />
         </div>

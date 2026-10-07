@@ -6,7 +6,8 @@
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_BUCKET = import.meta.env.VITE_SUPABASE_BUCKET || 'uploads';
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const rawBackend = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const BACKEND_URL = rawBackend.replace(/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, 'http://$1$2');
 
 /**
  * Build the CDN base URL for a flipbook's folder.
@@ -76,6 +77,9 @@ export function resolveUploadsPath(path) {
     const slash = cleanPath.startsWith('/') ? '' : '/';
     return `${BACKEND_URL}${slash}${cleanPath}`;
   }
+
+  // Enforce http (not https) for localhost or 127.0.0.1 to avoid ERR_SSL_PROTOCOL_ERROR
+  cleanPath = cleanPath.replace(/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, 'http://$1$2');
 
   // If it's already a full external URL (like direct supabase or http/https URL), return it directly
   if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {

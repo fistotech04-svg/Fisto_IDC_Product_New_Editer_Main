@@ -123,10 +123,13 @@ export function ModelPanel({
     e.target.value = "";
   };
 
-  // Check if a model, mesh, or material is selected
-  const hasSelection = Boolean(
+  // Check if a specific material or mesh is selected (hide on initial model load, model selection, or folder group selection)
+  const isMaterialSelected = Boolean(
     selectedMaterial &&
-    (typeof selectedMaterial === "string" ? selectedMaterial.trim() !== "" : true)
+    typeof selectedMaterial === "object" &&
+    !selectedMaterial.isModel &&
+    !selectedMaterial.isGroup &&
+    (selectedMaterial.isMesh === true || Boolean(selectedMaterial.meshUuid) || Boolean(selectedMaterial.uuid))
   );
 
   return (
@@ -230,7 +233,7 @@ export function ModelPanel({
       </div>
 
       {/* ── 2. MATERIAL & 3. TEXTURE PLACEMENT SECTIONS (Only show when a model/mesh/material is selected) ── */}
-      {hasSelection && (
+      {isMaterialSelected && (
         <>
           {/* ── 2. MATERIAL SECTION ── */}
           <div className="flex flex-col gap-[0.75vw]">

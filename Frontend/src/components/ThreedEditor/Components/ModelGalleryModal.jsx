@@ -208,6 +208,8 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
     const navigate = useNavigate();
     const { modelId: urlModelId } = useParams();
     const [models, setModels] = useState([]);
+    const [defaultModels, setDefaultModels] = useState([]);
+    const [activeTab, setActiveTab] = useState("all"); // 'all' | 'my' | 'default'
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedModel, setSelectedModel] = useState(null);
@@ -228,7 +230,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
     const isModelInUse = useCallback((model) => {
         if (!model) return false;
         const galleryName = (model.name || '').replace(/\.[^/.]+$/, '').toLowerCase();
-        const galleryId = model.modelId ? String(model.modelId) : null;
+        const galleryId = model.modelId ? String(model.modelId) : (model.id ? String(model.id) : null);
 
         // 1. Check against active URL model ID
         if (galleryId && urlModelId && galleryId === String(urlModelId)) {
@@ -253,7 +255,6 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, data: null });
 
     useEffect(() => {
-
         if (isOpen) {
             fetchModels();
         }
@@ -262,15 +263,36 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
     const fetchModels = async () => {
         try {
             setLoading(true);
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
             const storedUser = localStorage.getItem('user');
+            
+            const promises = [
+                axios.get(`${backendUrl}/api/presets/models`).catch(() => ({ data: { models: [] } }))
+            ];
+            
             if (storedUser) {
                 const user = JSON.parse(storedUser);
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                const response = await axios.get(`${backendUrl}/api/3d-models/get-models`, {
-                    params: { emailId: user.emailId }
-                });
-                setModels(response.data.models || []);
+                promises.push(
+                    axios.get(`${backendUrl}/api/3d-models/get-models`, {
+                        params: { emailId: user.emailId }
+                    }).catch(() => ({ data: { models: [] } }))
+                );
             }
+
+            const [presetRes, userRes] = await Promise.all(promises);
+
+            const fetchedDefaults = (presetRes.data?.models || []).map(m => ({
+                ...m,
+                isDefault: true,
+                modelId: m.id || m.modelId
+            }));
+            setDefaultModels(fetchedDefaults);
+
+            const userModels = (userRes?.data?.models || []).map(m => ({
+                ...m,
+                isDefault: false
+            }));
+            setModels(userModels);
         } catch (error) {
             console.error("Failed to fetch models:", error);
         } finally {
@@ -280,10 +302,19 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
 
     if (!isOpen) return null;
 
-    const filteredModels = models.filter(m => 
-        m.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
-        (m.type?.toLowerCase() === 'glb' || m.url?.toLowerCase().endsWith('.glb'))
-    );
+    const allCombinedModels = useMemo(() => {
+        if (activeTab === "default") return defaultModels;
+        if (activeTab === "my") return models;
+        return [...defaultModels, ...models];
+    }, [activeTab, defaultModels, models]);
+
+    const filteredModels = useMemo(() => {
+        return allCombinedModels.filter(m => 
+            (m.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+             m.category?.toLowerCase().includes(searchQuery.toLowerCase())) && 
+            (m.type?.toLowerCase() === 'glb' || m.url?.toLowerCase().endsWith('.glb'))
+        );
+    }, [allCombinedModels, searchQuery]);
 
     const handleReplaceClick = () => {
         if (!selectedModel) return;
@@ -393,10 +424,39 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
         <div className="fixed top-[8vh] left-0 right-0 bottom-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-300">
             <div className="bg-white w-[70vw] h-[40vw] max-h-[85vh] rounded-[0.75vw] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* Header Section */}
-                <div className="p-[1.5vw] pb-[1vw] flex items-start justify-between">
+                <div className="p-[1.5vw] pb-[0.8vw] flex items-start justify-between">
                     <div>
-                        <h2 className="text-[1.35vw] font-bold text-gray-800 tracking-tight">3D Model Gallery</h2>
-                        <p className="text-[0.75vw] text-gray-500 mt-[0.2vw] font-medium">Select a professional popup design to get start</p>
+                        <div className="flex items-center gap-[1vw]">
+                            <h2 className="text-[1.35vw] font-bold text-gray-800 tracking-tight">3D Model Gallery</h2>
+                            {/* Gallery Source Tabs */}
+                            <div className="flex items-center bg-gray-100 p-[0.2vw] rounded-full text-[0.75vw] font-semibold">
+                                <button
+                                    onClick={() => setActiveTab("all")}
+                                    className={`px-[0.8vw] py-[0.25vw] rounded-full transition-all cursor-pointer ${
+                                        activeTab === "all" ? "bg-white text-gray-900 shadow-xs font-bold" : "text-gray-500 hover:text-gray-800"
+                                    }`}
+                                >
+                                    All ({defaultModels.length + models.length})
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("default")}
+                                    className={`px-[0.8vw] py-[0.25vw] rounded-full transition-all cursor-pointer ${
+                                        activeTab === "default" ? "bg-white text-[#ea543a] shadow-xs font-bold" : "text-gray-500 hover:text-gray-800"
+                                    }`}
+                                >
+                                    Default Presets ({defaultModels.length})
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("my")}
+                                    className={`px-[0.8vw] py-[0.25vw] rounded-full transition-all cursor-pointer ${
+                                        activeTab === "my" ? "bg-white text-gray-900 shadow-xs font-bold" : "text-gray-500 hover:text-gray-800"
+                                    }`}
+                                >
+                                    My Models ({models.length})
+                                </button>
+                            </div>
+                        </div>
+                        <p className="text-[0.75vw] text-gray-500 mt-[0.2vw] font-medium">Select a default preset model or your custom uploaded models</p>
                     </div>
                     <div className="flex items-center gap-[0.75vw] pt-[0.25vw]">
                         {filteredModels.length > 0 && selectedForDeletion.length < filteredModels.length && !hideDelete && (
@@ -480,14 +540,21 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
 
                                         {/* Status / Type Badge */}
                                         <div 
-                                            className="absolute top-[0.4vw] left-[0.4vw] px-[0.5vw] py-[0.2vw] bg-white/95 backdrop-blur-md rounded-[0.3vw] shadow-sm border border-gray-200 flex items-center justify-center"
+                                            className="absolute top-[0.4vw] left-[0.4vw] flex items-center gap-[0.3vw]"
                                             style={{ zIndex: 130 }}
                                         >
-                                            <span className="text-[0.6vw] font-bold text-gray-700 uppercase tracking-wide leading-none">{model.type?.replace('.', '') || '3D'}</span>
+                                            <div className="px-[0.5vw] py-[0.2vw] bg-white/95 backdrop-blur-md rounded-[0.3vw] shadow-sm border border-gray-200 flex items-center justify-center">
+                                                <span className="text-[0.6vw] font-bold text-gray-700 uppercase tracking-wide leading-none">{model.type?.replace('.', '') || '3D'}</span>
+                                            </div>
+                                            {model.isDefault && (
+                                                <div className="px-[0.4vw] py-[0.2vw] bg-[#ea543a] text-white rounded-[0.3vw] shadow-sm flex items-center justify-center">
+                                                    <span className="text-[0.55vw] font-bold uppercase tracking-wide leading-none">Preset</span>
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* Single Delete Trash Icon - Only on Hover */}
-                                        {selectedForDeletion.length === 0 && !hideDelete && (
+                                        {/* Single Delete Trash Icon - Only for user-uploaded models */}
+                                        {selectedForDeletion.length === 0 && !hideDelete && !model.isDefault && (
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -504,8 +571,8 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hide
                                             </button>
                                         )}
 
-                                        {/* Selection Checkbox */}
-                                        {!hideDelete && (
+                                        {/* Selection Checkbox - Only for user-uploaded models */}
+                                        {!hideDelete && !model.isDefault && (
                                             <div 
                                                 className="absolute top-[0.4vw] right-[2.2vw] z-[135] cursor-pointer p-[0.2vw]"
                                                 onClick={(e) => {

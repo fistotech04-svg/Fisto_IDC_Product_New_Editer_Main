@@ -274,6 +274,17 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
         <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
           {isThreedEditor ? (
             <>
+              {/* Admin Preset Management Button */}
+              <button
+                type="button"
+                onClick={() => confirmNavigation('/admin/presets')}
+                className="flex items-center gap-[0.4vw] font-semibold text-[0.82vw] bg-white hover:bg-gray-50 text-gray-700 hover:text-[#ea543a] px-[0.85vw] py-[0.45vw] rounded-full border border-gray-200/90 hover:border-[#ea543a]/40 shadow-2xs transition-all cursor-pointer active:scale-98"
+                title="Manage Preset Materials & HDRIs"
+              >
+                <Icon icon="solar:shield-star-bold" className="w-[1.15vw] h-[1.15vw] text-[#ea543a] shrink-0" />
+                <span>Admin Presets</span>
+              </button>
+
               {/* Saved / Unsaved Status Badge */}
               <div className={`flex items-center gap-[0.45vw] font-semibold text-[0.82vw] bg-white px-[0.85vw] py-[0.4vw] rounded-full border shadow-2xs transition-colors ${
                 hasUnsavedChanges ? "text-amber-700 border-amber-300/80 bg-amber-50/40" : "text-gray-700 border-gray-300"

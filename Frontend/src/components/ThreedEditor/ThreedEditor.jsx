@@ -100,6 +100,10 @@ export default function ThreedEditor() {
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [isMaterialDrawerOpen, setIsMaterialDrawerOpen] = useState(false);
   const [activeLeftTab, setActiveLeftTab] = useState("model");
+  const activeLeftTabRef = useRef(activeLeftTab);
+  useEffect(() => {
+    activeLeftTabRef.current = activeLeftTab;
+  }, [activeLeftTab]);
   const [cameraViewMode, setCameraViewMode] = useState("Perspective");
   const [isShades, setIsShades] = useState(true);
   const [navMode, setNavMode] = useState("orbit");
@@ -362,7 +366,7 @@ export default function ThreedEditor() {
   const [cameraBgType, setCameraBgType] = useState("solid");
   const [cameraBgColor, setCameraBgColor] = useState("#FFFFFF");
   const [cameraBgOpacity, setCameraBgOpacity] = useState(100);
-  const [selectedFrameId, setSelectedFrameId] = useState("frame_2_1_a");
+  const [selectedFrameId, setSelectedFrameId] = useState("frame_full_hd");
   const [savedCameraAngles, setSavedCameraAngles] = useState([]);
 
   const handleChangeCameraPosition = useCallback((axis, val) => {
@@ -2133,6 +2137,11 @@ export default function ThreedEditor() {
   }, [commitHistoryNow, buildSnapshot, getMaterialTargetKeys]);
 
   const handleSelectMaterial = useCallback((val) => {
+    // When in Lighting or Camera tab, do not allow selecting materials or meshes
+    if (activeLeftTabRef.current === "lighting" || activeLeftTabRef.current === "camera") {
+      return;
+    }
+
     setSelectedTexture(null);
 
     const target = typeof val === 'object' ? { ...val } : { name: val };
@@ -2597,7 +2606,13 @@ export default function ThreedEditor() {
       <div className="flex flex-1 overflow-hidden relative w-full h-full bg-[#1e2025]">
         <LeftSidebar
           activeTab={activeLeftTab}
-          onSelectTab={setActiveLeftTab}
+          onSelectTab={(tab) => {
+            setActiveLeftTab(tab);
+            if (tab === "lighting" || tab === "camera") {
+              setSelectedMaterial(null);
+              setSelectedTexture(null);
+            }
+          }}
           modelName={modelName}
           onRenameModel={handleRename}
           fileSize={combinedStats?.fileSize || modelStats?.fileSize || "18MB"}
@@ -2754,68 +2769,41 @@ export default function ThreedEditor() {
             )}
 
             {/* 3D Scene Viewport */}
-            {/* Camera Viewfinder Overlay */}
+            {/* Camera Viewfinder Overlay (Clean Opacity Vignette Mask without loud orange dots) */}
             {activeLeftTab === "camera" && (() => {
               const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
               if (!activeFrame || !activeFrame.aspect) return null;
-              const isWide = activeFrame.aspect >= 1;
+              const isSquare = activeFrame.aspect === 1;
+              const isWide = activeFrame.aspect > 1;
               return (
-                <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 pb-[4.5vw] pointer-events-none z-20 flex items-center justify-center overflow-hidden">
                   <div
-                    className="relative border-2 border-dashed border-[#EC5137]/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)] transition-all duration-300 rounded-[0.35vw]"
+                    className="relative border border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] transition-all duration-300 rounded-[0.4vw]"
                     style={{
-                      width: isWide ? "min(84%, 84vh)" : `calc(min(76vh, 76%) * ${activeFrame.aspect})`,
-                      height: isWide ? `calc(min(84%, 84vh) / ${activeFrame.aspect})` : "min(76vh, 76%)",
-                      maxHeight: "82%",
-                      maxWidth: "88%",
+                      width: isSquare
+                        ? "min(72vh, 72%, 72vw)"
+                        : isWide
+                        ? "min(94%, 90vw)"
+                        : `calc(min(84vh, 84%) * ${activeFrame.aspect})`,
+                      height: isSquare
+                        ? "min(72vh, 72%, 72vw)"
+                        : isWide
+                        ? `calc(min(94%, 90vw) / ${activeFrame.aspect})`
+                        : "min(84vh, 84%)",
+                      maxHeight: isSquare ? "72vh" : "84%",
+                      maxWidth: isSquare ? "72vh" : "94%",
                     }}
                   >
-                    {/* Viewfinder corner brackets */}
-                    <div className="absolute -top-[2px] -left-[2px] w-[0.8vw] h-[0.8vw] border-t-2 border-l-2 border-[#EC5137]" />
-                    <div className="absolute -top-[2px] -right-[2px] w-[0.8vw] h-[0.8vw] border-t-2 border-r-2 border-[#EC5137]" />
-                    <div className="absolute -bottom-[2px] -left-[2px] w-[0.8vw] h-[0.8vw] border-b-2 border-l-2 border-[#EC5137]" />
-                    <div className="absolute -bottom-[2px] -right-[2px] w-[0.8vw] h-[0.8vw] border-b-2 border-r-2 border-[#EC5137]" />
-
-                    {/* Viewfinder ratio tag */}
-                    <div className="absolute top-[0.45vw] left-[0.55vw] bg-black/60 text-white text-[0.68vw] font-mono font-medium px-[0.45vw] py-[0.18vw] rounded backdrop-blur-xs select-none">
-                      {activeFrame.ratio} {activeFrame.label ? `• ${activeFrame.label}` : ""}
+                    {/* Viewfinder ratio badge */}
+                    <div className="absolute top-[0.5vw] left-[0.6vw] bg-black/70 text-white text-[0.68vw] font-semibold px-[0.5vw] py-[0.18vw] rounded-[0.3vw] backdrop-blur-xs select-none shadow-sm">
+                      {activeFrame.name || activeFrame.ratio} ({activeFrame.ratio})
                     </div>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Save Current Angle Floating Button */}
-            {activeLeftTab === "camera" && (
-              <div className="absolute bottom-[1.2vw] right-[1.2vw] z-30 pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
-                    const snapUrl = await handleCaptureSnapshot({
-                      bgType: cameraBgType,
-                      solidColor: cameraBgColor,
-                      bgOpacity: cameraBgOpacity,
-                      aspectRatio: activeFrame?.aspect || null
-                    });
-                    if (snapUrl) {
-                      setSavedCameraAngles((prev) => [
-                        ...prev,
-                        {
-                          id: 'snap_' + Date.now(),
-                          title: activeFrame?.ratio ? `${activeFrame.ratio} Angle` : `Angle ${prev.length + 1}`,
-                          dataUrl: snapUrl,
-                        },
-                      ]);
-                    }
-                  }}
-                  className="flex items-center gap-[0.55vw] px-[1.1vw] py-[0.58vw] bg-[#17202C] hover:bg-[#253243] text-white rounded-[0.5vw] shadow-lg border border-[#17202C] text-[0.8vw] font-semibold transition-all cursor-pointer active:scale-95 group"
-                >
-                  <Icon icon="hugeicons:tick-02" className="w-[1.15vw] h-[1.15vw] text-white group-hover:scale-110 transition-transform" />
-                  <span>Save Current Angle</span>
-                </button>
-              </div>
-            )}
+
 
             <ThreedCanvasViewport
               models={models}
@@ -2886,23 +2874,43 @@ export default function ThreedEditor() {
               cameraBgType={cameraBgType}
               cameraBgColor={cameraBgColor}
             />
-          </div>
 
-          {/* Camera Saved Angles Bottom Tray */}
-          {activeLeftTab === "camera" && (
-            <CameraBottomTray
-              snapshots={savedCameraAngles}
-              onDeleteSnapshot={(id) => {
-                setSavedCameraAngles((prev) => prev.filter((s) => s.id !== id));
-              }}
-              onRenameSnapshot={(id, newTitle) => {
-                setSavedCameraAngles((prev) =>
-                  prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
-                );
-              }}
-              modelName={modelName}
-            />
-          )}
+            {/* Camera Saved Angles Bottom Tray (Overlay positioned inside viewport) */}
+            {activeLeftTab === "camera" && (
+              <CameraBottomTray
+                snapshots={savedCameraAngles}
+                onDeleteSnapshot={(id) => {
+                  setSavedCameraAngles((prev) => prev.filter((s) => s.id !== id));
+                }}
+                onRenameSnapshot={(id, newTitle) => {
+                  setSavedCameraAngles((prev) =>
+                    prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
+                  );
+                }}
+                onCaptureSnapshot={async () => {
+                  const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
+                  const snapUrl = await handleCaptureSnapshot({
+                    bgType: cameraBgType,
+                    solidColor: cameraBgColor,
+                    bgOpacity: cameraBgOpacity,
+                    aspectRatio: activeFrame?.aspect || null
+                  });
+                  if (snapUrl) {
+                    setSavedCameraAngles((prev) => [
+                      ...prev,
+                      {
+                        id: 'snap_' + Date.now(),
+                        title: activeFrame?.ratio ? `${activeFrame.ratio} Angle` : `Angle ${prev.length + 1}`,
+                        dataUrl: snapUrl,
+                      },
+                    ]);
+                  }
+                }}
+                isCapturing={isCapturing}
+                modelName={modelName}
+              />
+            )}
+          </div>
         </div>
 
         {/* Right Settings Panel (Model / Materials / Environment / Hotspots) */}
@@ -3032,6 +3040,8 @@ export default function ThreedEditor() {
           isOpen={showAddModelModal}
           onClose={() => setShowAddModelModal(false)}
           onAdd={handleAddModel}
+          onSelectModel={handleSelectGalleryModel}
+          loadedModels={models}
         />
       )}
 
@@ -3076,7 +3086,7 @@ export default function ThreedEditor() {
         />
       )}
 
-      <SaveAsModal
+            <SaveAsModal
         isOpen={showSaveAsModal}
         onClose={() => setShowSaveAsModal(false)}
         saveAsNameInput={saveAsNameInput}

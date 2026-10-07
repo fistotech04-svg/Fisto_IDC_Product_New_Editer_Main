@@ -1144,7 +1144,7 @@ export const textureData = [
 let cachedMaterials = [...textureData];
 let isFetchingMaterials = false;
 
-export const fetchMaterials = async () => {
+export const fetchMaterials = async (forceRefresh = false) => {
   if (isFetchingMaterials) return cachedMaterials;
   isFetchingMaterials = true;
   try {

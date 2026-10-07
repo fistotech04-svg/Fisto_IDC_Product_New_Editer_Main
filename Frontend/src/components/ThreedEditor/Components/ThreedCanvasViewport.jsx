@@ -116,23 +116,54 @@ export default function ThreedCanvasViewport({
             <color attach="background" args={['#1e2025']} />
           )}
 
-          <ambientLight intensity={0.4 + (100 - (materialSettings.shadowDensity ?? materialSettings.shadow ?? 50)) / 250} />
+                    {/* Dynamic Multi-Light Setup */}
+          <ambientLight intensity={0.35 + (100 - (materialSettings.shadowDensity ?? materialSettings.shadow ?? 50)) / 280} />
 
-          <DirectionalSunLight
-            position={[sunX, sunY, sunZ]}
-            specular={materialSettings.specular}
-            softness={materialSettings.softness ?? materialSettings.shadowSoftness ?? 50}
-            color={materialSettings.lightColor || "#ffffff"}
-            intensity={materialSettings.lightIntensity ?? 100}
-            shadowDensity={materialSettings.shadowDensity ?? materialSettings.shadow ?? 100}
-          />
+          {(Array.isArray(materialSettings.lights) && materialSettings.lights.length > 0
+            ? materialSettings.lights
+            : [
+                {
+                  id: "light_1",
+                  enabled: true,
+                  position: materialSettings.lightPosition || { x: 10, y: 10, z: 10 },
+                  color: materialSettings.lightColor || "#ffffff",
+                  intensity: materialSettings.lightIntensity ?? 100,
+                  shadowDensity: materialSettings.shadowDensity ?? materialSettings.shadow ?? 100,
+                  shadowSoftness: materialSettings.shadowSoftness ?? materialSettings.softness ?? 50,
+                  castShadow: true,
+                }
+              ]
+          ).map((light, lIdx) => {
+            if (!light.enabled) return null;
+            const lRawX = light.position?.x ?? (lIdx === 0 ? 10 : -8);
+            const lRawY = light.position?.y ?? (lIdx === 0 ? 10 : 8);
+            const lRawZ = light.position?.z ?? (lIdx === 0 ? 10 : 10);
 
-          <directionalLight
-            position={[-sunX * 0.4, Math.max(sunY * 0.6, 4), -sunZ * 0.4]}
-            intensity={0.35 * ((materialSettings.lightIntensity ?? 100) / 100)}
-            color={materialSettings.lightColor || "#ffffff"}
-            castShadow={false}
-          />
+            const lSunX = Math.abs(lRawX) < 0.001 && Math.abs(lRawY) < 0.001 ? 0.01 : lRawX;
+            const lSunY = Math.max(1.5, lRawZ);
+            const lSunZ = -(Math.abs(lRawX) < 0.001 && Math.abs(lRawY) < 0.001 ? 0.01 : lRawY);
+
+            return (
+              <React.Fragment key={light.id || lIdx}>
+                <DirectionalSunLight
+                  position={[lSunX, lSunY, lSunZ]}
+                  specular={materialSettings.specular}
+                  softness={light.shadowSoftness ?? 50}
+                  color={light.color || "#ffffff"}
+                  intensity={light.intensity ?? 100}
+                  shadowDensity={lIdx === 0 || light.castShadow ? (light.shadowDensity ?? 100) : 0}
+                />
+
+                {/* Soft auxiliary fill bounce per active light */}
+                <directionalLight
+                  position={[-lSunX * 0.4, Math.max(lSunY * 0.5, 3), -lSunZ * 0.4]}
+                  intensity={0.25 * ((light.intensity ?? 100) / 100)}
+                  color={light.color || "#ffffff"}
+                  castShadow={false}
+                />
+              </React.Fragment>
+            );
+          })}
 
           <Suspense fallback={null}>
             <group ref={sceneWrapperRef}>

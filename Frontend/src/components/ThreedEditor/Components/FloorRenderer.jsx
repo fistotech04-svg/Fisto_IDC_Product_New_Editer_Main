@@ -311,7 +311,7 @@ export default function FloorRenderer({
       )}
 
       {/* ─── 2. REFLECTIVE MESH FLOORS (Glass, Crystals, Marble, Checkerboard, Wood, Carbon, Cyber) ─── */}
-      {isGlassLike && (
+      {isGlassLike && activeLeftTab !== "camera" && (
         <>
           <mesh
             rotation={[-Math.PI / 2, 0, 0]}
@@ -357,7 +357,7 @@ export default function FloorRenderer({
       )}
 
       {/* ─── 3. BACKLIT LIGHTBOX PLATFORM ─── */}
-      {currentFloorType === "lightbox" && (
+      {currentFloorType === "lightbox" && activeLeftTab !== "camera" && (
         <>
           <mesh
             rotation={[-Math.PI / 2, 0, 0]}
@@ -386,7 +386,7 @@ export default function FloorRenderer({
       )}
 
       {/* ─── 4. STUDIO SPOTLIGHT PEDESTAL ─── */}
-      {(currentFloorType === "studio" || currentFloorType === "studio_pedestal") && (
+      {(currentFloorType === "studio" || currentFloorType === "studio_pedestal") && activeLeftTab !== "camera" && (
         <>
           <mesh
             rotation={[-Math.PI / 2, 0, 0]}
@@ -415,7 +415,7 @@ export default function FloorRenderer({
       )}
 
       {/* ─── 5. INFINITE CYCLORAMA COVE (Studio Cyc Wall) ─── */}
-      {currentFloorType === "cyclorama" && (
+      {currentFloorType === "cyclorama" && activeLeftTab !== "camera" && (
         <>
           <mesh
             rotation={[-Math.PI / 2, 0, 0]}
@@ -435,7 +435,7 @@ export default function FloorRenderer({
       )}
 
       {/* ─── 6. SOLID MATTE STUDIO FLOOR / BRUSHED STEEL ─── */}
-      {(currentFloorType === "solid" || currentFloorType === "brushed_metal") && (
+      {(currentFloorType === "solid" || currentFloorType === "brushed_metal") && activeLeftTab !== "camera" && (
         <>
           <mesh
             rotation={[-Math.PI / 2, 0, 0]}
@@ -469,10 +469,10 @@ export default function FloorRenderer({
         receiveShadow
         onClick={handleClick}
       >
-        <planeGeometry args={[120, 120]} />
+        <planeGeometry args={[500, 500]} />
         <shadowMaterial
           transparent
-          opacity={isGlassLike ? shadowOpacity * 0.45 : shadowOpacity}
+          opacity={isGlassLike && activeLeftTab !== "camera" ? shadowOpacity * 0.45 : shadowOpacity}
           depthWrite={false}
           polygonOffset
           polygonOffsetFactor={1}
