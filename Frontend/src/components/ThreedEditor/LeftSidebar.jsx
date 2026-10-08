@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
 
@@ -121,7 +121,8 @@ export default function LeftSidebar({
         if (selectedMaterial.id && selectedMaterial.id === item.id) return true;
         if (selectedMaterial.modelId && selectedMaterial.modelId === item.id) return true;
 
-        // Priority 2: parentGroup match (if parentGroup matches item.id or item.name)
+        // Priority 2: parentGroup or modelName match
+        if (selectedMaterial.modelName && selectedMaterial.modelName === item.name) return true;
         if (selectedMaterial.parentGroup) {
           if (selectedMaterial.parentGroup === item.id || selectedMaterial.parentGroup === item.name) {
             return true;
@@ -395,13 +396,23 @@ export default function LeftSidebar({
                       selectedMaterial={selectedMaterial}
                       hiddenMaterials={hiddenMaterials}
                       xrayMaterials={xrayMaterials}
-                      onSelect={onSelectMaterial}
+                      onSelect={(sel) => {
+                        if (typeof onSelectMaterial === "function") {
+                          onSelectMaterial({
+                            ...sel,
+                            modelId: item.id,
+                            modelName: item.name || displayName,
+                            parentGroup: sel?.parentGroup || item.name || displayName
+                          });
+                        }
+                      }}
                       onToggleVisibility={onToggleVisibility}
                       onToggleXray={onToggleXray}
                       onDeleteMaterial={onDeleteMaterial}
                       onDeleteModel={onDeleteModel}
                       onRenameMaterial={onRenameMaterial}
                       modelName={displayName}
+                      modelId={item.id}
                     />
                   </div>
                 )}

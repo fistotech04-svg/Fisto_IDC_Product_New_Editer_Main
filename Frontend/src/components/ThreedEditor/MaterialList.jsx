@@ -28,11 +28,13 @@ const cleanDisplayName = (name) => {
 
 // --- Object & Mesh Hierarchy Builder ---
 // Normalizes and structures 3D models so Objects/Groups are Folders, and Meshes are nested inside
-const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
+const buildObjectTree = (rawMaterials, fallbackModelName = "Model", fallbackModelId = null) => {
     if (!rawMaterials || !Array.isArray(rawMaterials) || rawMaterials.length === 0) return [];
 
     const formatNode = (node, parentGroup = "") => {
         if (!node) return null;
+
+        const nodeModelId = node.modelId || fallbackModelId;
 
         // String primitive (legacy fallback)
         if (typeof node === "string") {
@@ -45,7 +47,8 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
                 isGroup: false,
                 material: str,
                 materials: [str],
-                parentGroup: toSafeString(parentGroup, fallbackModelName)
+                parentGroup: toSafeString(parentGroup, fallbackModelName),
+                modelId: nodeModelId
             };
         }
 
@@ -93,7 +96,8 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
                 meshNames: Array.from(descendantMeshNames),
                 uuids: Array.from(descendantUuids),
                 children: formattedChildren,
-                parentGroup: toSafeString(parentGroup, fallbackModelName)
+                parentGroup: toSafeString(parentGroup, fallbackModelName),
+                modelId: nodeModelId
             };
         }
 
@@ -113,13 +117,15 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
             isGroup: false,
             material: primaryMat || nodeName,
             materials: Array.isArray(node.materials) ? node.materials.map(m => toSafeString(m)).filter(Boolean) : (primaryMat ? [primaryMat] : []),
-            parentGroup: toSafeString(parentGroup, fallbackModelName)
+            parentGroup: toSafeString(parentGroup, fallbackModelName),
+            modelId: nodeModelId
         };
     };
 
     const formatted = rawMaterials.map(item => {
         if (item && typeof item === "object" && Array.isArray(item.tree)) {
             const modelTitle = toSafeString(item.group || item.name, fallbackModelName);
+            const itemModelId = item.id || fallbackModelId;
 
             // Unwrap single generic wrapper nodes (e.g. RootNode -> meshes) if redundant
             let treeToProcess = item.tree;
@@ -156,7 +162,8 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
                 materials: Array.from(descendantMats),
                 meshNames: Array.from(descendantMeshNames),
                 children: children,
-                parentGroup: fallbackModelName
+                parentGroup: fallbackModelName,
+                modelId: itemModelId
             };
         }
         return formatNode(item, fallbackModelName);
@@ -182,7 +189,8 @@ const buildObjectTree = (rawMaterials, fallbackModelName = "Model") => {
             materials: Array.from(descendantMats),
             meshNames: Array.from(descendantMeshNames),
             children: formatted,
-            parentGroup: rootTitle
+            parentGroup: rootTitle,
+            modelId: fallbackModelId
         }];
     }
 
@@ -243,7 +251,8 @@ const TreeItem = ({
     onRename,
     searchTerm = "",
     forceExpand = null,
-    modelName = "Model"
+    modelName = "Model",
+    modelId = null
 }) => {
     const [isOpen, setIsOpen] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
@@ -298,8 +307,15 @@ const TreeItem = ({
             return true;
         }
 
+        // Check model ID if both selection and node have it
+        const selModelId = selectedMaterial.modelId || selectedMaterial.id;
+        const currentModelId = node.modelId || modelId;
+        if (selModelId && currentModelId && selModelId !== currentModelId) {
+            return false;
+        }
+
         // Verify model affiliation if parentGroup or modelName is specified
-        if (selectedMaterial.parentGroup && node.parentGroup) {
+        if (selectedMaterial.parentGroup && node.parentGroup && !selModelId) {
             if (selectedMaterial.parentGroup !== node.parentGroup && selectedMaterial.parentGroup !== modelName) {
                 return false;
             }
@@ -448,6 +464,8 @@ const TreeItem = ({
                             meshNames: node.meshNames || [],
                             uuids: node.uuids || [],
                             parentGroup: node.parentGroup || modelName,
+                            modelId: node.modelId || modelId,
+                            modelName: modelName,
                             isShift: e.shiftKey
                         });
                     }}
@@ -542,6 +560,7 @@ const TreeItem = ({
                                 searchTerm={searchTerm}
                                 forceExpand={forceExpand}
                                 modelName={modelName}
+                                modelId={node.modelId || modelId}
                             />
                         ))}
                     </div>
@@ -562,6 +581,8 @@ const TreeItem = ({
                     meshUuid: toSafeString(node.meshUuid || node.id, displayName),
                     material: toSafeString(node.material, displayName),
                     parentGroup: toSafeString(node.parentGroup, modelName),
+                    modelId: node.modelId || modelId,
+                    modelName: modelName,
                     isMesh: true,
                     isShift: e.shiftKey
                 });
@@ -629,6 +650,7 @@ export default function MaterialList({
     selectedMaterial,
     onSelect,
     modelName,
+    modelId = null,
     onToggleVisibility,
     onToggleXray,
     onDeleteMaterial,
@@ -644,8 +666,8 @@ export default function MaterialList({
 
     // Build structured Object -> Mesh folder hierarchy
     const objectTree = useMemo(() => {
-        return buildObjectTree(materials, safeModelName);
-    }, [materials, safeModelName]);
+        return buildObjectTree(materials, safeModelName, modelId);
+    }, [materials, safeModelName, modelId]);
 
     // Filter tree according to search term
     const filteredTree = useMemo(() => {
@@ -745,6 +767,7 @@ export default function MaterialList({
                                         searchTerm={searchTerm}
                                         forceExpand={forceExpand}
                                         modelName={safeModelName}
+                                        modelId={modelId}
                                     />
                                 ))}
                             </div>
@@ -871,6 +894,7 @@ export default function MaterialList({
                                         searchTerm={searchTerm}
                                         forceExpand={forceExpand}
                                         modelName={safeModelName}
+                                        modelId={modelId}
                                     />
                                 ))}
                             </div>

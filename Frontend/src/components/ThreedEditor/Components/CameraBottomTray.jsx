@@ -172,14 +172,38 @@ export default function CameraBottomTray({
   };
 
   // Helper to render image with the card title badge burned onto the export
-  const renderSnapshotWithTitle = async (snap, format = "png") => {
+  const renderSnapshotWithTitle = async (snap, format = "png", exportQuality = quality) => {
     const img = await loadImage(snap.dataUrl);
-    const w = img.naturalWidth || 1920;
-    const h = img.naturalHeight || 1080;
+    let origW = img.naturalWidth || 1920;
+    let origH = img.naturalHeight || 1080;
+
+    // Quality target pixel bounds
+    const qualityScaleMap = {
+      Low: 1920,
+      Medium: 2560,
+      High: 3840,
+      Ultra: 4096,
+    };
+    const targetDim = qualityScaleMap[exportQuality] || 3840;
+    const currentMax = Math.max(origW, origH);
+    
+    // Scale up if user chooses higher quality than initial preview
+    let w = origW;
+    let h = origH;
+    if (targetDim > currentMax) {
+      const scale = targetDim / currentMax;
+      w = Math.round(origW * scale);
+      h = Math.round(origH * scale);
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
+
+    // Enable high quality bicubic interpolation
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     if (format === "jpg" || format === "jpeg") {
       ctx.fillStyle = snap.solidColor || "#FFFFFF";
@@ -232,7 +256,8 @@ export default function CameraBottomTray({
     }
 
     const mime = format === "jpg" || format === "jpeg" ? "image/jpeg" : "image/png";
-    const dataUrl = canvas.toDataURL(mime, 0.95);
+    // 0.98 ensures visually lossless output for JPG, avoiding compression artifacts
+    const dataUrl = canvas.toDataURL(mime, format === "jpg" || format === "jpeg" ? 0.98 : 1.0);
     return { dataUrl, width: w, height: h };
   };
 
@@ -257,12 +282,17 @@ export default function CameraBottomTray({
       if (toExport.length === 1) {
         const snap = toExport[0];
         const filename = `${cleanName}_${(snap.title || "angle").replace(/\s+/g, "_")}_${timestamp}`;
-        const rendered = await renderSnapshotWithTitle(snap, fmt);
+        const rendered = await renderSnapshotWithTitle(snap, fmt, quality);
 
         if (fmt === "pdf") {
           const orientation = rendered.width >= rendered.height ? "l" : "p";
-          const pdf = new jsPDF({ orientation, unit: "px", format: [rendered.width, rendered.height] });
-          pdf.addImage(rendered.dataUrl, "PNG", 0, 0, rendered.width, rendered.height);
+          const pdf = new jsPDF({
+            orientation,
+            unit: "px",
+            format: [rendered.width, rendered.height],
+            compress: true
+          });
+          pdf.addImage(rendered.dataUrl, "PNG", 0, 0, rendered.width, rendered.height, undefined, "FAST");
           pdf.save(`${filename}.pdf`);
         } else if (fmt === "jpg" || fmt === "jpeg") {
           const link = document.createElement("a");
@@ -282,14 +312,19 @@ export default function CameraBottomTray({
           let pdf = null;
           for (let i = 0; i < toExport.length; i++) {
             const snap = toExport[i];
-            const rendered = await renderSnapshotWithTitle(snap, "png");
+            const rendered = await renderSnapshotWithTitle(snap, "png", quality);
             const orientation = rendered.width >= rendered.height ? "l" : "p";
             if (i === 0) {
-              pdf = new jsPDF({ orientation, unit: "px", format: [rendered.width, rendered.height] });
-              pdf.addImage(rendered.dataUrl, "PNG", 0, 0, rendered.width, rendered.height);
+              pdf = new jsPDF({
+                orientation,
+                unit: "px",
+                format: [rendered.width, rendered.height],
+                compress: true
+              });
+              pdf.addImage(rendered.dataUrl, "PNG", 0, 0, rendered.width, rendered.height, undefined, "FAST");
             } else {
               pdf.addPage([rendered.width, rendered.height], orientation);
-              pdf.addImage(rendered.dataUrl, "PNG", 0, 0, rendered.width, rendered.height);
+              pdf.addImage(rendered.dataUrl, "PNG", 0, 0, rendered.width, rendered.height, undefined, "FAST");
             }
           }
           if (pdf) {
@@ -302,7 +337,7 @@ export default function CameraBottomTray({
           for (let i = 0; i < toExport.length; i++) {
             const snap = toExport[i];
             const titleSlug = (snap.title || `angle_${i + 1}`).replace(/\s+/g, "_");
-            const rendered = await renderSnapshotWithTitle(snap, fmt);
+            const rendered = await renderSnapshotWithTitle(snap, fmt, quality);
             const isJpg = fmt === "jpg" || fmt === "jpeg";
             const base64Data = rendered.dataUrl.replace(isJpg ? /^data:image\/jpeg;base64,/ : /^data:image\/png;base64,/, "");
             folder.file(`${titleSlug}_${i + 1}.${isJpg ? "jpg" : "png"}`, base64Data, { base64: true });
@@ -335,7 +370,7 @@ export default function CameraBottomTray({
           <button
             type="button"
             disabled={isCapturing}
-            onClick={onCaptureSnapshot}
+            onClick={() => onCaptureSnapshot && onCaptureSnapshot({ quality })}
             className="flex items-center gap-[0.55vw] px-[1.1vw] py-[0.55vw] bg-[#17202C] hover:bg-[#253243] text-white rounded-[0.5vw] shadow-xl border border-[#17202C] text-[0.8vw] font-bold transition-all cursor-pointer active:scale-95 group shrink-0"
             title="Save current camera viewport angle"
           >

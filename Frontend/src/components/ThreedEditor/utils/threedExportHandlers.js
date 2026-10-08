@@ -387,6 +387,7 @@ export async function captureCameraSnapshot({
   bgOpacity = 100,
   customImage = null,
   aspectRatio = null,
+  quality = "High",
   setIsCapturing
 }) {
   if (!gl || !camera) {
@@ -399,15 +400,30 @@ export async function captureCameraSnapshot({
     await new Promise(r => setTimeout(r, 60));
 
     const domCanvas = gl.domElement;
-    const dpr = gl.getPixelRatio();
+    const dpr = gl.getPixelRatio() || window.devicePixelRatio || 1;
     const origW = domCanvas.width / dpr;
     const origH = domCanvas.height / dpr;
     const targetRatio = (typeof aspectRatio === "number" && aspectRatio > 0) ? aspectRatio : (origW / origH);
     const ratio = targetRatio;
 
-    const CAPTURE_PX = 2048;
-    const capW = targetRatio >= 1 ? CAPTURE_PX : Math.round(CAPTURE_PX * targetRatio);
-    const capH = targetRatio >= 1 ? Math.round(CAPTURE_PX / targetRatio) : CAPTURE_PX;
+    // Quality mapping for razor-sharp renders
+    // Low: 1920 (FHD), Medium: 2560 (2K), High: 3840 (4K UHD), Ultra: 4096 (DCI 4K)
+    const qualityMap = {
+      Low: 1920,
+      Medium: 2560,
+      High: 3840,
+      Ultra: 4096
+    };
+    const targetBasePx = qualityMap[quality] || 3840;
+
+    // Final output dimensions
+    const capW = targetRatio >= 1 ? targetBasePx : Math.round(targetBasePx * targetRatio);
+    const capH = targetRatio >= 1 ? Math.round(targetBasePx / targetRatio) : targetBasePx;
+
+    // Clamp WebGL render size against device maximum texture size
+    const maxGlSize = gl.capabilities?.maxTextureSize || 4096;
+    const renderW = Math.min(capW, maxGlSize);
+    const renderH = Math.min(capH, maxGlSize);
 
     const prevClearAlpha = gl.getClearAlpha ? gl.getClearAlpha() : 1;
     const prevClearColor = new THREE.Color();
@@ -419,9 +435,10 @@ export async function captureCameraSnapshot({
       camera.updateProjectionMatrix();
     }
 
+    // Force full 1.0 pixel ratio at target high resolution for crisp sampling
     gl.setClearAlpha(0);
     gl.setPixelRatio(1);
-    gl.setSize(capW, capH, false);
+    gl.setSize(renderW, renderH, false);
 
     const targetScene = scene || gl.scene;
     const prevSceneBg = targetScene ? targetScene.background : null;
@@ -433,34 +450,40 @@ export async function captureCameraSnapshot({
       gl.render(targetScene, camera);
     }
 
+    // Create high-resolution composite canvas
     const compositeCanvas = document.createElement("canvas");
-    compositeCanvas.width = capW;
-    compositeCanvas.height = capH;
-    const ctx = compositeCanvas.getContext("2d");
+    compositeCanvas.width = renderW;
+    compositeCanvas.height = renderH;
+    const ctx = compositeCanvas.getContext("2d", { alpha: true });
+
+    // Enable high-quality image smoothing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     const alphaVal = typeof bgOpacity === "number" ? Math.max(0, Math.min(1, bgOpacity / 100)) : 1.0;
 
     if (bgType === "solid") {
       ctx.globalAlpha = alphaVal;
       ctx.fillStyle = solidColor || "#FFFFFF";
-      ctx.fillRect(0, 0, capW, capH);
+      ctx.fillRect(0, 0, renderW, renderH);
       ctx.globalAlpha = 1.0;
     } else if (bgType === "customImage" && customImage) {
       await new Promise((resolve) => {
         const bgImg = new Image();
+        bgImg.crossOrigin = "anonymous";
         bgImg.onload = () => {
           const imgRatio = bgImg.width / bgImg.height;
-          let drawW = capW;
-          let drawH = capH;
+          let drawW = renderW;
+          let drawH = renderH;
           let offX = 0;
           let offY = 0;
 
           if (imgRatio > ratio) {
-            drawW = capH * imgRatio;
-            offX = (capW - drawW) / 2;
+            drawW = renderH * imgRatio;
+            offX = (renderW - drawW) / 2;
           } else {
-            drawH = capW / imgRatio;
-            offY = (capH - drawH) / 2;
+            drawH = renderW / imgRatio;
+            offY = (renderH - drawH) / 2;
           }
 
           ctx.globalAlpha = alphaVal;
@@ -471,7 +494,7 @@ export async function captureCameraSnapshot({
         bgImg.onerror = () => {
           ctx.globalAlpha = alphaVal;
           ctx.fillStyle = "#FFFFFF";
-          ctx.fillRect(0, 0, capW, capH);
+          ctx.fillRect(0, 0, renderW, renderH);
           ctx.globalAlpha = 1.0;
           resolve();
         };
@@ -479,9 +502,13 @@ export async function captureCameraSnapshot({
       });
     }
 
-    ctx.drawImage(domCanvas, 0, 0);
+    // Draw WebGL buffer onto canvas with high quality
+    ctx.drawImage(domCanvas, 0, 0, renderW, renderH);
+
+    // High quality PNG data URL
     const dataUrl = compositeCanvas.toDataURL("image/png");
 
+    // Restore original viewport states
     gl.setPixelRatio(dpr);
     gl.setSize(origW, origH, false);
     if (gl.setClearColor) gl.setClearColor(prevClearColor, prevClearAlpha);

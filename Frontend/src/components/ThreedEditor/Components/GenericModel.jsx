@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { TransformControls } from "@react-three/drei";
@@ -44,6 +44,7 @@ const GenericModel = React.memo(React.forwardRef(({
     onTextureIdentified,
     onUpdateMaterialSetting,
     resetKey,
+    transformResetKey,
     sceneResetTrigger,
     uvUnwrapTrigger,
     isSelectionDisabled,
@@ -65,6 +66,7 @@ const GenericModel = React.memo(React.forwardRef(({
     activeTextureRef.current = selectedTexture;
     const customizedMaterialsRef = React.useRef(customizedMaterials);
     customizedMaterialsRef.current = customizedMaterials;
+    const lastAppliedTextureTsRef = React.useRef(0);
 
     // Expose live Three.js scene and model group to parent ref for clean GLB exports and live sync
     React.useImperativeHandle(ref, () => scene || modelGroup, [scene, modelGroup]);
@@ -322,6 +324,10 @@ const GenericModel = React.memo(React.forwardRef(({
                         mat.userData.originalRoughness = mat.roughness;
                         mat.userData.originalMetalness = mat.metalness;
                         mat.userData.originalOpacity = mat.opacity;
+                        if (mat.emissive && typeof mat.emissive.clone === 'function') {
+                            mat.userData.originalEmissiveColor = mat.emissive.clone();
+                        }
+                        mat.userData.originalEmissiveIntensity = mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0;
                         mat.userData.originalNormalScale = mat.normalScale ? mat.normalScale.clone() : new THREE.Vector2(1, 1);
                         mat.userData.originalClearcoat = mat.clearcoat !== undefined ? mat.clearcoat : 0;
                         mat.userData.originalSpecularIntensity = mat.specularIntensity !== undefined ? mat.specularIntensity : 1.0;
@@ -372,6 +378,40 @@ const GenericModel = React.memo(React.forwardRef(({
         });
     }, [scene, includeTextures]);
 
+    useEffect(() => {
+        if (!scene) return;
+        scene.traverse((child) => {
+            if (!child.isMesh || !child.material) return;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((mat) => {
+                if (!mat) return;
+                if (!mat.userData.originalMap && mat.map && mat.map.isTexture) {
+                    mat.userData.originalMap = mat.map;
+                }
+                if (!mat.userData.originalNormalMap && mat.normalMap && mat.normalMap.isTexture) {
+                    mat.userData.originalNormalMap = mat.normalMap;
+                }
+                if (!mat.userData.originalRoughnessMap && mat.roughnessMap && mat.roughnessMap.isTexture) {
+                    mat.userData.originalRoughnessMap = mat.roughnessMap;
+                }
+                if (!mat.userData.originalMetalnessMap && mat.metalnessMap && mat.metalnessMap.isTexture) {
+                    mat.userData.originalMetalnessMap = mat.metalnessMap;
+                }
+                if (!mat.userData.originalAoMap && mat.aoMap && mat.aoMap.isTexture) {
+                    mat.userData.originalAoMap = mat.aoMap;
+                }
+                if (!mat.userData.originalAlphaMap && mat.alphaMap && mat.alphaMap.isTexture) {
+                    mat.userData.originalAlphaMap = mat.alphaMap;
+                }
+                if (!mat.userData.originalBumpMap && mat.bumpMap && mat.bumpMap.isTexture) {
+                    mat.userData.originalBumpMap = mat.bumpMap;
+                }
+                if (!mat.userData.originalEmissiveMap && mat.emissiveMap && mat.emissiveMap.isTexture) {
+                    mat.userData.originalEmissiveMap = mat.emissiveMap;
+                }
+            });
+        });
+    }, [scene]);
     // 0. Apply Texture to Selected Material
     useEffect(() => {
         if (!selectedTexture || !scene || xrayMode || selectedTexture.isXray) return;
@@ -689,6 +729,23 @@ const GenericModel = React.memo(React.forwardRef(({
             }
         };
 
+        // Guard against automatic application when switching materials:
+        // Ensure each texture click is applied exactly ONCE and never re-applied on subsequent material selection changes
+        if (!selectedTexture.ts || selectedTexture.ts === lastAppliedTextureTsRef.current) {
+            return;
+        }
+
+        const currentTargetKey = selectedMaterial
+            ? (selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.name || '__unknown__')
+            : '__full_model__';
+
+        if (selectedTexture.__queuedFor && selectedTexture.__queuedFor !== currentTargetKey) {
+            lastAppliedTextureTsRef.current = selectedTexture.ts;
+            return;
+        }
+
+        lastAppliedTextureTsRef.current = selectedTexture.ts;
+
         if (isFullModelSelect) {
             meshIndexRef.current.forEach(meshes => {
                 meshes.forEach(applyToMesh);
@@ -996,7 +1053,10 @@ const GenericModel = React.memo(React.forwardRef(({
                 if (foundMat.alphaMap) nativeMaps.alphaMap = getTexUrl(foundMat.alphaMap);
                 if (foundMat.emissiveMap) nativeMaps.emissiveMap = getTexUrl(foundMat.emissiveMap);
 
-                onUpdateMaterialSettingRef.current?.('maps', nativeMaps);
+                const hasAny = Object.keys(nativeMaps).some(k => k !== 'envMap' && nativeMaps[k]);
+                if (hasAny) {
+                    onUpdateMaterialSettingRef.current?.('maps', nativeMaps);
+                }
             }
         } else {
             onUpdateMaterialSettingRef.current?.('maps', {});
@@ -1092,9 +1152,10 @@ const GenericModel = React.memo(React.forwardRef(({
 
             if (m.userData.appliedTexture) {
                 safeUpdate('appliedTexture', m.userData.appliedTexture);
-            } else {
-                safeUpdate('appliedTexture', null);
             }
+            // else {
+            //     safeUpdate('appliedTexture', null);
+            // }
         }
 
         const sig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
@@ -1857,7 +1918,7 @@ const GenericModel = React.memo(React.forwardRef(({
     }, [scene, xrayMode, xrayMaterials, materialSettings?.appliedTexture, customizedMaterials, selectedMaterial, modelName]);
 
     const prevTransformTargetRef = React.useRef(null);
-    const lastTransformResetKeyRef = React.useRef(resetKey);
+    const lastTransformResetKeyRef = React.useRef(transformResetKey || resetKey);
 
     // Initial Transforms Capture
     useEffect(() => {
@@ -1919,7 +1980,7 @@ const GenericModel = React.memo(React.forwardRef(({
         if (transformTarget && transformTarget !== modelGroup) {
             updatePivotToTarget(transformTarget, relatedMeshesRef.current);
         }
-    }, [meshTransforms, resetKey, scene, transformTarget, modelGroup, updatePivotToTarget, selectedMaterial]);
+    }, [meshTransforms, transformResetKey, resetKey, scene, transformTarget, modelGroup, updatePivotToTarget, selectedMaterial]);
 
     // Determine Transform Target & Pivot
     useEffect(() => {
@@ -2001,8 +2062,9 @@ const GenericModel = React.memo(React.forwardRef(({
 
     // Sync transformValues to active target
     useEffect(() => {
-        const isResetOrUndo = resetKey !== lastTransformResetKeyRef.current;
-        lastTransformResetKeyRef.current = resetKey;
+        const activeKey = transformResetKey || resetKey;
+        const isResetOrUndo = activeKey !== lastTransformResetKeyRef.current;
+        lastTransformResetKeyRef.current = activeKey;
 
         if (!transformTarget) {
             prevTransformTargetRef.current = null;
@@ -2044,7 +2106,7 @@ const GenericModel = React.memo(React.forwardRef(({
         transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z,
         transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
         transformValues?.scale?.x, transformValues?.scale?.y, transformValues?.scale?.z,
-        selectedMaterial, modelName, resetKey, modelGroup, scene, updatePivotToTarget]);
+        selectedMaterial, modelName, transformResetKey, resetKey, modelGroup, scene, updatePivotToTarget]);
 
     // Scene-Wide Reset Effect
     useEffect(() => {

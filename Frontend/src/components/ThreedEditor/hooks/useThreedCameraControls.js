@@ -186,9 +186,6 @@ export function useThreedCameraControls({
       controlsRef.current.reset();
       setTargetPosition?.({ x: 0, y: 0, z: 0 });
     }
-    if (typeof onResetSceneTransformsRef.current === 'function') {
-      onResetSceneTransformsRef.current();
-    }
   }, [controlsRef, setTargetPosition]);
 
   const handleCameraViewChange = useCallback((mode) => {

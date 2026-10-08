@@ -90,15 +90,32 @@ export function useModelMaterialApplier({
                         if (!customSetting && customizedMaterials['__ALL__']) {
                             const allEntry = customizedMaterials['__ALL__'];
                             const allowList = Array.isArray(allEntry.__meshes__) ? allEntry.__meshes__ : null;
-                            if (!allowList) {
+
+                            const candidateKeys = [
+                                child.uuid,
+                                child.name,
+                                child.userData?.meshUuid,
+                                child.userData?.initialUuid,
+                                child.userData?.initialName,
+                                m.name,
+                                m.uuid
+                            ].filter(Boolean);
+
+                            const isExplicitlyListed =
+                                Array.isArray(allowList) &&
+                                allowList.length > 0 &&
+                                candidateKeys.some(k => allowList.includes(k));
+
+                            const hasNativeMap = Boolean(
+                                m.userData?.originalMap?.isTexture ||
+                                m.userData?.originalNormalMap?.isTexture ||
+                                m.userData?.originalAlphaMap?.isTexture
+                            );
+
+                            if (isExplicitlyListed) {
                                 customSetting = allEntry;
-                            } else {
-                                const inList =
-                                    allowList.includes(child.uuid) ||
-                                    allowList.includes(child.name) ||
-                                    allowList.includes(m.name) ||
-                                    allowList.includes(m.uuid);
-                                if (inList) customSetting = allEntry;
+                            } else if (!allowList && !hasNativeMap) {
+                                customSetting = allEntry;
                             }
                         }
                     }
@@ -288,31 +305,220 @@ export function useModelMaterialApplier({
 
                         m.needsUpdate = true;
                     } else {
-                        m.map = (m.userData.originalMap && m.userData.originalMap.isTexture) ? m.userData.originalMap : null;
-                        m.normalMap = (m.userData.originalNormalMap && m.userData.originalNormalMap.isTexture) ? m.userData.originalNormalMap : null;
-                        m.roughnessMap = (m.userData.originalRoughnessMap && m.userData.originalRoughnessMap.isTexture) ? m.userData.originalRoughnessMap : null;
-                        m.metalnessMap = (m.userData.originalMetalnessMap && m.userData.originalMetalnessMap.isTexture) ? m.userData.originalMetalnessMap : null;
-                        m.aoMap = (m.userData.originalAoMap && m.userData.originalAoMap.isTexture) ? m.userData.originalAoMap : null;
-                        m.alphaMap = (m.userData.originalAlphaMap && m.userData.originalAlphaMap.isTexture) ? m.userData.originalAlphaMap : null;
-                        m.emissiveMap = (m.userData.originalEmissiveMap && m.userData.originalEmissiveMap.isTexture) ? m.userData.originalEmissiveMap : null;
-                        m.bumpMap = (m.userData.originalBumpMap && m.userData.originalBumpMap.isTexture) ? m.userData.originalBumpMap : null;
-                        m.displacementMap = null;
-                        m.displacementScale = 0;
+                        // Look for the CORRECT entry in customizedMaterials for this material,
+                        // even if the previous lookup didn't find it (e.g. keys changed).
+                        let matchedEntry = null;
+                        if (customizedMaterials) {
+                            const candidateKeys = [
+                                child.uuid,
+                                child.name,
+                                child.userData?.meshUuid,
+                                child.userData?.initialUuid,
+                                child.userData?.initialName,
+                                m.name,
+                                m.uuid
+                            ].filter(Boolean);
 
-                        if (m.normalScale) {
-                            if (m.userData.originalNormalScale) {
-                                m.normalScale.copy(m.userData.originalNormalScale);
-                            } else {
-                                m.normalScale.set(1, 1);
+                            for (const k of candidateKeys) {
+                                if (customizedMaterials[k]) {
+                                    matchedEntry = customizedMaterials[k];
+                                    break;
+                                }
+                            }
+
+                            // Fall back to __ALL__ if it contains a texture and no better match found
+                            if (!matchedEntry && customizedMaterials['__ALL__']) {
+                                const allEntry = customizedMaterials['__ALL__'];
+                                const allowList = Array.isArray(allEntry.__meshes__) ? allEntry.__meshes__ : null;
+
+                                // __ALL__ should only apply to a mesh if:
+                                //   (a) the mesh's own UUID/name is explicitly listed in __meshes__, OR
+                                //   (b) __meshes__ is missing (legacy) AND the mesh has no native map
+                                //       (i.e. it wasn't part of the original GLB with its own texture).
+                                const isExplicitlyListed =
+                                    Array.isArray(allowList) &&
+                                    allowList.length > 0 &&
+                                    candidateKeys.some(k => allowList.includes(k));
+
+                                const hasNativeMap = Boolean(
+                                    m.userData?.originalMap?.isTexture ||
+                                    m.userData?.originalNormalMap?.isTexture ||
+                                    m.userData?.originalAlphaMap?.isTexture
+                                );
+
+                                if (isExplicitlyListed) {
+                                    matchedEntry = allEntry;
+                                } else if (!allowList && !hasNativeMap) {
+                                    // Legacy: no __meshes__ info, and this mesh had no native image — safe to apply
+                                    matchedEntry = allEntry;
+                                }
+                                // else: __ALL__ exists but this mesh wasn't targeted → do NOT apply
                             }
                         }
 
+                        if (matchedEntry) {
+                            // Apply the stored maps if present
+                            if (matchedEntry.appliedTexture) {
+                                m.userData.appliedTexture = matchedEntry.appliedTexture;
+                                m.userData.appliedTextureId = matchedEntry.appliedTexture.id || null;
+                            } else {
+                                m.userData.appliedTexture = null;
+                                m.userData.appliedTextureId = null;
+                                m.userData.appliedMap = null;
+                            }
+
+                            if (matchedEntry.maps && typeof matchedEntry.maps === 'object') {
+                                const applyMapUrl = (mapProp, url, isColor = false) => {
+                                    if (url && url !== "existing" && url !== "none" && typeof url === 'string') {
+                                        const cacheKey = `${url}_${isColor}`;
+                                        if (globalTextureCache.has(cacheKey)) {
+                                            m[mapProp] = globalTextureCache.get(cacheKey);
+                                            if (mapProp === 'map') {
+                                                m.transparent = true;
+                                                m.alphaTest = 0.05;
+                                                m.userData.appliedMap = m[mapProp];
+                                            }
+                                            m.userData[`is_${mapProp}_removed`] = false;
+                                            m.needsUpdate = true;
+                                        } else {
+                                            sharedTextureLoader.load(url, (tex) => {
+                                                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                                                tex.flipY = false;
+                                                tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                                                tex.userData = tex.userData || {};
+                                                tex.userData.url = url;
+                                                globalTextureCache.set(cacheKey, tex);
+                                                m[mapProp] = tex;
+                                                if (mapProp === 'map') {
+                                                    m.transparent = true;
+                                                    m.alphaTest = 0.05;
+                                                    m.userData.appliedMap = tex;
+                                                }
+                                                m.userData[`is_${mapProp}_removed`] = false;
+                                                m.needsUpdate = true;
+                                            });
+                                        }
+                                    } else if (url === null) {
+                                        const origKey = 'original' + mapProp.charAt(0).toUpperCase() + mapProp.slice(1);
+                                        const origTex = m.userData[origKey];
+                                        m[mapProp] = (origTex && origTex.isTexture) ? origTex : null;
+                                        m.userData[`is_${mapProp}_removed`] = !m[mapProp];
+                                        if (mapProp === 'map') m.userData.appliedMap = null;
+                                        m.needsUpdate = true;
+                                    }
+                                };
+
+                                applyMapUrl('map', matchedEntry.maps.map, true);
+                                applyMapUrl('normalMap', matchedEntry.maps.normalMap);
+                                applyMapUrl('roughnessMap', matchedEntry.maps.roughnessMap);
+                                applyMapUrl('metalnessMap', matchedEntry.maps.metalnessMap);
+                                applyMapUrl('aoMap', matchedEntry.maps.aoMap);
+                                applyMapUrl('bumpMap', matchedEntry.maps.bumpMap);
+                                applyMapUrl('alphaMap', matchedEntry.maps.alphaMap);
+                                applyMapUrl('emissiveMap', matchedEntry.maps.emissiveMap, true);
+                            }
+
+                            // ── Apply scalar/color values ─────────────────────────────────────
+                            // This is the critical path for color-only changes: even when there
+                            // are no maps, the restored entry may carry a color that must be
+                            // applied to the Three.js mesh immediately.
+                            if (matchedEntry.color && m.color) {
+                                try {
+                                    const intensity = (matchedEntry.colorIntensity ?? 100) / 100;
+                                    const c = new THREE.Color(matchedEntry.color);
+                                    c.multiplyScalar(intensity);
+                                    m.color.copy(c);
+                                } catch (_) { }
+                            } else if (m.userData.originalColor && m.color) {
+                                // No color in entry — restore the model's original color
+                                try {
+                                    if (m.userData.originalColor.isColor) m.color.copy(m.userData.originalColor);
+                                    else if (typeof m.userData.originalColor === 'string') m.color.set(m.userData.originalColor);
+                                    else if (typeof m.userData.originalColor === 'object' && typeof m.userData.originalColor.r === 'number') {
+                                        m.color.setRGB(m.userData.originalColor.r, m.userData.originalColor.g, m.userData.originalColor.b);
+                                    }
+                                } catch (_) { }
+                            }
+                            if (matchedEntry.metallic !== undefined) m.metalness = matchedEntry.metallic / 100;
+                            else if (m.userData.originalMetalness !== undefined) m.metalness = m.userData.originalMetalness;
+                            if (matchedEntry.roughness !== undefined) m.roughness = matchedEntry.roughness / 100;
+                            else if (m.userData.originalRoughness !== undefined) m.roughness = m.userData.originalRoughness;
+                            if (matchedEntry.alpha !== undefined) {
+                                m.opacity = matchedEntry.alpha / 100;
+                                m.transparent = m.opacity < 0.999 || !!m.alphaMap;
+                            } else if (m.userData.originalOpacity !== undefined) {
+                                m.opacity = m.userData.originalOpacity;
+                                m.transparent = m.userData.originalTransparent !== undefined
+                                    ? m.userData.originalTransparent
+                                    : (m.opacity < 0.999 || !!m.alphaMap);
+                            }
+                            if (matchedEntry.normal !== undefined && m.normalScale) {
+                                const ns = matchedEntry.normal / 100;
+                                m.normalScale.set(ns, ns);
+                            }
+
+                            m.needsUpdate = true;
+                            return;
+                        }
+
+                        // No matching entry anywhere — safe to wipe to original
+                        const pickMap = (originalKey, currentMap) => {
+                            const orig = m.userData[originalKey];
+                            if (orig && orig.isTexture) return orig;
+                            if (currentMap && currentMap.isTexture && !m.userData.appliedTextureId) return currentMap;
+                            return null;
+                        };
+
+                        m.map = pickMap('originalMap', m.map);
+                        m.normalMap = pickMap('originalNormalMap', m.normalMap);
+                        m.roughnessMap = pickMap('originalRoughnessMap', m.roughnessMap);
+                        m.metalnessMap = pickMap('originalMetalnessMap', m.metalnessMap);
+                        m.aoMap = pickMap('originalAoMap', m.aoMap);
+                        m.alphaMap = pickMap('originalAlphaMap', m.alphaMap);
+                        m.emissiveMap = pickMap('originalEmissiveMap', m.emissiveMap);
+                        m.bumpMap = pickMap('originalBumpMap', m.bumpMap);
+                        m.displacementMap = null;
+                        m.displacementScale = 0;
+
+                        if (m.userData.originalColor && m.color) {
+                            try {
+                                if (m.userData.originalColor.isColor) m.color.copy(m.userData.originalColor);
+                                else if (typeof m.userData.originalColor === 'string') m.color.set(m.userData.originalColor);
+                                else if (typeof m.userData.originalColor === 'object' && typeof m.userData.originalColor.r === 'number') {
+                                    m.color.setRGB(m.userData.originalColor.r, m.userData.originalColor.g, m.userData.originalColor.b);
+                                }
+                            } catch (_) { }
+                        }
+                        if (m.userData.originalRoughness !== undefined) m.roughness = m.userData.originalRoughness;
+                        if (m.userData.originalMetalness !== undefined) m.metalness = m.userData.originalMetalness;
+                        if (m.userData.originalOpacity !== undefined) {
+                            m.opacity = m.userData.originalOpacity;
+                            m.transparent = m.userData.originalTransparent !== undefined
+                                ? m.userData.originalTransparent
+                                : (m.opacity < 0.999 || !!m.alphaMap);
+                        }
+                        if (m.userData.originalAlphaTest !== undefined) m.alphaTest = m.userData.originalAlphaTest;
+                        if (m.emissive && m.userData.originalEmissiveColor && typeof m.emissive.set === 'function') {
+                            m.emissive.set(m.userData.originalEmissiveColor);
+                        }
+                        if (m.emissiveIntensity !== undefined && m.userData.originalEmissiveIntensity !== undefined) {
+                            m.emissiveIntensity = m.userData.originalEmissiveIntensity;
+                        }
+                        if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+                            if (m.userData.originalClearcoat !== undefined) m.clearcoat = m.userData.originalClearcoat;
+                            if (m.userData.originalSpecularIntensity !== undefined) m.specularIntensity = m.userData.originalSpecularIntensity;
+                            if (m.userData.originalEnvMapIntensity !== undefined) m.envMapIntensity = m.userData.originalEnvMapIntensity;
+                        }
+
+                        if (m.normalScale) {
+                            if (m.userData.originalNormalScale) m.normalScale.copy(m.userData.originalNormalScale);
+                            else m.normalScale.set(1, 1);
+                        }
                         restoreOriginalTexTransform(m, 'map');
                         restoreOriginalTexTransform(m, 'normalMap');
                         restoreOriginalTexTransform(m, 'roughnessMap');
                         restoreOriginalTexTransform(m, 'metalnessMap');
                         restoreOriginalTexTransform(m, 'aoMap');
-                        restoreOriginalTexTransform(m, 'displacementMap');
                         restoreOriginalTexTransform(m, 'bumpMap');
                         restoreOriginalTexTransform(m, 'alphaMap');
                         restoreOriginalTexTransform(m, 'emissiveMap');
@@ -321,54 +527,6 @@ export function useModelMaterialApplier({
                         m.userData.appliedTextureId = null;
                         m.userData.appliedMap = null;
                         delete m.userData.__textureScale;
-
-                        if (m.userData.originalColor) {
-                            try {
-                                if (m.userData.originalColor.isColor) {
-                                    m.color.copy(m.userData.originalColor);
-                                } else if (typeof m.userData.originalColor === 'string') {
-                                    m.color.set(m.userData.originalColor);
-                                } else if (typeof m.userData.originalColor === 'object' && typeof m.userData.originalColor.r === 'number') {
-                                    m.color.setRGB(m.userData.originalColor.r, m.userData.originalColor.g, m.userData.originalColor.b);
-                                }
-                            } catch (_) { }
-                        }
-                        if (m.userData.originalRoughness !== undefined) m.roughness = m.userData.originalRoughness;
-                        if (m.userData.originalMetalness !== undefined) m.metalness = m.userData.originalMetalness;
-                        if (m.userData.originalOpacity !== undefined) m.opacity = m.userData.originalOpacity;
-                        if (m.userData.originalTransparent !== undefined) m.transparent = m.userData.originalTransparent;
-                        if (m.userData.originalAlphaTest !== undefined) m.alphaTest = m.userData.originalAlphaTest;
-
-                        const texProps = [
-                            ['map', m.map],
-                            ['normalMap', m.normalMap],
-                            ['roughnessMap', m.roughnessMap],
-                            ['metalnessMap', m.metalnessMap],
-                            ['displacementMap', m.displacementMap],
-                            ['bumpMap', m.bumpMap],
-                            ['alphaMap', m.alphaMap],
-                            ['emissiveMap', m.emissiveMap]
-                        ];
-                        texProps.forEach(([propName, tex]) => {
-                            if (tex && tex.isTexture && tex !== m.aoMap && tex !== m.lightMap) {
-                                const origTransform = m.userData.originalTexTransforms?.[propName];
-                                if (origTransform) {
-                                    if (origTransform.repeat && tex.repeat) tex.repeat.copy(origTransform.repeat);
-                                    if (origTransform.offset && tex.offset) tex.offset.copy(origTransform.offset);
-                                    if (origTransform.rotation !== undefined) tex.rotation = origTransform.rotation;
-                                    if (origTransform.center && tex.center) tex.center.copy(origTransform.center);
-                                    if (origTransform.wrapS !== undefined) tex.wrapS = origTransform.wrapS;
-                                    if (origTransform.wrapT !== undefined) tex.wrapT = origTransform.wrapT;
-                                } else {
-                                    if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(1, 1);
-                                    if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(0, 0);
-                                    if (tex.rotation !== undefined) tex.rotation = 0;
-                                    if (tex.center && typeof tex.center.set === 'function') tex.center.set(0, 0);
-                                }
-                                tex.matrixAutoUpdate = true;
-                                if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
-                            }
-                        });
                         m.needsUpdate = true;
                     }
                 });
@@ -376,7 +534,31 @@ export function useModelMaterialApplier({
             return;
         }
 
-        if (!materialSettings.useFactorColor) {
+        const stateTextureIdB = materialSettings.appliedTexture?.id || null;
+        let currentAppliedIdB = null;
+        {
+            const checkMat = selectedMaterial;
+            if (checkMat && scene) {
+                const keys = [
+                    checkMat.uuid, checkMat.meshUuid, checkMat.meshName, checkMat.name,
+                    typeof checkMat.material === 'string' ? checkMat.material : checkMat.material?.name,
+                ].filter(Boolean);
+                scene.traverse((c) => {
+                    if (currentAppliedIdB) return;
+                    if (!c.isMesh && !c.isSkinnedMesh) return;
+                    const cm = Array.isArray(c.material) ? c.material : [c.material];
+                    cm.forEach((mm) => {
+                        if (currentAppliedIdB) return;
+                        const names = [mm?.name].filter(Boolean);
+                        const match = keys.length === 0 || keys.includes(c.uuid) || keys.includes(c.name) || names.some(n => keys.includes(n));
+                        if (match && mm?.userData?.appliedTextureId) currentAppliedIdB = mm.userData.appliedTextureId;
+                    });
+                });
+            }
+        }
+        const textureMismatchB = stateTextureIdB !== currentAppliedIdB;
+
+        if (!materialSettings.useFactorColor && !textureMismatchB) {
             return;
         }
 
@@ -635,7 +817,7 @@ export function useModelMaterialApplier({
                             stateAppliedTextureId === 'none' ||
                             stateAppliedTextureId === undefined;
 
-                        if (!stateWantsNoTexture) {
+                        if (!stateWantsNoTexture && (changedProp === 'appliedTexture' || changedProp === 'maps' || isResetOrUndo)) {
                             if (m.userData.appliedMap?.isTexture && !m.map && !m.userData.is_map_removed) {
                                 m.map = m.userData.appliedMap;
                                 m.needsUpdate = true;
@@ -648,17 +830,19 @@ export function useModelMaterialApplier({
                                 m.needsUpdate = true;
                             }
                         } else {
-                            if (!m.map && m.userData.originalMap?.isTexture) {
+                            if (!m.map && m.userData.originalMap?.isTexture && !m.userData.appliedTextureId) {
                                 m.map = m.userData.originalMap;
                                 m.needsUpdate = true;
                             }
-                            if (!m.alphaMap && m.userData.originalAlphaMap?.isTexture) {
+                            if (!m.alphaMap && m.userData.originalAlphaMap?.isTexture && !m.userData.appliedTextureId) {
                                 m.alphaMap = m.userData.originalAlphaMap;
                                 m.needsUpdate = true;
                             }
-                            m.userData.appliedMap = null;
-                            m.userData.appliedTexture = null;
-                            m.userData.appliedTextureId = null;
+                            if (stateAppliedTextureId === 'none' || (!m.userData.appliedTextureId && !m.userData.appliedMap && (changedProp === 'appliedTexture' || changedProp === 'maps'))) {
+                                m.userData.appliedMap = null;
+                                m.userData.appliedTexture = null;
+                                m.userData.appliedTextureId = null;
+                            }
                         }
 
                         if (!m.userData.originalColor && !materialSettings.useFactorColor) {
@@ -686,10 +870,48 @@ export function useModelMaterialApplier({
         const isLightingOnly = changedProp === 'specular' || changedProp === 'reflection';
         if (isLightingOnly) return;
 
+        if (isResetOrUndo) return;
+
+
+        // NEW: also run when the state's appliedTexture id differs from what's on the mesh.
+        // This handles undo/redo of texture changes without needing resetKey bumping.
+        const stateTextureId = materialSettings.appliedTexture?.id || null;
+        const selMatForCheck = selectedMaterial;
+        let currentAppliedId = null;
+        if (selMatForCheck && scene) {
+            const lookupKeys = [
+                selMatForCheck.uuid,
+                selMatForCheck.meshUuid,
+                selMatForCheck.meshName,
+                selMatForCheck.name,
+                typeof selMatForCheck.material === 'string' ? selMatForCheck.material : selMatForCheck.material?.name,
+            ].filter(Boolean);
+
+            scene.traverse((child) => {
+                if (currentAppliedId) return;
+                if (!child.isMesh && !child.isSkinnedMesh) return;
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach((m) => {
+                    if (currentAppliedId) return;
+                    const childMatNames = [m?.name].filter(Boolean);
+                    const matchesSelection = lookupKeys.length === 0 ||
+                        lookupKeys.includes(child.uuid) ||
+                        lookupKeys.includes(child.name) ||
+                        childMatNames.some(n => lookupKeys.includes(n));
+                    if (matchesSelection && m?.userData?.appliedTextureId) {
+                        currentAppliedId = m.userData.appliedTextureId;
+                    }
+                });
+            });
+        }
+
+        const textureIdMismatch = stateTextureId !== currentAppliedId;
+
+
         // Only touch mesh maps when the user explicitly changed maps/texture (or on undo/reset).
         // Selection changes populate `maps` with preview thumbnails / stale maps from the
         // previous selection — applying those corrupts untextured materials.
-        if (!isResetOrUndo && changedProp !== 'maps' && changedProp !== 'appliedTexture') return;
+        if (!isResetOrUndo && !textureIdMismatch && changedProp !== 'maps' && changedProp !== 'appliedTexture') return;
 
         const selMat = selectedMaterial;
         const currentSigC = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
@@ -724,21 +946,41 @@ export function useModelMaterialApplier({
                             if (isNone) {
                                 m[mapProp] = null;
                                 m.userData[`is_${mapProp}_removed`] = true;
+                                if (mapProp === 'map') {
+                                    m.userData.appliedMap = null;
+                                    m.userData.appliedTexture = null;
+                                    m.userData.appliedTextureId = null;
+                                }
                                 m.needsUpdate = true;
                                 return;
                             }
+
                             if (stateUrl && stateUrl !== "existing" && stateUrl !== "none" && typeof stateUrl === 'string') {
                                 const curTex = m[mapProp];
+
+                                // Already showing this exact texture URL — just keep userData in sync and bail
                                 if (curTex && (curTex.userData?.__thumbnailUrl === stateUrl || curTex.userData?.url === stateUrl)) {
-                                    return; // already showing this texture (state holds its preview thumbnail)
+                                    if (mapProp === 'map' && materialSettings.appliedTexture) {
+                                        m.userData.appliedTexture = materialSettings.appliedTexture;
+                                        m.userData.appliedTextureId = materialSettings.appliedTexture.id || null;
+                                    }
+                                    return;
                                 }
+
                                 const cacheKey = `${stateUrl}_${isColor}`;
+
+                                // Fast path: texture already in cache
                                 if (globalTextureCache.has(cacheKey)) {
                                     const cachedTex = globalTextureCache.get(cacheKey);
                                     m[mapProp] = cachedTex;
                                     if (mapProp === 'map') {
                                         m.transparent = true;
                                         m.alphaTest = 0.05;
+                                        m.userData.appliedMap = cachedTex;
+                                        if (materialSettings.appliedTexture) {
+                                            m.userData.appliedTexture = materialSettings.appliedTexture;
+                                            m.userData.appliedTextureId = materialSettings.appliedTexture.id || null;
+                                        }
                                     }
                                     if (m[mapProp]?.repeat && typeof m[mapProp].repeat.set === 'function' && hasCustomScale) {
                                         m[mapProp].repeat.set(texScaleX, texScaleY);
@@ -748,35 +990,64 @@ export function useModelMaterialApplier({
                                     return;
                                 }
 
+                                // Slow path: load from disk/network
                                 sharedTextureLoader.load(stateUrl, (tex) => {
                                     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
                                     tex.flipY = false;
                                     tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                                    tex.userData = tex.userData || {};
                                     tex.userData.url = stateUrl;
+
                                     if (tex?.repeat && typeof tex.repeat.set === 'function' && hasCustomScale) {
                                         tex.repeat.set(texScaleX, texScaleY);
                                     }
+
                                     globalTextureCache.set(cacheKey, tex);
                                     m[mapProp] = tex;
+
                                     if (mapProp === 'map') {
                                         m.transparent = true;
                                         m.alphaTest = 0.05;
+                                        m.userData.appliedMap = tex;
+                                        if (materialSettings.appliedTexture) {
+                                            m.userData.appliedTexture = materialSettings.appliedTexture;
+                                            m.userData.appliedTextureId = materialSettings.appliedTexture.id || null;
+                                        }
                                     }
+
                                     m.userData[`is_${mapProp}_removed`] = false;
                                     m.needsUpdate = true;
                                 });
+
                             } else if (stateUrl === null) {
+                                // Explicitly removed
                                 m[mapProp] = null;
                                 m.userData[`is_${mapProp}_removed`] = true;
+                                if (mapProp === 'map') {
+                                    m.userData.appliedMap = null;
+                                }
                                 m.needsUpdate = true;
+
                             } else if (isResetOrUndo && !stateUrl) {
                                 const origKey = 'original' + mapProp.charAt(0).toUpperCase() + mapProp.slice(1);
                                 const origTex = m.userData[origKey];
-                                m[mapProp] = (origTex && origTex.isTexture) ? origTex : null;
+                                if (origTex && origTex.isTexture) {
+                                    m[mapProp] = origTex;
+                                } else if (m[mapProp] && m[mapProp].isTexture && !m.userData.appliedTextureId) {
+                                    // Keep the current native texture
+                                } else {
+                                    m[mapProp] = null;
+                                }
                                 m.userData[`is_${mapProp}_removed`] = !m[mapProp];
+                                if (mapProp === 'map') {
+                                    m.userData.appliedMap = null;
+                                    m.userData.appliedTexture = null;
+                                    m.userData.appliedTextureId = null;
+                                }
                                 m.needsUpdate = true;
                             }
                         };
+
 
                         if (Object.prototype.hasOwnProperty.call(stateMaps, 'map')) syncMap('map', stateMaps.map, true);
                         if (Object.prototype.hasOwnProperty.call(stateMaps, 'normalMap')) syncMap('normalMap', stateMaps.normalMap);
