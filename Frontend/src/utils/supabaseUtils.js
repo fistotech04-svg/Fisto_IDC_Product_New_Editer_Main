@@ -6,7 +6,8 @@
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_BUCKET = import.meta.env.VITE_SUPABASE_BUCKET || 'uploads';
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const rawBackend = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const BACKEND_URL = rawBackend.replace(/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, 'http://$1$2');
 
 /**
  * Build the CDN base URL for a flipbook's folder.
@@ -60,15 +61,29 @@ export function resolveUploadsPath(path) {
     cleanPath = cleanPath.replace(/^https?:\/\/[^/]+\/uploads\//i, '/uploads/');
   }
 
+  // If URL points to localhost:5000 or any backend port with /hdri/, /textures/, /assets/, /temp_uploads/, or /uploads/, rewrite origin to current BACKEND_URL
+  const backendAssetMatch = cleanPath.match(/^https?:\/\/[^/]+(\/(?:hdri|textures|assets|temp_uploads)\/.+)$/i);
+  if (backendAssetMatch) {
+    return `${BACKEND_URL}${backendAssetMatch[1]}`;
+  }
+
+  // Route relative static backend paths to BACKEND_URL
+  if (
+    cleanPath.startsWith('/hdri') || cleanPath.startsWith('hdri/') ||
+    cleanPath.startsWith('/textures') || cleanPath.startsWith('textures/') ||
+    cleanPath.startsWith('/assets') || cleanPath.startsWith('assets/') ||
+    cleanPath.startsWith('/temp_uploads') || cleanPath.startsWith('temp_uploads/')
+  ) {
+    const slash = cleanPath.startsWith('/') ? '' : '/';
+    return `${BACKEND_URL}${slash}${cleanPath}`;
+  }
+
+  // Enforce http (not https) for localhost or 127.0.0.1 to avoid ERR_SSL_PROTOCOL_ERROR
+  cleanPath = cleanPath.replace(/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, 'http://$1$2');
+
   // If it's already a full external URL (like direct supabase or http/https URL), return it directly
   if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
     return cleanPath;
-  }
-
-  // Route /temp_uploads to backend server
-  if (cleanPath.startsWith('/temp_uploads') || cleanPath.startsWith('temp_uploads/')) {
-    const slash = cleanPath.startsWith('/') ? '' : '/';
-    return `${BACKEND_URL}${slash}${cleanPath}`;
   }
 
   // Check if this is an upload path

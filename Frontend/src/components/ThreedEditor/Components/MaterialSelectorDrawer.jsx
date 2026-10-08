@@ -1,7 +1,7 @@
 import React, { useRef, useState, useMemo, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import axios from "axios";
-import { textureData } from "../../../data/textureData";
+import { textureData, fetchMaterials } from "../../../data/textureData";
 import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 import AddMaterial from "./AddMaterial";
 import AlertModal from "../../../components/AlertModal";
@@ -20,6 +20,7 @@ export default function MaterialSelectorDrawer({
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [uploadedTextures, setUploadedTextures] = useState([]);
+  const [presetMaterialsList, setPresetMaterialsList] = useState(() => [...textureData]);
   const [fetchedCategories, setFetchedCategories] = useState([]);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -44,6 +45,14 @@ export default function MaterialSelectorDrawer({
     "All", "Metal", "Rock", "Floor", "Wall", "Glass", "Plastic", 
     "Wood", "Cloth", "Rubber", "Paper", "Fiber", "Skin", "X-Ray"
   ], []);
+
+  useEffect(() => {
+    fetchMaterials().then((loaded) => {
+      if (Array.isArray(loaded) && loaded.length > 0) {
+        setPresetMaterialsList([...loaded]);
+      }
+    });
+  }, []);
 
   // Set default category when activeTab changes
   useEffect(() => {
@@ -318,15 +327,15 @@ export default function MaterialSelectorDrawer({
         return [xrayMaterialPreset];
       }
 
-      // "All" Category -> Return all textureData + X-Ray preset
+      // "All" Category -> Return all preset materials + X-Ray preset
       if (lowerCat === "all") {
-        const nonNoneTextures = textureData.filter(t => t.id !== "none");
+        const nonNoneTextures = presetMaterialsList.filter(t => t.id !== "none");
         return [...nonNoneTextures, xrayMaterialPreset];
       }
 
       const matchingAliases = categoryAliasMap[lowerCat] || [lowerCat];
       
-      let found = textureData.filter(t => {
+      let found = presetMaterialsList.filter(t => {
         if (t.id === "none") return false;
         const itemCat = (t.category || "").toLowerCase();
         const itemName = (t.name || "").toLowerCase();
@@ -358,7 +367,7 @@ export default function MaterialSelectorDrawer({
       });
       return userList;
     }
-  }, [activeTab, selectedCategory, uploadedTextures, categoryAliasMap, xrayMaterialPreset]);
+  }, [activeTab, selectedCategory, uploadedTextures, categoryAliasMap, xrayMaterialPreset, presetMaterialsList]);
 
   // Filtered by Search Query
   const displayedMaterials = useMemo(() => {

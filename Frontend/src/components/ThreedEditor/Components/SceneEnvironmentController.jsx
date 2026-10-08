@@ -13,7 +13,7 @@ const bgPatchGlsl = /* glsl */`
   texColor.rgb *= bgReflection;
 
   // #393939 in linear sRGB space
-  vec3 studioGray = vec3( 0.039547, 0.039547, 0.039547 );
+  vec3 studioGray = vec3( 0.053828, 0.053828, 0.053828 );
   texColor.rgb = mix( studioGray, texColor.rgb, bgOpacity );
 `;
 

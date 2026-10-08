@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { resolveUploadsPath } from "../../../../utils/supabaseUtils";
 import { textureData } from "../../../../data/textureData";
@@ -22,6 +22,7 @@ export function ModelPanel({
   setShowAxis,
   transformValues,
   onManualTransformChange,
+  onResetTransform,
   // Material & Texture settings
   materialSettings,
   onUpdateMaterialSetting,
@@ -123,24 +124,48 @@ export function ModelPanel({
     e.target.value = "";
   };
 
-  // Check if a model, mesh, or material is selected
-  const hasSelection = Boolean(
+  // Check if a specific material or mesh is selected (hide on initial model load, model selection, or folder group selection)
+  const isMaterialSelected = Boolean(
     selectedMaterial &&
-    (typeof selectedMaterial === "string" ? selectedMaterial.trim() !== "" : true)
+    typeof selectedMaterial === "object" &&
+    !selectedMaterial.isModel &&
+    !selectedMaterial.isGroup &&
+    (selectedMaterial.isMesh === true || Boolean(selectedMaterial.meshUuid) || Boolean(selectedMaterial.uuid))
   );
 
   return (
     <div className="flex flex-col gap-[1.3vw]">
       {/* ── 1. POSITION SECTION ── */}
       <div className="flex flex-col gap-[0.75vw]">
-        <div className="flex items-center gap-[0.6vw]">
-          <span className="text-[0.82vw] font-bold text-gray-900">Position</span>
-          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+        <div className="flex items-center justify-between gap-[0.6vw]">
+          <div className="flex items-center gap-[0.6vw] flex-1 min-w-0">
+            <span className="text-[0.82vw] font-bold text-gray-900">Position</span>
+            <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onResetTransform && onResetTransform('all')}
+            className="flex items-center gap-[0.2vw] px-[0.4vw] py-[0.15vw] rounded text-[0.68vw] font-semibold text-gray-500 hover:text-[#ea543a] hover:bg-orange-50 transition-colors cursor-pointer shrink-0"
+            title="Reset model position, rotation and scale to imported state"
+          >
+            <Icon icon="solar:restart-linear" className="w-[0.75vw] h-[0.75vw]" />
+            <span>Reset All</span>
+          </button>
         </div>
 
         {/* Move */}
         <div className="flex items-center justify-between gap-[0.4vw]">
-          <span className="text-[0.75vw] font-medium text-gray-800 w-[3.8vw] shrink-0">Move</span>
+          <div className="flex items-center gap-[0.2vw] w-[3.8vw] shrink-0">
+            <span className="text-[0.75vw] font-medium text-gray-800">Move</span>
+            <button
+              type="button"
+              onClick={() => onResetTransform && onResetTransform('position')}
+              className="p-[0.1vw] text-gray-400 hover:text-[#ea543a] transition-colors cursor-pointer rounded"
+              title="Reset Position to imported state"
+            >
+              <Icon icon="solar:restart-linear" className="w-[0.7vw] h-[0.7vw]" />
+            </button>
+          </div>
           <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
             <AxisInput
               axis="X"
@@ -165,7 +190,17 @@ export function ModelPanel({
 
         {/* Rotate */}
         <div className="flex items-center justify-between gap-[0.4vw]">
-          <span className="text-[0.75vw] font-medium text-gray-800 w-[3.8vw] shrink-0">Rotate</span>
+          <div className="flex items-center gap-[0.2vw] w-[3.8vw] shrink-0">
+            <span className="text-[0.75vw] font-medium text-gray-800">Rotate</span>
+            <button
+              type="button"
+              onClick={() => onResetTransform && onResetTransform('rotation')}
+              className="p-[0.1vw] text-gray-400 hover:text-[#ea543a] transition-colors cursor-pointer rounded"
+              title="Reset Rotate to imported state"
+            >
+              <Icon icon="solar:restart-linear" className="w-[0.7vw] h-[0.7vw]" />
+            </button>
+          </div>
           <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
             <AxisInput
               axis="X"
@@ -202,6 +237,14 @@ export function ModelPanel({
             >
               <Icon icon={isUniformScale ? "solar:link-bold" : "solar:link-broken-linear"} className="w-[0.8vw] h-[0.8vw]" />
             </button>
+            <button
+              type="button"
+              onClick={() => onResetTransform && onResetTransform('scale')}
+              className="p-[0.1vw] text-gray-400 hover:text-[#ea543a] transition-colors cursor-pointer rounded ml-[0.05vw]"
+              title="Reset Scale to imported state"
+            >
+              <Icon icon="solar:restart-linear" className="w-[0.7vw] h-[0.7vw]" />
+            </button>
           </div>
           <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
             <AxisInput
@@ -230,7 +273,7 @@ export function ModelPanel({
       </div>
 
       {/* ── 2. MATERIAL & 3. TEXTURE PLACEMENT SECTIONS (Only show when a model/mesh/material is selected) ── */}
-      {hasSelection && (
+      {isMaterialSelected && (
         <>
           {/* ── 2. MATERIAL SECTION ── */}
           <div className="flex flex-col gap-[0.75vw]">
@@ -557,7 +600,7 @@ export function ModelPanel({
 
         {/* Show Axis */}
         <div className="flex items-center justify-between py-[0.1vw]">
-          <span className="text-[0.78vw] font-medium text-gray-800">Show Axis</span>
+          <span className="text-[0.78vw] font-medium text-gray-800">Show Axis Lines</span>
           <ToggleSwitch
             checked={!!showAxis}
             onChange={(val) => setShowAxis && setShowAxis(val)}

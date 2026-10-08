@@ -37,6 +37,7 @@ import Viewprofile from './pages/Viewprofile';
 import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
+import PresetAdmin from './pages/PresetAdmin';
 import NetworkStatus from './pages/NetworkStatus';
 
 function SettingsIndexRedirect() {
@@ -73,6 +74,8 @@ function App() {
             <Route path="/share/:shareId" element={<ShareViewBook />} />
             <Route path="/preview" element={<ProtectedRoute><PreviewPage /></ProtectedRoute>} />
             <Route path="/ar-view" element={<ARView />} />
+            <Route path="/admin/presets" element={<ProtectedRoute><PresetAdmin /></ProtectedRoute>} />
+            <Route path="/admin" element={<Navigate to="/admin/presets" replace />} />
 
             {/* Protected Editor Layout */}
             <Route path="/editor" element={

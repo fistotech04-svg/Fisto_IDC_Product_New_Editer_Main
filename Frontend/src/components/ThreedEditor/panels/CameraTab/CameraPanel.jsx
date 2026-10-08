@@ -1,3 +1,85 @@
+
+function CameraSlider({ label, value, onChange, min = 0, max = 100, step = 1, unit = "%" }) {
+  const [inputText, setInputText] = useState(String(Math.round(value ?? 100)));
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setInputText(String(Math.round(value ?? 100)));
+    }
+  }, [value, isFocused]);
+
+  const numericValue = typeof value === "number" ? value : 100;
+  const percentage = Math.max(0, Math.min(100, ((numericValue - min) / (max - min)) * 100));
+
+  const handleInputBlur = () => {
+    setIsFocused(false);
+    const parsed = parseFloat(inputText);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(min, Math.min(max, parsed));
+      setInputText(String(Math.round(clamped)));
+      onChange && onChange(clamped);
+    } else {
+      setInputText(String(Math.round(numericValue)));
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      setInputText(String(Math.round(numericValue)));
+      setIsFocused(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-[0.5vw] py-[0.15vw]">
+      <span className="text-[0.74vw] font-medium text-gray-700 w-[7.2vw] shrink-0 truncate">
+        {label} :
+      </span>
+
+      <div className="relative flex-1 h-[0.32vw] bg-gray-200 rounded-full cursor-pointer flex items-center mx-[0.2vw]">
+        <div
+          className="absolute left-0 top-0 h-full bg-[#ea543a] rounded-full pointer-events-none"
+          style={{ width: `${percentage}%` }}
+        />
+        <div
+          className="absolute w-[0.85vw] h-[0.85vw] bg-[#ea543a] border-[0.12vw] border-white rounded-full shadow-md pointer-events-none -translate-x-1/2"
+          style={{ left: `${percentage}%` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={numericValue}
+          onChange={(e) => onChange && onChange(Number(e.target.value))}
+          className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
+        />
+      </div>
+
+      <div
+        className={`w-[3.4vw] h-[1.55vw] bg-gray-100 hover:bg-gray-200/80 rounded-[0.3vw] flex items-center justify-center shrink-0 border transition-all px-[0.2vw] ${
+          isFocused
+            ? "border-[#ea543a] bg-white ring-1 ring-[#ea543a]/25 shadow-2xs"
+            : "border-transparent"
+        }`}
+      >
+        <input
+          type="text"
+          value={inputText}
+          onFocus={() => setIsFocused(true)}
+          onBlur={handleInputBlur}
+          onKeyDown={handleKeyDown}
+          onChange={(e) => setInputText(e.target.value)}
+          className="w-full text-center text-[0.72vw] font-semibold text-gray-800 bg-transparent outline-none"
+        />
+        <span className="text-[0.62vw] text-gray-500 font-medium select-none ml-[0.05vw]">{unit}</span>
+      </div>
+    </div>
+  );
+}
 import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import * as THREE from "three";
@@ -15,15 +97,9 @@ export const CAMERA_BG_PRESETS = [
 ];
 
 export const CAMERA_FRAME_OPTIONS = [
-  { id: "frame_1_1_a", ratio: "1:1", aspect: 1 / 1 },
-  { id: "frame_2_1_a", ratio: "2:1", aspect: 2 / 1 },
-  { id: "frame_4_5_a", ratio: "4:5", aspect: 4 / 5 },
-  { id: "frame_1_1_b", ratio: "1:1", aspect: 1 / 1 },
-  { id: "frame_2_1_b", ratio: "2:1", aspect: 2 / 1 },
-  { id: "frame_4_5_b", ratio: "4:5", aspect: 4 / 5 },
-  { id: "frame_1_1_c", ratio: "1:1", aspect: 1 / 1 },
-  { id: "frame_2_1_c", ratio: "2:1", aspect: 2 / 1 },
-  { id: "frame_4_5_c", ratio: "4:5", aspect: 4 / 5 },
+  { id: "frame_full_hd", name: "Full HD", ratio: "16:9", aspect: 16 / 9, icon: "solar:monitor-smartphone-linear" },
+  { id: "frame_fullscreen", name: "Full Screen", ratio: "Full", aspect: null, icon: "solar:full-screen-square-linear" },
+  { id: "frame_square", name: "Square", ratio: "1:1", aspect: 1 / 1, icon: "ant-design:instagram-outlined" },
 ];
 
 export function CameraPanel({
@@ -37,7 +113,7 @@ export function CameraPanel({
   onChangeCameraBgColor,
   cameraBgOpacity = 100,
   onChangeCameraBgOpacity,
-  selectedFrameId = "frame_2_1_a",
+  selectedFrameId = "frame_full_hd",
   onSelectFrameId,
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -287,58 +363,106 @@ export function CameraPanel({
           <div className="flex-1 h-[1px] bg-gray-200" />
         </div>
 
-        {/* 3x3 Aspect Ratio Cards Grid */}
+        {/* 3 Aspect Ratio Cards: Full HD, Full Screen, Square */}
         <div className="grid grid-cols-3 gap-[0.55vw]">
           {CAMERA_FRAME_OPTIONS.map((frame) => {
-            const isSelected =
-              selectedFrameId === frame.id ||
-              (frame.id === "frame_2_1_a" && (selectedFrameId === "frame_2_1" || selectedFrameId === "frame_2_1_a"));
+            const isSelected = selectedFrameId === frame.id || (!selectedFrameId && frame.id === "frame_full_hd");
 
             return (
               <button
                 key={frame.id}
                 type="button"
                 onClick={() => onSelectFrameId?.(frame.id)}
-                className={`flex flex-col items-center justify-between p-[0.55vw] rounded-[0.55vw] transition-all cursor-pointer bg-white ${
+                className={`flex flex-col items-center justify-between p-[0.55vw] rounded-[0.55vw] border-2 transition-all duration-200 cursor-pointer ${
                   isSelected
-                    ? "border border-gray-100 shadow-[0_0.2vw_0.8vw_rgba(0,0,0,0.08)] ring-1 ring-[#EC5137]/30"
-                    : "hover:bg-gray-50/70"
+                    ? "bg-orange-50/60 border-[#EC5137] text-[#EC5137] shadow-sm ring-2 ring-[#EC5137]/15 opacity-100"
+                    : "bg-white border-gray-200 text-gray-700 opacity-60 hover:opacity-90 hover:border-gray-300"
                 }`}
               >
-                {/* Frame Dashed Card Area */}
-                <div className="w-full aspect-square rounded-[0.35vw] flex items-center justify-center p-[0.3vw]">
+                {/* Frame Preview Box */}
+                <div className="w-full aspect-4/3 rounded-[0.35vw] flex items-center justify-center p-[0.2vw]">
                   <div
                     className={`flex items-center justify-center border transition-all ${
                       isSelected
-                        ? "border-dashed border-[#EC5137] bg-transparent"
-                        : "border-dashed border-gray-300"
+                        ? "border-[#EC5137] bg-white/80 shadow-2xs"
+                        : "border-gray-300 bg-gray-50/50"
                     }`}
                     style={{
-                      width: frame.ratio === "2:1" ? "100%" : frame.ratio === "4:5" ? "76%" : "84%",
-                      height: frame.ratio === "2:1" ? "68%" : frame.ratio === "4:5" ? "95%" : "84%",
+                      width: frame.id === "frame_full_hd" ? "92%" : frame.id === "frame_fullscreen" ? "96%" : "68%",
+                      height: frame.id === "frame_full_hd" ? "56%" : frame.id === "frame_fullscreen" ? "88%" : "88%",
                       borderRadius: "0.2vw",
+                      borderStyle: frame.id === "frame_fullscreen" ? "solid" : "dashed",
                     }}
                   >
                     <Icon
-                      icon="ant-design:instagram-outlined"
-                      className={`w-[1.25vw] h-[1.25vw] transition-colors ${
-                        isSelected ? "text-[#EC5137]" : "text-gray-300"
-                      }`}
+                      icon={frame.icon || "solar:camera-outline"}
+                      className={`w-[0.95vw] h-[0.95vw] ${isSelected ? "text-[#EC5137]" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
 
-                {/* Aspect ratio label */}
-                <span
-                  className={`text-[0.72vw] font-medium mt-[0.35vw] transition-colors ${
-                    isSelected ? "text-gray-900 font-semibold" : "text-gray-600"
-                  }`}
-                >
-                  {frame.ratio}
-                </span>
+                {/* Aspect ratio label & Name */}
+                <div className="flex flex-col items-center mt-[0.25vw]">
+                  <span className={`text-[0.72vw] font-bold ${isSelected ? "text-[#EC5137]" : "text-gray-800"}`}>
+                    {frame.name}
+                  </span>
+                  <span className={`text-[0.6vw] font-semibold ${isSelected ? "text-[#EC5137]/80" : "text-gray-400"}`}>
+                    {frame.ratio}
+                  </span>
+                </div>
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── 4. SHADOWS & FLOOR SECTION ── */}
+      <div className="flex flex-col gap-[0.75vw]">
+        <div className="flex items-center gap-[0.6vw]">
+          <span className="text-[0.88vw] font-semibold text-gray-900 tracking-tight whitespace-nowrap">
+            Shadows
+          </span>
+          <div className="flex-1 h-[1px] bg-gray-200" />
+        </div>
+
+        <div className="flex flex-col gap-[0.45vw]">
+          <CameraSlider
+            label="Shadow Density"
+            value={materialSettings?.shadowDensity ?? 100}
+            onChange={(val) => {
+              onUpdateMaterialSetting?.("shadowDensity", val);
+              // Also update lights array if present
+              if (Array.isArray(materialSettings?.lights) && materialSettings.lights.length > 0) {
+                const updated = materialSettings.lights.map((l, i) => i === 0 ? { ...l, shadowDensity: val } : l);
+                onUpdateMaterialSetting?.("lights", updated);
+              }
+            }}
+            unit="%"
+          />
+          <CameraSlider
+            label="Shadow Softness"
+            value={materialSettings?.shadowSoftness ?? 100}
+            onChange={(val) => {
+              onUpdateMaterialSetting?.("shadowSoftness", val);
+              if (Array.isArray(materialSettings?.lights) && materialSettings.lights.length > 0) {
+                const updated = materialSettings.lights.map((l, i) => i === 0 ? { ...l, shadowSoftness: val } : l);
+                onUpdateMaterialSetting?.("lights", updated);
+              }
+            }}
+            unit="%"
+          />
+          <CameraSlider
+            label="Floor Opacity"
+            value={materialSettings?.floorOpacity ?? 100}
+            onChange={(val) => onUpdateMaterialSetting?.("floorOpacity", val)}
+            unit="%"
+          />
+          <CameraSlider
+            label="Floor Blur"
+            value={materialSettings?.floorBlur ?? 50}
+            onChange={(val) => onUpdateMaterialSetting?.("floorBlur", val)}
+            unit="%"
+          />
         </div>
       </div>
     </div>

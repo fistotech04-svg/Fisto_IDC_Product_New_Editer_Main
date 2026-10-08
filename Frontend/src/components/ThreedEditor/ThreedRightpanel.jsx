@@ -133,6 +133,7 @@ export default function RightPanel({
                 setShowAxis={setShowAxis}
                 transformValues={transformValues}
                 onManualTransformChange={onManualTransformChange}
+                onResetTransform={onResetTransform}
                 materialSettings={materialSettings}
                 onUpdateMaterialSetting={onUpdateMaterialSetting}
                 selectedTextureId={selectedTextureId}

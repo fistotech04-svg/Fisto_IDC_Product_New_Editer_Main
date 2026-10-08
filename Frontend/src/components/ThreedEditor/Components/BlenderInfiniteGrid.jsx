@@ -13,10 +13,10 @@ import { useFrame } from '@react-three/fiber';
  * 5. DoubleSide rendering: guaranteed visible from any camera elevation or angle.
  */
 export default function BlenderInfiniteGrid({
-  cellColor = '#505062',
-  sectionColor = '#7a7a92',
-  axisColorX = '#ee4444',
-  axisColorZ = '#6fab0a',
+  cellColor = '#525252',
+  sectionColor = '#606060',
+  axisColorX = '#d62626',
+  axisColorZ = '#5c8a2b',
   cellSize = 1,
   sectionSize = 10,
   fadeDistance = 180,
@@ -168,8 +168,8 @@ export default function BlenderInfiniteGrid({
           if (fade <= 0.001) discard;
 
           // 4. Composite colors and alpha
-          vec3 color = mix(cellColor, sectionColor, clamp(g2 * 1.5, 0.0, 1.0));
-          float alpha = (g1 * 0.32 + g2 * 0.68);
+          vec3 color = mix(cellColor, sectionColor, clamp(g2, 0.0, 1.0));
+          float alpha = clamp(g1 * 0.42 + g2 * 0.55, 0.0, 0.85);
 
           // Overlay True Origin Axes seamlessly (Red along X at Z=0, Teal along Z at X=0)
           if (axisX > 0.001 || axisZ > 0.001) {

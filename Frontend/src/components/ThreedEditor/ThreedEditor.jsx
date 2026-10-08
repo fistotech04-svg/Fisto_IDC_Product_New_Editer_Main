@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
@@ -100,6 +100,10 @@ export default function ThreedEditor() {
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [isMaterialDrawerOpen, setIsMaterialDrawerOpen] = useState(false);
   const [activeLeftTab, setActiveLeftTab] = useState("model");
+  const activeLeftTabRef = useRef(activeLeftTab);
+  useEffect(() => {
+    activeLeftTabRef.current = activeLeftTab;
+  }, [activeLeftTab]);
   const [cameraViewMode, setCameraViewMode] = useState("Perspective");
   const [isShades, setIsShades] = useState(true);
   const [navMode, setNavMode] = useState("orbit");
@@ -362,7 +366,7 @@ export default function ThreedEditor() {
   const [cameraBgType, setCameraBgType] = useState("solid");
   const [cameraBgColor, setCameraBgColor] = useState("#FFFFFF");
   const [cameraBgOpacity, setCameraBgOpacity] = useState(100);
-  const [selectedFrameId, setSelectedFrameId] = useState("frame_2_1_a");
+  const [selectedFrameId, setSelectedFrameId] = useState("frame_full_hd");
   const [savedCameraAngles, setSavedCameraAngles] = useState([]);
 
   const handleChangeCameraPosition = useCallback((axis, val) => {
@@ -1566,7 +1570,8 @@ export default function ThreedEditor() {
         file: converted.file,
         type: converted.type || 'glb',
         name: converted.name,
-        transform: initialTransform
+        transform: initialTransform,
+        initialTransform: JSON.parse(JSON.stringify(initialTransform))
       };
 
       const nextModels = [...models, newModel];
@@ -1692,236 +1697,139 @@ export default function ThreedEditor() {
       numVal = numVal * (Math.PI / 180);
     }
 
-    const isChildSelection = selectedMaterial && selectedMaterial.name !== modelName && selectedMaterial.name !== 'Scene' && !selectedMaterial.isAll;
+    const isSelectAll = selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+    let activeModelIndex = models.findIndex(m =>
+      (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+      (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+      (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+      (selectedMaterial?.name && m.name === selectedMaterial.name)
+    );
+    if (activeModelIndex < 0) activeModelIndex = 0;
+    const activeModel = models[activeModelIndex];
 
-    if (isChildSelection) {
-      let nextMeshTransforms = meshTransformsRef.current ? { ...meshTransformsRef.current } : {};
-      const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.name;
+    const defaultOffset = activeModelIndex === 0
+      ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+      : { position: { x: (activeModelIndex % 2 === 1 ? 1 : -1) * Math.ceil(activeModelIndex / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
 
-      const prevMTransform = nextMeshTransforms[targetUuid] ||
-        (selectedMaterial.name ? nextMeshTransforms[selectedMaterial.name] : null) ||
-        (selectedMaterial.meshName ? nextMeshTransforms[selectedMaterial.meshName] : null) ||
-      {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 }
-      };
+    const prev = isSelectAll
+      ? (rootTransformRef.current || defaultTransform)
+      : ((activeModel && activeModel.transform) || defaultOffset);
 
-      const updatedAxisValues = axis === 'all'
-        ? { x: numVal, y: numVal, z: numVal }
-        : { [axis]: numVal };
+    const next = {
+      position: { ...(prev.position || defaultOffset.position) },
+      rotation: { ...(prev.rotation || defaultOffset.rotation) },
+      scale: { ...(prev.scale || defaultOffset.scale) }
+    };
 
-      const updatedMTransform = {
-        ...prevMTransform,
-        [type]: {
-          ...(prevMTransform[type] || {}),
-          ...updatedAxisValues
-        }
-      };
-
-      const keysToSet = new Set([
-        targetUuid,
-        selectedMaterial.uuid,
-        selectedMaterial.meshUuid,
-        selectedMaterial.name,
-        selectedMaterial.meshName,
-        selectedMaterial.material
-      ].filter(Boolean));
-
-      if (Array.isArray(selectedMaterial.uuids)) {
-        selectedMaterial.uuids.forEach(u => keysToSet.add(u));
-      }
-      if (Array.isArray(selectedMaterial.items)) {
-        selectedMaterial.items.forEach(it => {
-          if (it.uuid) keysToSet.add(it.uuid);
-          if (it.meshUuid) keysToSet.add(it.meshUuid);
-          if (it.name) keysToSet.add(it.name);
-        });
-      }
-      if (Array.isArray(selectedMaterial.materials)) {
-        selectedMaterial.materials.forEach(m => keysToSet.add(typeof m === 'string' ? m : m?.name));
-      }
-
-      keysToSet.forEach(k => {
-        if (k) nextMeshTransforms[k] = updatedMTransform;
-      });
-
-      meshTransformsRef.current = nextMeshTransforms;
-      setMeshTransformsState(nextMeshTransforms);
-      setTransformValues(updatedMTransform);
-
-      const snapshot = buildSnapshot({
-        transformValues: updatedMTransform,
-        meshTransforms: nextMeshTransforms,
-        rootTransform: rootTransformRef.current
-      });
-      if (isDragging) {
-        commitHistoryDebounced(snapshot, 300);
-      } else {
-        commitHistoryNow(snapshot);
-      }
+    if (axis === 'all') {
+      next[type] = { x: numVal, y: numVal, z: numVal };
     } else {
-      const activeModel = models.find(m =>
-        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
-        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
-        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
-        (selectedMaterial?.name && m.name === selectedMaterial.name)
-      ) || models[0];
-
-      const prev = (activeModel && activeModel.transform) || rootTransformRef.current || defaultTransform;
-      const next = {
-        position: { ...(prev.position || { x: 0, y: 0, z: 0 }) },
-        rotation: { ...(prev.rotation || { x: 0, y: 0, z: 0 }) },
-        scale: { ...(prev.scale || { x: 1, y: 1, z: 1 }) }
+      next[type] = {
+        ...(next[type] || {}),
+        [axis]: numVal
       };
+    }
 
-      if (axis === 'all') {
-        next[type] = { x: numVal, y: numVal, z: numVal };
-      } else {
-        next[type] = {
-          ...(next[type] || {}),
-          [axis]: numVal
-        };
-      }
+    const nextModels = isSelectAll
+      ? (modelsRef.current || models).map(m => ({ ...m, transform: next }))
+      : models.map((m, idx) => {
+          if (idx === activeModelIndex) {
+            return { ...m, transform: next };
+          }
+          return m;
+        });
 
-      const nextModels = models.map(m => {
-        if (activeModel && m.id === activeModel.id) {
-          return { ...m, transform: next };
-        }
-        return m;
-      });
-
-      setModels(nextModels);
+    modelsRef.current = nextModels;
+    setModels(nextModels);
+    if (isSelectAll) {
       rootTransformRef.current = next;
       setRootTransform(next);
-      setTransformValues(next);
+    }
+    setTransformValues(next);
 
-      const snapshot = buildSnapshot({
-        models: nextModels,
-        transformValues: next,
-        rootTransform: next,
-        meshTransforms: meshTransformsRef.current
-      });
-      if (isDragging) {
-        commitHistoryDebounced(snapshot, 300);
-      } else {
-        commitHistoryNow(snapshot);
-      }
+    const snapshot = buildSnapshot({
+      models: nextModels,
+      transformValues: next,
+      rootTransform: rootTransformRef.current,
+      meshTransforms: meshTransformsRef.current
+    });
+    if (isDragging) {
+      commitHistoryDebounced(snapshot, 300);
+    } else {
+      commitHistoryNow(snapshot);
     }
   };
 
   const handleResetTransform = (type) => {
-    if (type === 'all') {
-      setSceneResetTrigger(prev => prev + 1);
+    // 1. Identify which model to reset
+    let activeModelIndex = models.findIndex(m =>
+      (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+      (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+      (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+      (selectedMaterial?.name && m.name === selectedMaterial.name)
+    );
+    if (activeModelIndex < 0) activeModelIndex = 0;
+    const activeModel = models[activeModelIndex];
+
+    // 2. Determine default imported root coordinates for this model
+    const defaultOffset = activeModelIndex === 0
+      ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+      : { position: { x: (activeModelIndex % 2 === 1 ? 1 : -1) * Math.ceil(activeModelIndex / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+
+    const getXYZ = (obj) => ({ x: obj?.x ?? 0, y: obj?.y ?? 0, z: obj?.z ?? 0 });
+    const getScaleXYZ = (obj) => ({ x: obj?.x ?? 1, y: obj?.y ?? 1, z: obj?.z ?? 1 });
+
+    const curRoot = (activeModel && activeModel.transform) || defaultOffset;
+    const next = {
+      position: { ...(curRoot.position || defaultOffset.position) },
+      rotation: { ...(curRoot.rotation || defaultOffset.rotation) },
+      scale: { ...(curRoot.scale || defaultOffset.scale) }
+    };
+
+    if (!type || type === 'all') {
+      next.position = getXYZ(defaultOffset.position);
+      next.rotation = getXYZ(defaultOffset.rotation);
+      next.scale = getScaleXYZ(defaultOffset.scale);
+    } else if (type === 'position') {
+      next.position = getXYZ(defaultOffset.position);
+    } else if (type === 'rotation') {
+      next.rotation = getXYZ(defaultOffset.rotation);
+    } else if (type === 'scale') {
+      next.scale = getScaleXYZ(defaultOffset.scale);
     }
 
-    const isChildSelection = selectedMaterial && selectedMaterial.name !== modelName && selectedMaterial.name !== 'Scene' && !selectedMaterial.isAll;
-
-    if (isChildSelection) {
-      const targetUuid = selectedMaterial.uuid || selectedMaterial.meshUuid || selectedMaterial.name;
-      let nextMeshTransforms = meshTransformsRef.current ? { ...meshTransformsRef.current } : {};
-      const defaultChild = {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 }
-      };
-      const prevM = nextMeshTransforms[targetUuid] || defaultChild;
-      const next = {
-        position: { ...prevM.position },
-        rotation: { ...prevM.rotation },
-        scale: { ...prevM.scale }
-      };
-
-      if (!type || type === 'all') {
-        next.position = { x: 0, y: 0, z: 0 };
-        next.rotation = { x: 0, y: 0, z: 0 };
-        next.scale = { x: 1, y: 1, z: 1 };
-      } else if (type === 'position') {
-        next.position = { x: 0, y: 0, z: 0 };
-      } else if (type === 'rotation') {
-        next.rotation = { x: 0, y: 0, z: 0 };
-      } else if (type === 'scale') {
-        next.scale = { x: 1, y: 1, z: 1 };
-      }
-
-      const keysToSet = new Set([
-        targetUuid,
-        selectedMaterial.uuid,
-        selectedMaterial.meshUuid,
-        selectedMaterial.name,
-        selectedMaterial.meshName,
-        selectedMaterial.material
-      ].filter(Boolean));
-
-      if (Array.isArray(selectedMaterial.uuids)) {
-        selectedMaterial.uuids.forEach(u => keysToSet.add(u));
-      }
-      if (Array.isArray(selectedMaterial.items)) {
-        selectedMaterial.items.forEach(it => {
-          if (it.uuid) keysToSet.add(it.uuid);
-          if (it.meshUuid) keysToSet.add(it.meshUuid);
-          if (it.name) keysToSet.add(it.name);
+    const isSelectAll = selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+    const nextModels = isSelectAll
+      ? models.map((m, idx) => {
+          const mOffset = idx === 0
+            ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+            : { position: { x: (idx % 2 === 1 ? 1 : -1) * Math.ceil(idx / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+          return { ...m, transform: mOffset };
+        })
+      : models.map((m, idx) => {
+          if (idx === activeModelIndex) {
+            return { ...m, transform: next };
+          }
+          return m;
         });
-      }
-      if (Array.isArray(selectedMaterial.materials)) {
-        selectedMaterial.materials.forEach(m => keysToSet.add(typeof m === 'string' ? m : m?.name));
-      }
 
-      keysToSet.forEach(k => {
-        if (k) nextMeshTransforms[k] = next;
-      });
-
-      meshTransformsRef.current = nextMeshTransforms;
-      setMeshTransformsState(nextMeshTransforms);
-      setTransformValues(next);
-      commitHistoryNow(buildSnapshot({ transformValues: next, meshTransforms: nextMeshTransforms, rootTransform: rootTransformRef.current }));
-    } else {
-      const activeModel = models.find(m =>
-        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
-        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
-        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
-        (selectedMaterial?.name && m.name === selectedMaterial.name)
-      ) || models[0];
-
-      const defaults = originalTransformRef.current || defaultTransform;
-      const getXYZ = (obj) => ({ x: obj.x, y: obj.y, z: obj.z });
-      const curRoot = (activeModel && activeModel.transform) || rootTransformRef.current || defaultTransform;
-      const next = {
-        position: { ...curRoot.position },
-        rotation: { ...curRoot.rotation },
-        scale: { ...curRoot.scale }
-      };
-
-      if (!type || type === 'all') {
-        next.position = getXYZ(defaults.position);
-        next.rotation = getXYZ(defaults.rotation);
-        next.scale = getXYZ(defaults.scale);
-      } else if (type === 'position') {
-        next.position = getXYZ(defaults.position);
-      } else if (type === 'rotation') {
-        next.rotation = getXYZ(defaults.rotation);
-      } else if (type === 'scale') {
-        next.scale = getXYZ(defaults.scale);
-      }
-
-      const nextModels = models.map(m => {
-        if (activeModel && m.id === activeModel.id) {
-          return { ...m, transform: next };
-        }
-        return m;
-      });
-
-      setModels(nextModels);
-      rootTransformRef.current = next;
-      setRootTransform(next);
-      setTransformValues(next);
-      commitHistoryNow(buildSnapshot({
-        models: nextModels,
-        transformValues: next,
-        rootTransform: next,
-        meshTransforms: meshTransformsRef.current
-      }));
+    modelsRef.current = nextModels;
+    setModels(nextModels);
+    if (isSelectAll) {
+      rootTransformRef.current = { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+      setRootTransform(rootTransformRef.current);
     }
+
+    // Always update transformValues to reflect the model's new transform
+    setTransformValues(next);
+    setResetKey(Date.now());
+
+    commitHistoryNow(buildSnapshot({
+      models: nextModels,
+      transformValues: next,
+      rootTransform: rootTransformRef.current,
+      meshTransforms: meshTransformsRef.current
+    }));
   };
 
   const handleTransformStart = useCallback(() => {
@@ -2133,6 +2041,11 @@ export default function ThreedEditor() {
   }, [commitHistoryNow, buildSnapshot, getMaterialTargetKeys]);
 
   const handleSelectMaterial = useCallback((val) => {
+    // When in Lighting or Camera tab, do not allow selecting materials or meshes
+    if (activeLeftTabRef.current === "lighting" || activeLeftTabRef.current === "camera") {
+      return;
+    }
+
     setSelectedTexture(null);
 
     const target = typeof val === 'object' ? { ...val } : { name: val };
@@ -2394,41 +2307,24 @@ export default function ThreedEditor() {
 
   useEffect(() => {
     if (isRestoringHistoryRef.current) return;
-    const isModelLevel = !selectedMaterial || !selectedMaterial.name || selectedMaterial.isModel || selectedMaterial.name === modelName || selectedMaterial.name === 'Scene' || selectedMaterial.isAll;
-    if (isModelLevel) {
-      const activeModel = models.find(m =>
-        (selectedMaterial?.id && m.id === selectedMaterial.id) ||
-        (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
-        (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
-        (selectedMaterial?.name && m.name === selectedMaterial.name)
-      );
-      const activeTransform = activeModel?.transform || rootTransformRef.current || defaultTransform;
-      setTransformValues(activeTransform);
-    } else {
-      const lookupKeys = [
-        selectedMaterial.uuid,
-        selectedMaterial.meshUuid,
-        selectedMaterial.name,
-        selectedMaterial.meshName,
-        selectedMaterial.material
-      ].filter(Boolean);
-      let found = null;
-      for (const k of lookupKeys) {
-        if (meshTransformsRef.current && meshTransformsRef.current[k]) {
-          found = meshTransformsRef.current[k];
-          break;
-        }
-      }
-      if (found) {
-        setTransformValues(found);
-      } else {
-        setTransformValues({
-          position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 },
-          scale: { x: 1, y: 1, z: 1 }
-        });
-      }
-    }
+    const isSelectAll = selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+    let activeModelIndex = models.findIndex(m =>
+      (selectedMaterial?.id && m.id === selectedMaterial.id) ||
+      (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
+      (selectedMaterial?.parentGroup && m.name === selectedMaterial.parentGroup) ||
+      (selectedMaterial?.name && m.name === selectedMaterial.name)
+    );
+    if (activeModelIndex < 0) activeModelIndex = 0;
+    const activeModel = models[activeModelIndex];
+    const defaultOffset = activeModelIndex === 0
+      ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
+      : { position: { x: (activeModelIndex % 2 === 1 ? 1 : -1) * Math.ceil(activeModelIndex / 2) * 3.5, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+
+    const activeTransform = isSelectAll
+      ? (rootTransformRef.current || defaultTransform)
+      : (activeModel?.transform || defaultOffset);
+
+    setTransformValues(activeTransform);
   }, [selectedMaterial, modelName, models, defaultTransform, setTransformValues]);
 
   const handleTransformChange = useCallback((t) => {
@@ -2445,27 +2341,31 @@ export default function ThreedEditor() {
     };
 
     if (t.isModelLevel) {
-      const targetModelId = t.modelId || selectedMaterial?.id || selectedMaterial?.modelId;
-      const targetModelName = t.modelName || selectedMaterial?.parentGroup || selectedMaterial?.name;
+      const isSelectAll = t.isAll || selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene';
+      if (isSelectAll) {
+        rootTransformRef.current = nextTransform;
+        setRootTransform(nextTransform);
+      } else {
+        const targetModelId = t.modelId || selectedMaterial?.id || selectedMaterial?.modelId;
+        const targetModelName = t.modelName || selectedMaterial?.parentGroup || selectedMaterial?.name;
 
-      let found = false;
-      const updatedModels = (modelsRef.current || models).map(m => {
-        if ((targetModelId && m.id === targetModelId) || (targetModelName && m.name === targetModelName)) {
-          found = true;
-          return { ...m, transform: nextTransform };
-        }
-        return m;
-      });
+        let found = false;
+        const updatedModels = (modelsRef.current || models).map(m => {
+          if ((targetModelId && m.id === targetModelId) || (targetModelName && m.name === targetModelName)) {
+            found = true;
+            return { ...m, transform: nextTransform };
+          }
+          return m;
+        });
 
-      const finalModels = found ? updatedModels : (modelsRef.current || models).map((m, idx) => {
-        if (idx === 0) return { ...m, transform: nextTransform };
-        return m;
-      });
+        const finalModels = found ? updatedModels : (modelsRef.current || models).map((m, idx) => {
+          if (idx === 0) return { ...m, transform: nextTransform };
+          return m;
+        });
 
-      modelsRef.current = finalModels;
-      setModels(finalModels);
-      rootTransformRef.current = nextTransform;
-      setRootTransform(nextTransform);
+        modelsRef.current = finalModels;
+        setModels(finalModels);
+      }
     }
 
     setTransformValues(prev => {
@@ -2510,6 +2410,52 @@ export default function ThreedEditor() {
     }
   }, [selectedMaterial, lastHotspotClickTimeRef, isHotspotFocusingRef]);
 
+  // Keyboard shortcuts for Center Canvas (W = Move, R = Rotate, S = Scale, H = Hand)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if user is typing in input, textarea, select, or contentEditable elements
+      const target = e.target;
+      const tagName = target?.tagName?.toUpperCase();
+      if (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        target?.isContentEditable ||
+        target?.closest?.('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
+
+      // Ignore if modifier keys are pressed (Ctrl, Alt, Meta/Cmd) to prevent conflicting with browser or system shortcuts
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'w') {
+        e.preventDefault();
+        setTransformMode('translate');
+        setActiveAccordion('position');
+      } else if (key === 'r') {
+        e.preventDefault();
+        setTransformMode('rotate');
+        setActiveAccordion('position');
+      } else if (key === 's') {
+        e.preventDefault();
+        setTransformMode('scale');
+        setActiveAccordion('position');
+      } else if (key === 'h') {
+        e.preventDefault();
+        setNavMode((prev) => (prev === 'pan' ? 'orbit' : 'pan'));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   // ==========================================================================
   // SECTION 14: JSX VIEWPORT & COMPONENT LAYOUT RENDERING
   // ==========================================================================
@@ -2551,7 +2497,13 @@ export default function ThreedEditor() {
       <div className="flex flex-1 overflow-hidden relative w-full h-full bg-[#1e2025]">
         <LeftSidebar
           activeTab={activeLeftTab}
-          onSelectTab={setActiveLeftTab}
+          onSelectTab={(tab) => {
+            setActiveLeftTab(tab);
+            if (tab === "lighting" || tab === "camera") {
+              setSelectedMaterial(null);
+              setSelectedTexture(null);
+            }
+          }}
           modelName={modelName}
           onRenameModel={handleRename}
           fileSize={combinedStats?.fileSize || modelStats?.fileSize || "18MB"}
@@ -2562,6 +2514,7 @@ export default function ThreedEditor() {
             if (modelItem) {
               handleSelectMaterial({
                 id: modelItem.id,
+                modelId: modelItem.id,
                 name: modelItem.name,
                 parentGroup: modelItem.name,
                 isModel: true,
@@ -2708,68 +2661,41 @@ export default function ThreedEditor() {
             )}
 
             {/* 3D Scene Viewport */}
-            {/* Camera Viewfinder Overlay */}
+            {/* Camera Viewfinder Overlay (Clean Opacity Vignette Mask without loud orange dots) */}
             {activeLeftTab === "camera" && (() => {
               const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
               if (!activeFrame || !activeFrame.aspect) return null;
-              const isWide = activeFrame.aspect >= 1;
+              const isSquare = activeFrame.aspect === 1;
+              const isWide = activeFrame.aspect > 1;
               return (
-                <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 pb-[4.5vw] pointer-events-none z-20 flex items-center justify-center overflow-hidden">
                   <div
-                    className="relative border-2 border-dashed border-[#EC5137]/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)] transition-all duration-300 rounded-[0.35vw]"
+                    className="relative border border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] transition-all duration-300 rounded-[0.4vw]"
                     style={{
-                      width: isWide ? "min(84%, 84vh)" : `calc(min(76vh, 76%) * ${activeFrame.aspect})`,
-                      height: isWide ? `calc(min(84%, 84vh) / ${activeFrame.aspect})` : "min(76vh, 76%)",
-                      maxHeight: "82%",
-                      maxWidth: "88%",
+                      width: isSquare
+                        ? "min(72vh, 72%, 72vw)"
+                        : isWide
+                        ? "min(94%, 90vw)"
+                        : `calc(min(84vh, 84%) * ${activeFrame.aspect})`,
+                      height: isSquare
+                        ? "min(72vh, 72%, 72vw)"
+                        : isWide
+                        ? `calc(min(94%, 90vw) / ${activeFrame.aspect})`
+                        : "min(84vh, 84%)",
+                      maxHeight: isSquare ? "72vh" : "84%",
+                      maxWidth: isSquare ? "72vh" : "94%",
                     }}
                   >
-                    {/* Viewfinder corner brackets */}
-                    <div className="absolute -top-[2px] -left-[2px] w-[0.8vw] h-[0.8vw] border-t-2 border-l-2 border-[#EC5137]" />
-                    <div className="absolute -top-[2px] -right-[2px] w-[0.8vw] h-[0.8vw] border-t-2 border-r-2 border-[#EC5137]" />
-                    <div className="absolute -bottom-[2px] -left-[2px] w-[0.8vw] h-[0.8vw] border-b-2 border-l-2 border-[#EC5137]" />
-                    <div className="absolute -bottom-[2px] -right-[2px] w-[0.8vw] h-[0.8vw] border-b-2 border-r-2 border-[#EC5137]" />
-
-                    {/* Viewfinder ratio tag */}
-                    <div className="absolute top-[0.45vw] left-[0.55vw] bg-black/60 text-white text-[0.68vw] font-mono font-medium px-[0.45vw] py-[0.18vw] rounded backdrop-blur-xs select-none">
-                      {activeFrame.ratio} {activeFrame.label ? `• ${activeFrame.label}` : ""}
+                    {/* Viewfinder ratio badge */}
+                    <div className="absolute top-[0.5vw] left-[0.6vw] bg-black/70 text-white text-[0.68vw] font-semibold px-[0.5vw] py-[0.18vw] rounded-[0.3vw] backdrop-blur-xs select-none shadow-sm">
+                      {activeFrame.name || activeFrame.ratio} ({activeFrame.ratio})
                     </div>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Save Current Angle Floating Button */}
-            {activeLeftTab === "camera" && (
-              <div className="absolute bottom-[1.2vw] right-[1.2vw] z-30 pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
-                    const snapUrl = await handleCaptureSnapshot({
-                      bgType: cameraBgType,
-                      solidColor: cameraBgColor,
-                      bgOpacity: cameraBgOpacity,
-                      aspectRatio: activeFrame?.aspect || null
-                    });
-                    if (snapUrl) {
-                      setSavedCameraAngles((prev) => [
-                        ...prev,
-                        {
-                          id: 'snap_' + Date.now(),
-                          title: activeFrame?.ratio ? `${activeFrame.ratio} Angle` : `Angle ${prev.length + 1}`,
-                          dataUrl: snapUrl,
-                        },
-                      ]);
-                    }
-                  }}
-                  className="flex items-center gap-[0.55vw] px-[1.1vw] py-[0.58vw] bg-[#17202C] hover:bg-[#253243] text-white rounded-[0.5vw] shadow-lg border border-[#17202C] text-[0.8vw] font-semibold transition-all cursor-pointer active:scale-95 group"
-                >
-                  <Icon icon="hugeicons:tick-02" className="w-[1.15vw] h-[1.15vw] text-white group-hover:scale-110 transition-transform" />
-                  <span>Save Current Angle</span>
-                </button>
-              </div>
-            )}
+
 
             <ThreedCanvasViewport
               models={models}
@@ -2840,23 +2766,43 @@ export default function ThreedEditor() {
               cameraBgType={cameraBgType}
               cameraBgColor={cameraBgColor}
             />
-          </div>
 
-          {/* Camera Saved Angles Bottom Tray */}
-          {activeLeftTab === "camera" && (
-            <CameraBottomTray
-              snapshots={savedCameraAngles}
-              onDeleteSnapshot={(id) => {
-                setSavedCameraAngles((prev) => prev.filter((s) => s.id !== id));
-              }}
-              onRenameSnapshot={(id, newTitle) => {
-                setSavedCameraAngles((prev) =>
-                  prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
-                );
-              }}
-              modelName={modelName}
-            />
-          )}
+            {/* Camera Saved Angles Bottom Tray (Overlay positioned inside viewport) */}
+            {activeLeftTab === "camera" && (
+              <CameraBottomTray
+                snapshots={savedCameraAngles}
+                onDeleteSnapshot={(id) => {
+                  setSavedCameraAngles((prev) => prev.filter((s) => s.id !== id));
+                }}
+                onRenameSnapshot={(id, newTitle) => {
+                  setSavedCameraAngles((prev) =>
+                    prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
+                  );
+                }}
+                onCaptureSnapshot={async () => {
+                  const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
+                  const snapUrl = await handleCaptureSnapshot({
+                    bgType: cameraBgType,
+                    solidColor: cameraBgColor,
+                    bgOpacity: cameraBgOpacity,
+                    aspectRatio: activeFrame?.aspect || null
+                  });
+                  if (snapUrl) {
+                    setSavedCameraAngles((prev) => [
+                      ...prev,
+                      {
+                        id: 'snap_' + Date.now(),
+                        title: activeFrame?.ratio ? `${activeFrame.ratio} Angle` : `Angle ${prev.length + 1}`,
+                        dataUrl: snapUrl,
+                      },
+                    ]);
+                  }
+                }}
+                isCapturing={isCapturing}
+                modelName={modelName}
+              />
+            )}
+          </div>
         </div>
 
         {/* Right Settings Panel (Model / Materials / Environment / Hotspots) */}
@@ -2986,6 +2932,8 @@ export default function ThreedEditor() {
           isOpen={showAddModelModal}
           onClose={() => setShowAddModelModal(false)}
           onAdd={handleAddModel}
+          onSelectModel={handleSelectGalleryModel}
+          loadedModels={models}
         />
       )}
 
@@ -3030,7 +2978,7 @@ export default function ThreedEditor() {
         />
       )}
 
-      <SaveAsModal
+            <SaveAsModal
         isOpen={showSaveAsModal}
         onClose={() => setShowSaveAsModal(false)}
         saveAsNameInput={saveAsNameInput}

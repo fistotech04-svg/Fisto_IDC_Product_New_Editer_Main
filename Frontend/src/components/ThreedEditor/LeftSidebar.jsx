@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import MaterialList from "./MaterialList";
 
@@ -30,6 +30,50 @@ export default function LeftSidebar({
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(modelName);
   const [expandedModelIds, setExpandedModelIds] = useState({ default: true });
+  
+  // Sidebar Width & Minimize State
+  const [sidebarWidth, setSidebarWidth] = useState(340);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startWidth: 340 });
+
+  const startResize = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startWidth: sidebarWidth
+    };
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - dragRef.current.startX;
+      const newWidth = Math.min(Math.max(dragRef.current.startWidth + deltaX, 260), 650);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false);
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isDragging]);
 
   const startEdit = () => {
     if (disableRename) return;
@@ -57,11 +101,8 @@ export default function LeftSidebar({
     }));
   };
 
-  // Determine model items to display
-  const modelItems =
-    models && models.length > 0
-      ? models
-      : [{ id: "model_1", name: modelName || "3D Model" }];
+  // Determine model items to display (empty when no models are loaded)
+  const modelItems = models && models.length > 0 ? models : [];
 
   // Helper to check if a specific model item is selected
   const isModelSelected = (item) => {
@@ -70,15 +111,27 @@ export default function LeftSidebar({
 
     // Check if selectedMaterial belongs to or matches this model
     if (selectedMaterial) {
+      // If "Select All" is active, all models in scene are selected
+      if (selectedMaterial.isAll) return true;
+
       if (typeof selectedMaterial === "string") {
-        if (selectedMaterial === item.name || selectedMaterial === item.id) return true;
+        if (selectedMaterial === item.id || selectedMaterial === item.name) return true;
       } else if (typeof selectedMaterial === "object") {
-        if (selectedMaterial.id === item.id) return true;
-        if (selectedMaterial.parentGroup && (selectedMaterial.parentGroup === item.name || selectedMaterial.parentGroup === item.id)) {
-          return true;
+        // Priority 1: Exact model instance ID match
+        if (selectedMaterial.id && selectedMaterial.id === item.id) return true;
+        if (selectedMaterial.modelId && selectedMaterial.modelId === item.id) return true;
+
+        // Priority 2: parentGroup match (if parentGroup matches item.id or item.name)
+        if (selectedMaterial.parentGroup) {
+          if (selectedMaterial.parentGroup === item.id || selectedMaterial.parentGroup === item.name) {
+            return true;
+          }
         }
+
+        // Priority 3: Fallback match ONLY if this model is the sole match
         if (selectedMaterial.name === item.name || selectedMaterial.group === item.name) {
-          return true;
+          const sameNameCount = (models || []).filter(m => m.name === item.name).length;
+          if (sameNameCount <= 1) return true;
         }
       }
     }
@@ -89,28 +142,99 @@ export default function LeftSidebar({
   // Helper to get materials for a specific model
   const getModelMaterials = (item) => {
     if (!item) return [];
+    if (modelMaterialLists && modelMaterialLists[item.id]) {
+      return modelMaterialLists[item.id];
+    }
     if (Array.isArray(materialList) && materialList.length > 0) {
       const match = materialList.find(
         (m) => m.id === item.id || m.group === item.name || m.name === item.name
       );
       if (match) return [match];
     }
-    if (modelMaterialLists && modelMaterialLists[item.id]) {
-      return modelMaterialLists[item.id];
-    }
     return materialList;
   };
 
+  // Minimized Compact Rail View
+  if (isMinimized) {
+    return (
+      <aside className="w-[52px] h-full bg-white flex flex-col items-center py-3 px-1.5 select-none shrink-0 border-r border-gray-200 transition-all duration-200 shadow-2xs relative z-20">
+        {/* Expand / Maximize Button */}
+        <button
+          type="button"
+          onClick={() => setIsMinimized(false)}
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-[#ea543a] text-gray-600 hover:text-white transition-all cursor-pointer shadow-2xs mb-4"
+          title="Expand sidebar"
+        >
+          <Icon icon="heroicons:chevron-double-right-20-solid" className="w-4 h-4" />
+        </button>
+
+        {/* Minimized Quick Navigation Icons */}
+        <div className="flex flex-col items-center gap-3 w-full">
+          <button
+            type="button"
+            onClick={() => {
+              setIsMinimized(false);
+              onSelectTab && onSelectTab("model");
+            }}
+            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+              activeTab === "model"
+                ? "bg-[#ea543a] text-white shadow-2xs"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+            title="3D Model & Layers"
+          >
+            <Icon icon="f7:cube" className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsMinimized(false);
+              onSelectTab && onSelectTab("lighting");
+            }}
+            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+              activeTab === "lighting"
+                ? "bg-[#ea543a] text-white shadow-2xs"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+            title="Lighting"
+          >
+            <Icon icon="ant-design:sun-outlined" className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsMinimized(false);
+              onSelectTab && onSelectTab("camera");
+            }}
+            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+              activeTab === "camera"
+                ? "bg-[#ea543a] text-white shadow-2xs"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+            title="Camera"
+          >
+            <Icon icon="ant-design:camera-outlined" className="w-5 h-5" />
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-[18vw] min-w-[240px] max-w-[300px] h-full bg-white flex flex-col p-[0.75vw] select-none shrink-0 border-r border-gray-200">
-      {/* ── 1. TOP HEADER CARD (File Name + Size + Edit Pencil) ── */}
+    <aside
+      style={{ width: `${sidebarWidth}px` }}
+      className="h-full bg-white flex flex-col p-[0.75vw] select-none shrink-0 border-r border-gray-200 relative group/sidebar transition-[width] duration-75"
+    >
+      {/* ── 1. TOP HEADER CARD (File Name + Size + Edit Pencil + Minimize Button) ── */}
       <div className="bg-white border border-gray-200/80 rounded-[0.75vw] p-[0.7vw] shadow-2xs hover:shadow-xs transition-shadow mb-[0.8vw] relative flex items-center justify-between group shrink-0">
-        <div className="flex items-center gap-[0.6vw] min-w-0 flex-1 pr-[1.2vw]">
+        <div className="flex items-center gap-[0.6vw] min-w-0 flex-1 pr-[2.2vw]">
           {/* Red/Orange File Icon */}
-          <div className="w-[2.2vw] h-[2.2vw] rounded-[0.45vw] flex items-center justify-center shrink-0">
+          <div className="w-[2.2vw] h-[2.2vw] min-w-[28px] min-h-[28px] rounded-[0.45vw] flex items-center justify-center shrink-0">
             <Icon
               icon="solar:document-text-outline"
-              className="w-[1.8vw] h-[1.8vw] text-[#ea543a]"
+              className="w-[1.8vw] h-[1.8vw] min-w-[22px] min-h-[22px] text-[#ea543a]"
             />
           </div>
 
@@ -128,36 +252,47 @@ export default function LeftSidebar({
             ) : (
               <>
                 <h3
-                  onClick={startEdit}
-                  title={modelName || "Electric motor"}
-                  className="text-[0.82vw] font-bold text-gray-900 cursor-pointer hover:text-[#ea543a] transition-colors leading-tight truncate"
+                  onClick={models && models.length > 0 ? startEdit : undefined}
+                  title={models && models.length > 0 ? (modelName || "3D Model") : "No Model Loaded"}
+                  className={`text-[0.82vw] font-bold leading-tight truncate ${models && models.length > 0 ? "text-gray-900 cursor-pointer hover:text-[#ea543a]" : "text-gray-400"}`}
                 >
-                  {modelName || "Electric motor"}
+                  {models && models.length > 0 ? (modelName || "3D Model") : "No Model Loaded"}
                 </h3>
                 <span className="text-[0.65vw] text-gray-400 font-medium leading-tight mt-[0.2vw] block">
-                  Total Size : {fileSize || "18MB"}
+                  Total Size : {models && models.length > 0 ? (fileSize || "0 MB") : "0 MB"}
                 </span>
               </>
             )}
           </div>
         </div>
 
-        {/* Edit Pencil Icon (Bottom-Right of Card) */}
-        <button
-          type="button"
-          onClick={startEdit}
-          disabled={disableRename}
-          className="absolute bottom-[0.55vw] right-[0.55vw] text-[#ea543a] hover:scale-110 active:scale-95 transition-transform cursor-pointer p-[0.1vw]"
-          title="Rename Model"
-        >
-          <Icon icon="solar:pen-new-square-bold" className="w-[0.95vw] h-[0.95vw]" />
-        </button>
+        {/* Action Buttons: Rename + Minimize */}
+        <div className="absolute top-[0.45vw] right-[0.45vw] flex items-center gap-[0.2vw]">
+          <button
+            type="button"
+            onClick={startEdit}
+            disabled={disableRename || !models || models.length === 0}
+            className="text-gray-400 hover:text-[#ea543a] hover:scale-110 active:scale-95 transition-all cursor-pointer p-[0.2vw] rounded"
+            title="Rename Model"
+          >
+            <Icon icon="solar:pen-new-square-bold" className="w-[0.9vw] h-[0.9vw] min-w-[14px] min-h-[14px]" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsMinimized(true)}
+            className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 hover:scale-110 active:scale-95 transition-all cursor-pointer p-[0.2vw] rounded"
+            title="Minimize sidebar"
+          >
+            <Icon icon="heroicons:chevron-double-left-20-solid" className="w-[0.95vw] h-[0.95vw] min-w-[15px] min-h-[15px]" />
+          </button>
+        </div>
       </div>
 
       <div className="h-[1px] bg-gray-100 mb-[0.7vw] w-full shrink-0"></div>
 
       {/* ── 2. SECTION: 3D MODELS + NESTED LAYERS ── */}
-      <div className="flex flex-col min-h-0">
+      <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
         {/* Main "3D Model" Tab Button */}
         <button
           type="button"
@@ -168,12 +303,12 @@ export default function LeftSidebar({
               : "text-gray-800 hover:bg-gray-100 font-semibold"
           }`}
         >
-          <Icon icon="f7:cube" className="w-[1.15vw] h-[1.15vw] shrink-0" />
+          <Icon icon="f7:cube" className="w-[1.15vw] h-[1.15vw] min-w-[16px] min-h-[16px] shrink-0" />
           <span className="text-[0.82vw]">3D Model</span>
         </button>
 
         {/* Scrollable Model + Layers Container - Nested inside 3D Model */}
-        <div className="overflow-y-auto overflow-x-hidden max-h-[30vh] ml-[0.85vw] pl-[0.75vw] pr-[0.2vw] pt-[0.45vw] pb-[0.2vw] custom-left-scrollbar flex flex-col gap-[0.35vw]">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden ml-[0.85vw] pl-[0.75vw] pr-[0.2vw] pt-[0.45vw] pb-[0.2vw] custom-left-scrollbar flex flex-col gap-[0.35vw] min-h-0">
           {modelItems.map((item, idx) => {
             const isModelActive = isModelSelected(item);
             const displayName = item.name || `3D Model ${idx > 0 ? idx + 1 : ""}`;
@@ -183,7 +318,7 @@ export default function LeftSidebar({
 
             return (
               <div key={item.id || idx} className="flex flex-col gap-[0.2vw] relative">
-                {/* Vertical branch line segment: full height if not last, stops at horizontal connector (0.85vw) if last */}
+                {/* Vertical branch line segment */}
                 <div
                   className={`absolute -left-[0.75vw] w-[2px] bg-[#ea543a]/30 pointer-events-none ${
                     idx === 0 ? "top-[-0.45vw]" : "top-[-0.35vw]"
@@ -193,9 +328,10 @@ export default function LeftSidebar({
                 {/* Horizontal branch connector indicator */}
                 <div className="absolute -left-[0.75vw] top-[0.85vw] w-[0.6vw] h-[2px] bg-[#ea543a]/30 pointer-events-none rounded-r-full" />
 
-                {/* Model Capsule / Header - Entire row click selects and toggles expand */}
-                <button
-                  type="button"
+                {/* Model Capsule / Header */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     onSelectTab && onSelectTab("model");
                     onSelectModel && onSelectModel(item.id, item);
@@ -204,7 +340,7 @@ export default function LeftSidebar({
                       [item.id]: prev[item.id] === undefined ? false : !prev[item.id],
                     }));
                   }}
-                  className={`w-full flex items-center justify-between px-[0.7vw] py-[0.48vw] rounded-[0.5vw] text-left transition-all duration-150 cursor-pointer ${
+                  className={`w-full group flex items-center justify-between px-[0.7vw] py-[0.48vw] rounded-[0.5vw] text-left transition-all duration-150 cursor-pointer ${
                     isModelActive
                       ? "bg-[#fdeee9] text-[#ea543a] font-semibold border border-[#ea543a]/35 shadow-2xs"
                       : "text-gray-700 hover:bg-gray-100/90 hover:text-gray-950 font-medium border border-gray-200/60 bg-white"
@@ -213,15 +349,28 @@ export default function LeftSidebar({
                   <div className="flex items-center gap-[0.55vw] min-w-0 flex-1">
                     <Icon
                       icon="f7:cube"
-                      className={`w-[1vw] h-[1vw] shrink-0 ${
+                      className={`w-[1vw] h-[1vw] min-w-[14px] min-h-[14px] shrink-0 ${
                         isModelActive ? "text-[#ea543a]" : "text-gray-500"
                       }`}
                     />
                     <span className="text-[0.78vw] truncate">{displayName}</span>
                   </div>
 
-                  {/* Layers / Chevron Toggle Indicator */}
-                  <div className="flex items-center gap-[0.3vw] shrink-0">
+                  {/* Action Buttons: Delete on hover/selected + Chevron Toggle */}
+                  <div className="flex items-center gap-[0.2vw] shrink-0">
+                    {onDeleteModel && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteModel(item.id);
+                        }}
+                        className="w-[1.2vw] h-[1.2vw] flex items-center justify-center rounded-[0.25vw] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                        title="Delete model"
+                      >
+                        <Icon icon="heroicons:trash-20-solid" className="w-[0.8vw] h-[0.8vw]" />
+                      </button>
+                    )}
                     <div
                       className={`w-[1.2vw] h-[1.2vw] flex items-center justify-center rounded-[0.25vw] transition-transform ${
                         isExpanded ? "rotate-0" : "-rotate-90"
@@ -235,7 +384,7 @@ export default function LeftSidebar({
                       />
                     </div>
                   </div>
-                </button>
+                </div>
 
                 {/* Nested Layers (MaterialList) inside this Model */}
                 {isExpanded && (
@@ -261,7 +410,7 @@ export default function LeftSidebar({
           })}
         </div>
 
-        {/* "+ Add Model" Button - Placed directly below/near 3D Model section (outside the tree) */}
+        {/* "+ Add Model" Button */}
         {modelItems.length < 5 ? (
           <button
             type="button"
@@ -274,7 +423,7 @@ export default function LeftSidebar({
           >
             <Icon
               icon="solar:add-circle-linear"
-              className="w-[1.1vw] h-[1.1vw] text-gray-500 group-hover:text-[#ea543a] transition-colors shrink-0"
+              className="w-[1.1vw] h-[1.1vw] min-w-[16px] min-h-[16px] text-gray-500 group-hover:text-[#ea543a] transition-colors shrink-0"
             />
             <span className="text-[0.82vw]">Add Model</span>
             <span className="ml-auto text-[0.65vw] text-gray-400 font-normal">
@@ -304,7 +453,7 @@ export default function LeftSidebar({
         >
           <Icon
             icon="ant-design:sun-outlined"
-            className="w-[1.15vw] h-[1.15vw] shrink-0"
+            className="w-[1.15vw] h-[1.15vw] min-w-[16px] min-h-[16px] shrink-0"
           />
           <span className="text-[0.82vw]">Lighting</span>
         </button>
@@ -321,11 +470,20 @@ export default function LeftSidebar({
         >
           <Icon
             icon="ant-design:camera-outlined"
-            className="w-[1.15vw] h-[1.15vw] shrink-0"
+            className="w-[1.15vw] h-[1.15vw] min-w-[16px] min-h-[16px] shrink-0"
           />
           <span className="text-[0.82vw]">Camera</span>
         </button>
       </nav>
+
+      {/* ── 4. RESIZE DRAG HANDLE (RIGHT BORDER) ── */}
+      <div
+        onMouseDown={startResize}
+        className={`absolute top-0 right-0 w-[5px] h-full cursor-col-resize hover:bg-[#ea543a]/50 transition-colors z-30 ${
+          isDragging ? "bg-[#ea543a]" : "bg-transparent"
+        }`}
+        title="Drag to resize sidebar width"
+      />
 
       <style>{`
         .custom-left-scrollbar::-webkit-scrollbar {
