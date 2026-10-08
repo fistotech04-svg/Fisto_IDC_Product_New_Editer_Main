@@ -1184,7 +1184,7 @@ const ReadingExperienceSection = () => {
   const isColorDisabled = activeView !== '3d';
 
   return (
-    <section className="relative w-full min-h-0 lg:h-screen lg:max-h-screen bg-white font-sans py-2 sm:py-4 lg:pt-[0.8vw] lg:pb-[1vw] px-4 sm:px-8 lg:px-[5vw] flex flex-col justify-between items-center overflow-hidden border-t border-gray-100">
+    <section className="relative w-full min-h-0 lg:h-screen lg:max-h-screen bg-white font-sans py-4 sm:py-6 lg:pt-[0.8vw] lg:pb-[1vw] px-4 sm:px-8 lg:px-[5vw] flex flex-col justify-between items-center overflow-visible lg:overflow-hidden border-t border-gray-100">
 
       {/* Top Header */}
       <div className="text-center max-w-full lg:max-w-[50vw] mx-auto space-y-0.5 lg:space-y-[0.15vw] shrink-0">
@@ -1200,7 +1200,7 @@ const ReadingExperienceSection = () => {
       </div>
 
       {/* Main Interactive Workspace Container */}
-      <div className="w-full max-w-[1600px] flex-1 flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-[2vw] mt-0 lg:-mt-[6vw] mb-1 lg:mb-[0.3vw] overflow-hidden px-2">
+      <div className="w-full max-w-[1600px] flex-none lg:flex-1 flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-[2vw] mt-2 lg:-mt-[6vw] mb-2 lg:mb-[0.3vw] overflow-visible lg:overflow-hidden px-2">
 
         {/* LEFT PANEL: Model View Selector */}
         <div className="w-full lg:w-[7.8vw] shrink-0 flex flex-col items-center bg-white rounded-2xl lg:rounded-[1vw] border border-gray-200/90 p-2 lg:p-[0.5vw] shadow-sm">
@@ -1233,8 +1233,8 @@ const ReadingExperienceSection = () => {
         </div>
 
         {/* CENTER STAGE: Main Display Image (Smooth Stacked Absolute Crossfade) */}
-        <div className="relative flex-1 w-full flex items-center justify-center lg:h-[20vw] min-h-[200px] px-2">
-          <div className="relative w-full h-full flex items-center justify-center rounded-2xl lg:rounded-[1.2vw] p-1 overflow-hidden">
+        <div className="relative w-full h-[240px] sm:h-[320px] lg:h-[20vw] lg:flex-1 flex items-center justify-center my-2 lg:my-0 px-2 shrink-0">
+          <div className="relative w-full h-full flex items-center justify-center rounded-2xl lg:rounded-[1.2vw] p-2 overflow-hidden">
             <AnimatePresence>
               <motion.img
                 key={activeView === '3d' ? selectedColor : activeView}
@@ -1244,7 +1244,7 @@ const ReadingExperienceSection = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.35, ease: "easeInOut" }}
-                className="absolute max-w-full max-h-[200px] sm:max-h-[300px] lg:max-h-[19.5vw] object-contain drop-shadow-[0_1vw_2vw_rgba(0,0,0,0.12)]"
+                className="absolute max-w-full max-h-[220px] sm:max-h-[300px] lg:max-h-[19.5vw] object-contain drop-shadow-[0_1vw_2vw_rgba(0,0,0,0.12)]"
               />
             </AnimatePresence>
           </div>
@@ -1279,7 +1279,7 @@ const ReadingExperienceSection = () => {
       </div>
 
       {/* BOTTOM ROW: 5 Feature Cards */}
-      <div className="w-full max-w-[1600px] shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-[1vw] mt-1 lg:-mt-[4vw] pb-[4vw]">
+      <div className="w-full max-w-[1600px] shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-[1vw] mt-2 lg:-mt-[4vw] pb-4 lg:pb-[4vw]">
         {features.map((feat) => {
           return (
             <div
