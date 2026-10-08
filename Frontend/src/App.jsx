@@ -61,8 +61,8 @@ function App() {
         <Router>
           <NetworkStatus />
           <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Signin />} />
+            {/* TEMPORARILY DISABLED LOGIN ROUTE - DIRECT TO HOME */}
+            <Route path="/signin" element={<Signin />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/share=public/:shareId" element={<ShareViewBook />} />
@@ -70,15 +70,11 @@ function App() {
             <Route path="/share=password/:shareId" element={<ShareViewBook />} />
             <Route path="/share=invite/:shareId" element={<ShareViewBook />} />
             <Route path="/share/:shareId" element={<ShareViewBook />} />
-            <Route path="/preview" element={<ProtectedRoute><PreviewPage /></ProtectedRoute>} />
+            <Route path="/preview" element={<PreviewPage />} />
             <Route path="/ar-view" element={<ARView />} />
 
-            {/* Protected Editor Layout */}
-            <Route path="/editor" element={
-              <ProtectedRoute>
-                <Editor />
-              </ProtectedRoute>
-            }>
+            {/* Editor Layout */}
+            <Route path="/editor" element={<Editor />}>
               <Route index element={<MainEditor />} />
               <Route path="threed_editor" element={<ThreedEditor />} />
               <Route path="threed_editor/:modelId" element={<ThreedEditor />} />
@@ -90,12 +86,9 @@ function App() {
               <Route path=":v_id" element={<MainEditor />} />
             </Route>
 
-            {/* Protected Routes WITH navbar */}
-            <Route element={
-              <ProtectedRoute>
-                <MainLayout />
-              </ProtectedRoute>
-            }>
+            {/* Routes WITH navbar */}
+            <Route element={<MainLayout />}>
+              <Route path="/" element={<Home />} />
               <Route path="/home" element={<Home />} />
               <Route path="/my-flipbooks" element={<MyFlipbooks />} />
               <Route path="/templates" element={<Template />} />
