@@ -5,7 +5,7 @@ import { Icon } from '@iconify/react';
 
 export default function Footer() {
   return (
-    <footer className="w-full bg-[#222222] text-white font-sans relative overflow-hidden flex flex-col justify-between min-h-auto lg:min-h-[500px]">
+    <footer className="w-full bg-[#222222] text-white font-sans relative overflow-hidden flex flex-col justify-between min-h-auto lg:min-h-[480px]">
       
       {/* Main Content Area */}
       <div className="w-full max-w-[100vw] mx-auto px-4 sm:px-6 lg:pl-[2vw] lg:pr-0 relative z-10 flex flex-col justify-between">
@@ -14,7 +14,7 @@ export default function Footer() {
         <div className="flex flex-col lg:flex-row items-start justify-between gap-6 lg:gap-[3vw] relative pb-6 lg:pb-0">
           
           {/* Left Column: Brand Logo & Headline */}
-          <div className="w-full lg:w-auto max-w-full sm:max-w-[80%] lg:max-w-[24vw] pt-6 sm:pt-8 lg:pt-[3.5vw] space-y-3 sm:space-y-4 lg:space-y-[1.2vw] pr-24 sm:pr-28 lg:pr-0">
+          <div className="w-full lg:w-auto max-w-full sm:max-w-[80%] lg:max-w-[24vw] pt-6 sm:pt-8 lg:pt-[3vw] space-y-3 sm:space-y-4 lg:space-y-[1.2vw] pr-24 sm:pr-28 lg:pr-0">
             {/* Logo Image */}
             <div className="flex items-center">
               <img src={FlipibookLogo} alt="Flipibook Logo" className="h-8 sm:h-10 lg:h-[2.8vw] w-auto object-contain" />
@@ -34,10 +34,10 @@ export default function Footer() {
           </div>
 
           {/* Center Column: Social Links Bar + 3 Info Link Columns */}
-          <div className="flex-1 w-full lg:w-auto flex flex-col justify-between pl-0 lg:pl-[2vw] pr-0 lg:pr-[12vw] space-y-6 sm:space-y-8 lg:space-y-[2.5vw]">
+          <div className="flex-1 w-full lg:w-auto flex flex-col justify-between pl-0 lg:pl-[2vw] pr-0 lg:pr-[12vw] space-y-6 sm:space-y-8 lg:space-y-[2vw]">
             
             {/* Horizontal Social Links Bar */}
-            <div className="flex flex-wrap items-center pt-2 sm:pt-4 lg:pt-[3.5vw] ml-0 lg:ml-[3vw] gap-2.5 sm:gap-4 lg:gap-[2.5vw] text-xs sm:text-sm md:text-base lg:text-[0.88vw] font-medium text-white">
+            <div className="flex flex-wrap items-center pt-2 sm:pt-4 lg:pt-[3vw] ml-0 lg:ml-[3vw] gap-2.5 sm:gap-4 lg:gap-[2.5vw] text-xs sm:text-sm md:text-base lg:text-[0.88vw] font-medium text-white">
               {/* Facebook */}
               <a href="#" className="flex items-center gap-1 lg:gap-[0.5vw] hover:text-[#f15a24] transition-colors group">
                 <Icon icon="ic:baseline-facebook" className="text-sm sm:text-lg lg:text-[1.3vw]" />
@@ -128,15 +128,24 @@ export default function Footer() {
 
       </div>
 
-      {/* Giant Watermark Background Text "FLIPIBOOK" */}
-      <div className="w-full relative overflow-hidden select-none pointer-events-none my-4 lg:my-0">
-        <h1 className="text-[18vw] sm:text-[16vw] lg:text-[14vw] font-black text-white/[0.04] text-center tracking-[0.02em] leading-none uppercase whitespace-nowrap">
+      {/* Giant Watermark Background Text "FLIPIBOOK" with Bottom Gradient Blur Fade */}
+      <div className="w-full relative overflow-hidden select-none pointer-events-none -mt-4 lg:-mt-[2.5vw] mb-0">
+        <h1 
+          className="text-[18vw] sm:text-[16vw] lg:text-[14.5vw] font-black text-white/[0.06] text-center tracking-[0.02em] leading-none uppercase whitespace-nowrap"
+          style={{
+            maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 50%, rgba(0,0,0,0.15) 85%, rgba(0,0,0,0) 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 50%, rgba(0,0,0,0.15) 85%, rgba(0,0,0,0) 100%)',
+            filter: 'blur(0.5px)'
+          }}
+        >
           FLIPIBOOK
         </h1>
+        {/* Soft Bottom Blur Overlay Fade */}
+        <div className="absolute bottom-0 left-0 right-0 h-[40%] bg-gradient-to-t from-[#222222] via-[#222222]/80 to-transparent backdrop-blur-[2px] pointer-events-none" />
       </div>
 
       {/* Bottom Copyright & Legal Policy Bar */}
-      <div className="w-full py-4 lg:py-[1.2vw] px-4 sm:px-6 lg:px-[3vw] relative z-10 bg-[#222222]">
+      <div className="w-full py-4 lg:py-[1vw] px-4 sm:px-6 lg:px-[3vw] relative z-10 bg-[#222222] -mt-4 sm:-mt-6 lg:-mt-[2vw]">
         <div className="max-w-[94vw] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 lg:gap-[1vw] text-xs sm:text-sm lg:text-[0.72vw] text-[#fafafa] text-center sm:text-left">
           
           {/* Copyright Left */}

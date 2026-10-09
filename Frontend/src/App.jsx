@@ -37,6 +37,7 @@ import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
 import NetworkStatus from './pages/NetworkStatus';
+import ComingSoon from './pages/ComingSoon';
 
 function SettingsIndexRedirect() {
   let email = '';
@@ -113,6 +114,10 @@ function App() {
               </Route>
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<ContactUs />} />
+              <Route path="/features" element={<ComingSoon title="Features" />} />
+              <Route path="/converter" element={<ComingSoon title="Converter" />} />
+              <Route path="/pricing" element={<ComingSoon title="Pricing" />} />
+              <Route path="/help" element={<ComingSoon title="Help & Support" />} />
             </Route>
 
             {/* Catch-all route for wrong URLs */}

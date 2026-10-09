@@ -83,9 +83,163 @@ import interactive3dImg from '../assets/Home/intractive-3d.png';
 import rotation360Img from '../assets/Home/360-rotation.png';
 import textureImg from '../assets/Home/texture.png';
 import backgroundsImg from '../assets/Home/backgrounds.png';
+import exploreArrowIcon from '../assets/Home/explore-arrow-icon.png';
+import softCoverAudio from '../assets/Audios/Soft cover page.mp3';
 
-// Testimonials Section Component - Stacked Animated Card Carousel with Autoplay (4s)
+// Explore More Flipibooks Section Component
+const ExploreMoreFlipibooksSection = ({ navigate }) => {
+  return (
+    <section className="w-full bg-[#fcfdff] py-[4vw] px-[5vw] font-sans relative overflow-hidden flex items-center justify-center">
+      <div className="w-full max-w-[90vw] mx-auto flex flex-col lg:flex-row items-center justify-between gap-[3vw] relative z-10">
+        
+        {/* Left Column: Heading, Paragraph, CTA Button */}
+        <div className="w-full lg:w-[35vw] flex flex-col items-start text-left space-y-[1.8vw]">
+          {/* Tagline */}
+          <div className="flex items-center gap-[0.5vw]">
+            <span className="text-xs lg:text-[0.8vw] font-extrabold text-gray-800 tracking-widest uppercase">EXPLORE</span>
+            <div className="w-10 lg:w-[3vw] h-[1.5px] bg-gray-800"></div>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-4xl sm:text-5xl lg:text-[3.8vw] font-bold text-[#1e232d] leading-[1.08] tracking-tight">
+            Explore More <br />
+            <span className="text-[#f15a24]">Flipibooks</span>
+          </h2>
+
+          {/* Subtitle */}
+          <p className="text-sm sm:text-base lg:text-[1vw] text-gray-700 font-normal leading-relaxed max-w-lg lg:max-w-[30vw]">
+            Explore handcrafted flipbooks across industries, from product catalogues to marketing materials. Read, learn, share and make every page a meaningful experience.
+          </p>
+
+          {/* CTA Button */}
+          <div className="pt-[0.5vw]">
+            <button
+              onClick={() => navigate && navigate('/my-flipbooks')}
+              className="flex items-center gap-[0.8vw] px-[1.8vw] py-[1vw] bg-[#1b222c] hover:bg-[#2d3748] text-white rounded-lg font-bold text-sm lg:text-[0.9vw] shadow-[0_12px_28px_rgba(27,34,44,0.25)] transition-all duration-300 active:scale-95 group cursor-pointer"
+            >
+              <span>Explore More Flipibooks</span>
+              <Icon icon="lucide:arrow-right" className="w-[1.1vw] h-[1.1vw] group-hover:translate-x-[0.3vw] transition-transform" />
+            </button>
+          </div>
+        </div>
+
+        {/* Right Column: Dynamic Flow / Milestones with Curved Wave & Dots */}
+        <div className="w-full lg:w-[50vw] relative flex items-center justify-center pt-8 sm:pt-[2vw] lg:pt-0">
+          
+          {/* Top Right Label Header */}
+          <div className="absolute -top-[7vw] right-0 hidden sm:flex flex-col items-start text-left border-l-2 border-[#EA7233] pl-[0.8vw]">
+            <span className="text-[0.7vw] font-bold text-gray-600 uppercase">FEATURED FLIPIBOOK</span>
+            <span className="text-[0.7vw] font-bold  text-gray-600 uppercase">LEADING THE INDUSTRY REVOLUTION</span>
+          </div>
+
+          {/* Background Path Line with Curved Dashes & Orange Dots */}
+          <div className="absolute inset-0 pointer-events-none hidden md:block z-0">
+            <svg className="w-full h-full overflow-visible" viewBox="0 0 700 240" fill="none">
+              {/* Smooth Wave Line shifted upwards so it passes directly behind/through top of icon badges */}
+              <path
+                d="M 10 135 C 40 90, 80 40, 116 40 C 150 40, 180 85, 230 85 C 290 85, 310 30, 350 30 C 390 30, 420 75, 480 70 C 530 65, 550 10, 584 10 C 610 10, 620 50, 650 50 C 670 50, 680 10, 700 -10"
+                stroke="#f15a24"
+                strokeWidth="1.8"
+                strokeDasharray="4 4"
+                strokeOpacity="0.6"
+              />
+              {/* Orange Accent Dots along the curve dips & rises */}
+              <circle cx="205" cy="72" r="3.5" fill="#f15a24" />
+              <circle cx="435" cy="68" r="3.5" fill="#f15a24" />
+              <circle cx="630" cy="45" r="3" fill="#f15a24" />
+            </svg>
+          </div>
+
+          {/* Plane Graphic Icon at the Top Right of the Curved Path */}
+          <div className="absolute right-[-1vw] top-[-1.5vw] z-20 hidden md:block">
+            <img src={exploreArrowIcon} alt="Explore Flight Icon" className="w-[4.2vw] h-auto object-contain drop-shadow-md" />
+          </div>
+
+          {/* 3 Milestone Cards Grid */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-[1.5vw] relative z-10 items-end pt-4 md:pt-0">
+            
+            {/* Card 1: 100+ Happy Clients */}
+            <div className="flex flex-col items-center text-center group">
+              {/* White Circular Icon Badge with Drop Shadow */}
+              <div className="w-14 h-14 sm:w-16 sm:h-16 lg:w-[6vw] lg:h-[6vw] rounded-full bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)] border border-gray-100 flex items-center justify-center mb-2.5 lg:mb-[1.2vw] relative transition-transform duration-300 group-hover:scale-105">
+                <Icon icon="mdi:account-group" className="w-6 h-6 sm:w-7 sm:h-7 lg:w-[2.4vw] lg:h-[2.4vw] text-[#f15a24]" />
+              </div>
+
+              {/* Number Stat */}
+              <h3 className="text-2xl sm:text-3xl lg:text-[2.5vw] font-black text-[#1e232d] leading-none mb-1 lg:mb-[0.4vw]">
+                100+
+              </h3>
+
+              {/* Stat Title */}
+              <h4 className="text-xs sm:text-sm lg:text-[1.05vw] font-bold text-[#f15a24] mb-1.5 lg:mb-[0.5vw]">
+                Happy Clients
+              </h4>
+
+              {/* Description */}
+              <p className="text-[11px] sm:text-xs lg:text-[0.85vw] text-center text-gray-600 font-normal leading-relaxed max-w-[200px] sm:max-w-[240px] lg:max-w-[14vw]">
+                Trusted by businesses across various industries to create engaging digital experiences.
+              </p>
+            </div>
+
+            {/* Card 2: 500+ Flipbooks Created */}
+            <div className="flex flex-col items-center text-center group md:-translate-y-[1.2vw]">
+              {/* Solid Orange Badge with Double Ring Outline & White Open Book Icon */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-[7.2vw] lg:h-[7.2vw] rounded-full bg-[#f15a24] p-[2.5px] shadow-[0_12px_32px_rgba(241,90,36,0.35)] flex items-center justify-center mb-2.5 lg:mb-[1.2vw] transition-transform duration-300 group-hover:scale-105">
+                <div className="w-full h-full rounded-full border-2 border-white/90 flex items-center justify-center bg-[#f15a24]">
+                  <Icon icon="lucide:book-open" className="w-7 h-7 sm:w-8 sm:h-8 lg:w-[3.2vw] lg:h-[3.2vw] text-white stroke-[2.2]" />
+                </div>
+              </div>
+
+              {/* Number Stat */}
+              <h3 className="text-2xl sm:text-3xl lg:text-[2.5vw] font-black text-[#1e232d] leading-none mb-1 lg:mb-[0.4vw]">
+                500+
+              </h3>
+
+              {/* Stat Title */}
+              <h4 className="text-xs sm:text-sm lg:text-[1.05vw] font-bold text-[#f15a24] mb-1.5 lg:mb-[0.5vw]">
+                Flipbooks Created
+              </h4>
+
+              {/* Description */}
+              <p className="text-[11px] sm:text-xs lg:text-[0.85vw] text-center text-gray-600 font-normal leading-relaxed max-w-[200px] sm:max-w-[240px] lg:max-w-[14vw]">
+                From Product catalogues to marketing materials and more.
+              </p>
+            </div>
+
+            {/* Card 3: 1M+ Page Views */}
+            <div className="flex flex-col items-center text-center group md:-translate-y-[2.4vw]">
+              {/* White Circular Icon Badge */}
+              <div className="w-14 h-14 sm:w-16 sm:h-16 lg:w-[6vw] lg:h-[6vw] rounded-full bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)] border border-gray-100 flex items-center justify-center mb-2.5 lg:mb-[1.2vw] relative transition-transform duration-300 group-hover:scale-105">
+                <Icon icon="mdi:eye-outline" className="w-6 h-6 sm:w-7 sm:h-7 lg:w-[2.4vw] lg:h-[2.4vw] text-[#f15a24]" />
+              </div>
+
+              {/* Number Stat */}
+              <h3 className="text-2xl sm:text-3xl lg:text-[2.5vw] font-black text-[#1e232d] leading-none mb-1 lg:mb-[0.4vw]">
+                1M+
+              </h3>
+
+              {/* Stat Title */}
+              <h4 className="text-xs sm:text-sm lg:text-[1.05vw] font-bold text-[#f15a24] mb-1.5 lg:mb-[0.5vw]">
+                Page Views
+              </h4>
+
+              {/* Description */}
+              <p className="text-[11px] sm:text-xs lg:text-[0.85vw] text-center text-gray-600 font-normal leading-relaxed max-w-[200px] sm:max-w-[240px] lg:max-w-[14vw]">
+                Read, share and explore Flipibooks across the globe.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+  );
+};
+
+// Testimonials Section Component - Smooth Slide/Scale Animation with 3-Dots Navigation
 const TestimonialsSection = () => {
+
   const testimonials = [
     {
       id: 1,
@@ -110,31 +264,23 @@ const TestimonialsSection = () => {
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
       quote: "The seamless integration of videos and page-flip animations made our sales collateral stand out in trade shows and client presentations. Absolutely essential tool for modern B2B marketing.",
       rating: 5
-    },
-    {
-      id: 4,
-      name: "Head of Marketing",
-      company: "Precision Machinery Ltd",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200",
-      quote: "Our distribution partners love the interactive flipbooks! Being able to update product catalogs on the fly without printing costs has saved us thousands while keeping our clients informed.",
-      rating: 5
     }
   ];
 
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Auto-play interval every 4 seconds (4000ms)
+  // Auto-play interval every 4.5 seconds
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % testimonials.length);
-    }, 4000);
+    }, 4500);
     return () => clearInterval(timer);
   }, [testimonials.length]);
 
   return (
-    <section className="w-full bg-[#f8f9fb] py-6 sm:py-10 lg:pt-[6vh] lg:pb-[2vh] px-4 sm:px-[5vw] flex flex-col items-center justify-center font-sans relative overflow-hidden">
+    <section className="w-full bg-[#f8f9fb] py-8 sm:py-12 lg:pt-[7vh] lg:pb-[5vh] px-4 sm:px-[5vw] flex flex-col items-center justify-center font-sans relative overflow-hidden">
       {/* Top Header & Subtitle */}
-      <div className="text-center w-full max-w-xl lg:max-w-[60vw] mb-4 sm:mb-[4vh] space-y-2 lg:space-y-[1.2vh]">
+      <div className="text-center w-full max-w-xl lg:max-w-[60vw] mb-6 sm:mb-[4vh] space-y-2 lg:space-y-[1.2vh]">
         <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
           The Smarter Way to <br /> Present products
         </h2>
@@ -143,103 +289,93 @@ const TestimonialsSection = () => {
         </p>
       </div>
 
-      {/* Stacked Cards Container */}
-      <div className="relative w-full max-w-md sm:max-w-xl lg:max-w-[56vw] h-[220px] sm:h-[280px] lg:h-[28vw] min-h-[200px] flex items-center justify-center mb-2 sm:mb-[2vh]">
-        {testimonials.map((item, index) => {
-          // Compute relative position in stack
-          const total = testimonials.length;
-          const offset = (index - activeIndex + total) % total;
+      {/* Animated Testimonial Card Container */}
+      <div className="relative w-full max-w-md sm:max-w-xl lg:max-w-[56vw] min-h-[220px] sm:min-h-[260px] lg:min-h-[24vw] flex items-center justify-center my-4">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeIndex}
+            initial={{ opacity: 0, x: 40, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -40, scale: 0.96 }}
+            transition={{
+              duration: 0.5,
+              ease: [0.16, 1, 0.3, 1]
+            }}
+            className="relative w-full bg-white rounded-2xl lg:rounded-[1.6vw] p-6 sm:p-8 lg:p-[3.2vw] border border-gray-100 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08),0_8px_20px_-5px_rgba(0,0,0,0.03)] flex flex-col justify-between"
+          >
+            {/* 3D Orange Quote Icon */}
+            <div className="absolute -top-5 sm:-top-[2.5vw] right-4 sm:right-[2.5vw] w-12 sm:w-[6.5vw] h-12 sm:h-[6.5vw] min-w-[44px] min-h-[44px] z-30 pointer-events-none drop-shadow-xl">
+              <img
+                src={testimonialIcon}
+                alt="Quote Icon"
+                className="w-full h-full object-contain"
+              />
+            </div>
 
-          // Only render top 3 visible stack layers
-          if (offset > 2) return null;
-
-          // Card visual stack transformation styles
-          const scale = 1 - offset * 0.05;
-          const translateY = offset * 2.8; // in vw
-          const zIndex = 20 - offset;
-          const opacity = offset === 0 ? 1 : offset === 1 ? 0.9 : 0.7;
-
-          return (
-            <motion.div
-              key={item.id}
-              initial={false}
-              animate={{
-                scale,
-                y: `${translateY}vw`,
-                opacity,
-                zIndex
-              }}
-              transition={{
-                duration: 0.6,
-                ease: [0.32, 0.72, 0, 1]
-              }}
-              className="absolute top-0 left-0 right-0 mx-auto w-full bg-white rounded-2xl lg:rounded-[1.6vw] p-4 sm:p-6 lg:p-[3.2vw] border border-gray-100/80 flex flex-col justify-between"
-              style={{
-                boxShadow: offset === 0
-                  ? '0 20px 50px -15px rgba(0, 0, 0, 0.09), 0 8px 20px -5px rgba(0, 0, 0, 0.04)'
-                  : '0 10px 25px -10px rgba(0,0,0,0.05)'
-              }}
-            >
-              {/* 3D Orange Quote Icon overlapping top-right of active top card */}
-              {offset === 0 && (
-                <div className="absolute -top-4 sm:-top-[3vw] right-4 sm:right-[1.8vw] w-10 sm:w-[8vw] h-10 sm:h-[8vw] min-w-[40px] min-h-[40px] z-30 pointer-events-none drop-shadow-xl">
-                  <img
-                    src={testimonialIcon}
-                    alt="Quote Icon"
-                    className="w-full h-full object-contain"
-                  />
+            {/* Author & Header Info Row */}
+            <div className="flex items-center gap-3 sm:gap-[1.8vw] mb-4 sm:mb-[2.5vh]">
+              <img
+                src={testimonials[activeIndex].avatar}
+                alt={testimonials[activeIndex].name}
+                className="w-12 h-12 sm:w-[5.2vw] sm:h-[5.2vw] min-w-[48px] min-h-[48px] rounded-full object-cover border-2 border-orange-100 shadow-md flex-shrink-0"
+              />
+              <div className="flex flex-col text-left">
+                <h4 className="text-sm sm:text-lg lg:text-[1.45vw] font-bold text-[#1e232d] leading-tight tracking-tight">
+                  {testimonials[activeIndex].name}
+                </h4>
+                <div className="flex items-center gap-1 sm:gap-[0.4vw]">
+                  <p
+                    className="text-xs sm:text-sm lg:text-[1.1vw] text-[#4a5264] font-medium leading-tight inline-block pb-[0.2vh]"
+                    style={{
+                      backgroundImage: 'linear-gradient(to right, #7b8fae 35%, rgba(255,255,255,0) 0%)',
+                      backgroundPosition: 'bottom',
+                      backgroundSize: '8px 1.5px',
+                      backgroundRepeat: 'repeat-x'
+                    }}
+                  >
+                    {testimonials[activeIndex].company}
+                  </p>
                 </div>
-              )}
 
-              {/* Author & Header Info Row */}
-              <div className="flex items-center gap-3 sm:gap-[1.8vw] mb-2 sm:mb-[2.5vh]">
-                <img
-                  src={item.avatar}
-                  alt={item.name}
-                  className="w-11 h-11 sm:w-[5.2vw] sm:h-[5.2vw] min-w-[44px] min-h-[44px] rounded-full object-cover border-2 border-white shadow-md flex-shrink-0"
-                />
-                <div className="flex flex-col text-left">
-                  <h4 className="text-sm sm:text-lg lg:text-[1.45vw] font-bold text-[#1e232d] leading-tight tracking-tight">
-                    {item.name}
-                  </h4>
-                  <div className="flex items-center gap-1 sm:gap-[0.4vw]">
-                    <p
-                      className="text-xs sm:text-sm lg:text-[1.1vw] text-[#4a5264] font-medium leading-tight inline-block pb-[0.2vh]"
-                      style={{
-                        backgroundImage: 'linear-gradient(to right, #7b8fae 35%, rgba(255,255,255,0) 0%)',
-                        backgroundPosition: 'bottom',
-                        backgroundSize: '8px 1.5px',
-                        backgroundRepeat: 'repeat-x'
-                      }}
-                    >
-                      {item.company}
-                    </p>
-                  </div>
-
-                  {/* Star Rating Row */}
-                  <div className="flex items-center gap-1 sm:gap-[0.3vw] mt-1 sm:mt-[0.8vh]">
-                    {[...Array(item.rating)].map((_, i) => (
-                      <span key={i} className="text-[#ff9500] text-xs sm:text-base lg:text-[1.3vw] font-bold leading-none">
-                        ★
-                      </span>
-                    ))}
-                  </div>
+                {/* Star Rating Row */}
+                <div className="flex items-center gap-1 sm:gap-[0.3vw] mt-1 sm:mt-[0.8vh]">
+                  {[...Array(testimonials[activeIndex].rating)].map((_, i) => (
+                    <span key={i} className="text-[#ff9500] text-xs sm:text-base lg:text-[1.3vw] font-bold leading-none">
+                      ★
+                    </span>
+                  ))}
                 </div>
               </div>
+            </div>
 
-              {/* Quote Body Paragraph */}
-              <p className="text-xs sm:text-base lg:text-[1.35vw] text-[#4b5262] font-normal leading-relaxed text-left pl-1">
-                &ldquo;{item.quote}&rdquo;
-              </p>
-            </motion.div>
-          );
-        })}
+            {/* Quote Body Paragraph */}
+            <p className="text-xs sm:text-base lg:text-[1.35vw] text-[#4b5262] font-normal leading-relaxed text-left pl-1">
+              &ldquo;{testimonials[activeIndex].quote}&rdquo;
+            </p>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* 3 Dots Navigation Bar */}
+      <div className="flex items-center justify-center gap-2.5 mt-4 sm:mt-6 z-20">
+        {testimonials.slice(0, 3).map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setActiveIndex(idx)}
+            title={`Go to testimonial ${idx + 1}`}
+            className={`transition-all duration-300 cursor-pointer rounded-full h-2.5 ${
+              activeIndex === idx
+                ? 'w-8 sm:w-10 bg-[#ea7233] shadow-md'
+                : 'w-2.5 bg-gray-300 hover:bg-orange-300'
+            }`}
+          />
+        ))}
       </div>
     </section>
   );
 };
 
-// FAQ Section Component - Smooth Accordion (CodePen Byjaaqd mechanics)
+// FAQ Section Component - Smooth Accordion
 const FAQSection = ({ navigate }) => {
   const [openIndex, setOpenIndex] = useState(null);
 
@@ -277,37 +413,37 @@ const FAQSection = ({ navigate }) => {
   return (
     <section className="w-full bg-[#f8f9fb] py-8 sm:py-[6vh] pb-[6vh] px-4 sm:px-[5vw] flex flex-col items-center justify-center font-sans relative">
       {/* Section Header */}
-      <div className="text-center w-full max-w-xl lg:max-w-[60vw] mb-6 sm:mb-[7vh] space-y-2 sm:space-y-[1.2vh]">
+      <div className="text-center w-full max-w-xl lg:max-w-[60vw] mb-6 sm:mb-[6vh] space-y-2 sm:space-y-[1.2vh]">
         <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-bold text-[#22252a] tracking-tight leading-[1.15]">
           Common Questions About <br />
-          <span className="text-[#f15a24]">Flipibook</span>
+          <span className="text-[#ea7233]">Flipibook</span>
         </h2>
-        <p className="text-xs sm:text-base lg:text-[1.25vw] text-[#5e636e] font-normal leading-relaxed">
+        <p className="text-xs sm:text-base lg:text-[1.2vw] text-[#5e636e] font-normal leading-relaxed">
           Turn static PDFs into engaging digital catalogue experiences.
         </p>
       </div>
 
       {/* 2-Column FAQ Grid */}
-      <div className="w-full max-w-full lg:max-w-[75vw] grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-[1.5vw] items-start">
+      <div className="w-full max-w-full lg:max-w-[72vw] grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-[1.2vw] items-start">
         {faqs.map((faq, index) => {
           const isOpen = openIndex === index;
           return (
             <div
               key={index}
               onClick={() => toggleFAQ(index)}
-              className={`bg-white border rounded-xl lg:rounded-[0.9vw] p-4 sm:p-5 lg:p-[1.6vw] cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${isOpen ? 'border-[#f15a24]/40 bg-white ring-2 ring-[#f15a24]/10' : 'border-gray-200/90 hover:border-gray-300'
+              className={`bg-white border rounded-xl lg:rounded-[0.8vw] p-3.5 sm:p-4.5 lg:p-[1.2vw] cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${isOpen ? 'border-[#ea7233]/40 bg-white ring-2 ring-[#ea7233]/10' : 'border-gray-200/90 hover:border-gray-300'
                 }`}
             >
               {/* Question Header Row */}
               <div className="flex items-center justify-between gap-3 sm:gap-[1vw]">
-                <h3 className="text-base sm:text-lg lg:text-[1.5vw] font-semibold text-[#1e232d] leading-snug text-left">
+                <h3 className={`text-base sm:text-lg lg:text-[1.28vw] font-bold leading-snug text-left transition-colors duration-300 ${isOpen ? 'text-[#ea7233]' : 'text-[#1e232d]'}`}>
                   {faq.question}
                 </h3>
                 <div
-                  className={`w-6 h-6 sm:w-[1.8vw] sm:h-[1.8vw] min-w-[24px] min-h-[24px] flex items-center justify-center rounded-full text-gray-500 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-90 text-[#f15a24]' : ''
+                  className={`w-6 h-6 sm:w-[1.6vw] sm:h-[1.6vw] min-w-[22px] min-h-[22px] flex items-center justify-center rounded-full transition-all duration-300 flex-shrink-0 ${isOpen ? 'rotate-90 text-[#ea7233] bg-orange-50' : 'text-gray-400'
                     }`}
                 >
-                  <Icon icon="ep:arrow-right" className="w-4 h-4 sm:w-[1.8vw] sm:h-[1.8vw] stroke-[2.5]" />
+                  <Icon icon="ep:arrow-right" className="w-3.5 h-3.5 sm:w-[1.2vw] sm:h-[1.2vw]" />
                 </div>
               </div>
 
@@ -318,10 +454,10 @@ const FAQSection = ({ navigate }) => {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.35, ease: "easeInOut" }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
                     className="overflow-hidden"
                   >
-                    <p className="text-sm sm:text-base lg:text-[1.05vw] text-[#5e636e] font-normal leading-relaxed text-left pt-3 border-t border-gray-100 mt-3">
+                    <p className="text-xs sm:text-base lg:text-[0.98vw] text-[#5e636e] font-normal leading-relaxed text-left pt-2.5 border-t border-gray-100 mt-2.5">
                       {faq.answer}
                     </p>
                   </motion.div>
@@ -340,6 +476,97 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
   const containerRef = useRef(null);
   const heroBookRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isFlipAudioMuted, setIsFlipAudioMuted] = useState(false);
+
+  // Generate 20 pages by duplicating page images repeatedly
+  const pagesList = [page1, page2, page3, page4, page5, page6];
+  const totalPages = 20;
+  const heroPages = Array.from({ length: totalPages }, (_, i) => pagesList[i % pagesList.length]);
+
+  // Audio ref for page flip sound
+  const flipAudioRef = useRef(null);
+
+  // Viewport tracking for autoplay activation
+  const isHeroInView = useInView(containerRef, { amount: 0.2 });
+
+  // Autoplay and interaction refs/timers
+  const autoplayTimerRef = useRef(null);
+  const userInteractionTimeoutRef = useRef(null);
+
+  // Initialize flip audio object
+  useEffect(() => {
+    flipAudioRef.current = new Audio(softCoverAudio);
+
+    return () => {
+      if (flipAudioRef.current) {
+        flipAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Play page flip audio sound
+  const playFlipSound = useCallback(() => {
+    if (isFlipAudioMuted) return;
+    if (flipAudioRef.current) {
+      flipAudioRef.current.currentTime = 0;
+      const playPromise = flipAudioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {});
+      }
+    }
+  }, [isFlipAudioMuted]);
+
+  // Autoplay functionality - flips pages continuously, returning to first page at end to loop forever
+  const startAutoplay = useCallback(() => {
+    if (autoplayTimerRef.current) clearInterval(autoplayTimerRef.current);
+    autoplayTimerRef.current = setInterval(() => {
+      if (heroBookRef.current) {
+        const pageFlipObj = heroBookRef.current.pageFlip();
+        if (pageFlipObj) {
+          const count = pageFlipObj.getPageCount();
+          const current = pageFlipObj.getCurrentPageIndex();
+          if (current >= count - 2 || current >= 18) {
+            pageFlipObj.flip(0);
+          } else {
+            pageFlipObj.flipNext();
+          }
+        }
+      }
+    }, 3500);
+  }, []);
+
+  const stopAutoplay = useCallback(() => {
+    if (autoplayTimerRef.current) {
+      clearInterval(autoplayTimerRef.current);
+      autoplayTimerRef.current = null;
+    }
+  }, []);
+
+  // Reset 5-second inactivity timer before resuming autoplay loop
+  const handleUserFlipInteraction = useCallback(() => {
+    stopAutoplay();
+    if (userInteractionTimeoutRef.current) {
+      clearTimeout(userInteractionTimeoutRef.current);
+    }
+    userInteractionTimeoutRef.current = setTimeout(() => {
+      startAutoplay();
+    }, 5000);
+  }, [startAutoplay, stopAutoplay]);
+
+  // Trigger autoplay lifecycle based on viewport
+  useEffect(() => {
+    if (isHeroInView) {
+      startAutoplay();
+    } else {
+      stopAutoplay();
+    }
+    return () => {
+      stopAutoplay();
+      if (userInteractionTimeoutRef.current) {
+        clearTimeout(userInteractionTimeoutRef.current);
+      }
+    };
+  }, [isHeroInView, startAutoplay, stopAutoplay]);
 
   // Scroll animations with framer-motion
   const { scrollYProgress } = useScroll({
@@ -354,12 +581,16 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
   const bookScale = useTransform(scrollYProgress, [0, 0.4, 0.8], [0.95, 1.02, 1]);
 
   const handlePrevPage = () => {
+    playFlipSound();
+    handleUserFlipInteraction();
     if (heroBookRef.current) {
       heroBookRef.current.pageFlip()?.flipPrev();
     }
   };
 
   const handleNextPage = () => {
+    playFlipSound();
+    handleUserFlipInteraction();
     if (heroBookRef.current) {
       heroBookRef.current.pageFlip()?.flipNext();
     }
@@ -367,7 +598,9 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
 
   const onHeroBookFlip = useCallback((e) => {
     setCurrentPage(e.data + 1);
-  }, []);
+    playFlipSound();
+    handleUserFlipInteraction();
+  }, [playFlipSound, handleUserFlipInteraction]);
 
   return (
     <div ref={containerRef} className="relative w-full h-auto min-h-[115vh] bg-white p-5 font-sans overflow-visible flex flex-col justify-between">
@@ -375,52 +608,53 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
 
 
       {/* Top Header & Branding Row */}
-      <motion.div style={{ opacity: headerOpacity }} className="flex flex-col md:flex-row justify-between items-start z-10 w-full mb-4 lg:mb-[0.8vw] gap-4 md:gap-0">
+      <motion.div style={{ opacity: headerOpacity }} className="flex flex-col md:flex-row justify-between items-start z-10 w-full mb-4 lg:mb-[0.8vw] gap-5 md:gap-0">
         {/* Main Title */}
-        <div>
-          <h1 className="text-[26px] sm:text-[34px] lg:text-[3.6vw] font-bold font-popins text-[#35363A] leading-[1.07]">
+        <div className="w-full md:w-auto">
+          <h1 className="text-[32px] sm:text-[36px] lg:text-[3.6vw] font-bold font-popins text-[#35363A] leading-[1.05] tracking-tight">
             INTERACTIVE <br />
-            DIGITAL <span className="text-[#EA7233] text-[18px] sm:text-[24px] lg:text-[2.3vw]">CATALOGUE</span> <span className="text-[#35363A] font-bold text-[18px] sm:text-[24px] lg:text-[2.3vw]">(IDC)</span>
+            DIGITAL <br className="block sm:hidden" />
+            <span className="text-[#EA7233] text-[24px] sm:text-[26px] lg:text-[2.3vw] font-bold">CATALOGUE</span> <span className="text-[#35363A] font-bold text-[22px] sm:text-[26px] lg:text-[2.3vw]">(IDC)</span>
           </h1>
         </div>
 
         {/* Top-Right Branding & Reviews */}
-        <div className="flex flex-col items-start md:items-end text-left md:text-right">
+        <div className="flex flex-col items-end text-right self-end md:self-auto w-full md:w-auto mt-1 sm:mt-0">
           {/* YOUR CONTENT. STORY. Main Title */}
-          <div className="flex items-center gap-2 lg:gap-[0.8vw]">
+          <div className="flex items-center gap-2 lg:gap-[0.8vw] justify-end">
             {/* Dual-tone gradient text "YOUR" */}
             <span
-              className="text-[26px] sm:text-[34px] lg:text-[3.6vw] font-bold tracking-tight leading-none bg-clip-text text-transparent select-none"
+              className="text-[32px] sm:text-[36px] lg:text-[3.6vw] font-bold tracking-tight leading-none bg-clip-text text-transparent select-none"
               style={{
                 backgroundImage: 'linear-gradient(to bottom, #1e293b 0%, #1e293b 50%, #cbd5e1 50%, #cbd5e1 100%)'
               }}
             >
               YOUR
             </span>
-            <span className="text-[11px] sm:text-[13px] lg:text-[1vw] font-bold text-gray-800 tracking-wider text-left leading-[1.25] font-sans">
+            <span className="text-[12px] sm:text-[14px] lg:text-[1vw] font-bold text-gray-800 tracking-wider text-left leading-[1.2] font-sans">
               CONTENT.<br />STORY.
             </span>
           </div>
 
           {/* Taglines with bullets */}
-          <div className="flex items-center gap-[0.6vw] text-[10px] sm:text-[12px] lg:text-[0.8vw] font-bold tracking-wider text-[#ea7233] uppercase mt-[0.4vw]">
+          <div className="flex items-center justify-end gap-1.5 sm:gap-[0.6vw] text-[10px] sm:text-[12px] lg:text-[0.8vw] font-bold tracking-wider text-[#ea7233] uppercase mt-1 lg:mt-[0.4vw]">
             <span className="text-[#ea7233]">•</span>
-            <span className="">INTERACTIVE</span>
+            <span>INTERACTIVE</span>
             <span className="text-[#ea7233]">•</span>
-            <span className="">IMMERSIVE</span>
+            <span>IMMERSIVE</span>
             <span className="text-[#ea7233]">•</span>
-            <span className="">INTELLIGENT</span>
+            <span>INTELLIGENT</span>
           </div>
 
           {/* Bottom Orange Accent Line */}
-          <div className="w-12 lg:w-[4vw] h-[3px] lg:h-[0.25vw] bg-[#ea7233] rounded-full mt-2 lg:mt-[0.5vw] self-start ml-1 lg:ml-[0.3vw]" />
+          <div className="w-16 sm:w-14 lg:w-[4vw] h-[3px] lg:h-[0.25vw] bg-[#ea7233] rounded-full mt-2 lg:mt-[0.5vw] self-end" />
         </div>
       </motion.div>
 
       {/* Center Orange Interactive Hero Container */}
       <motion.div
         style={{ scale: orangeScale, y: orangeY }}
-        className="relative flex-1 min-h-[500px] md:min-h-[520px] lg:min-h-[75vh] bg-[#e65c00] rounded-2xl md:rounded-[2vw] shadow-2xl p-3 sm:p-5 pt-10 sm:pt-14 md:pt-12 pb-4 lg:p-[1.2vw] flex flex-col justify-between overflow-visible transition-all duration-300 w-full mt-14 sm:mt-16 md:mt-12 lg:mt-0"
+        className="relative flex-1 min-h-[500px] md:min-h-[520px] lg:min-h-[75vh] bg-[#EA7233] rounded-2xl md:rounded-[2vw] shadow-2xl p-3 sm:p-5 pt-10 sm:pt-14 md:pt-12 pb-4 lg:p-[1.2vw] flex flex-col justify-between overflow-visible transition-all duration-300 w-full mt-14 sm:mt-16 md:mt-12 lg:mt-0"
       >
         {/* AR / 360° Card overlapping upper-left edge */}
         <motion.div
@@ -609,7 +843,7 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
         {/* Central Flipbook Catalogue */}
         <motion.div
           style={{ scale: bookScale }}
-          className="relative my-auto mx-auto w-full max-w-[92vw] sm:max-w-[80vw] md:max-w-[640px] lg:w-[50vw] lg:max-w-[880px] h-[55vw] sm:h-[42vw] md:h-[360px] lg:h-[34vw] min-h-[220px] max-h-[750px] flex items-center justify-center z-10 drop-shadow-[0_1.5vw_2.5vw_rgba(0,0,0,0.3)] my-2 lg:my-auto"
+          className="relative my-auto mx-auto w-full max-w-[92vw] sm:max-w-[80vw] md:max-w-[640px] lg:w-[55vw] lg:max-w-[980px] h-[55vw] sm:h-[42vw] md:h-[360px] lg:h-[38vw] min-h-[220px] max-h-[820px] flex items-center justify-center z-10 drop-shadow-[0_1.5vw_2.5vw_rgba(0,0,0,0.3)] my-2 lg:my-auto"
         >
           <HTMLFlipBook
             width={1000}
@@ -630,12 +864,11 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
             ref={heroBookRef}
             className="w-full h-full drop-shadow-2xl"
           >
-            <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
-            <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
-            <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
-            <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
-            <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
-            <div className="bg-white"><img src={page6} alt="" className="w-full h-full object-cover" /></div>
+            {heroPages.map((pageSrc, index) => (
+              <div key={index} className="bg-white">
+                <img src={pageSrc} alt={`Page ${index + 1}`} className="w-full h-full object-cover" />
+              </div>
+            ))}
           </HTMLFlipBook>
         </motion.div>
 
@@ -656,7 +889,7 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
                 <div className="h-full bg-white/40 rounded-full transition-all duration-300" />
               </div>
               <span className="text-white text-xs sm:text-sm lg:text-[0.85vw] font-medium tracking-wide whitespace-nowrap">
-                0{currentPage} / 06
+                {String(currentPage).padStart(2, '0')} / {totalPages}
               </span>
               <div className="w-10 sm:w-24 lg:w-[14vw] h-[2px] bg-white/40 rounded-full overflow-hidden">
                 <div className="h-full bg-white/40 rounded-full transition-all duration-300" />
@@ -670,42 +903,39 @@ const HeroSection = ({ navigate, page1, page2, page3, page4, page5, page6 }) => 
               <Icon icon="lucide:chevron-right" className="text-sm sm:text-base lg:text-[1.2vw]" />
             </button>
           </div>
-
-          {/* Icons Row: Thumbnails, Share, Full Screen together on mobile */}
-          {/* <div className="flex items-center justify-center gap-6 sm:gap-8 lg:gap-[2.5vw] pt-1">
-            <button className="flex items-center gap-1.5 sm:flex-col sm:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
-              <Icon icon="hugeicons:menu-square" className="text-sm sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] sm:text-xs lg:text-[0.75vw] font-medium">Thumbnails</span>
-            </button>
-
-            <button className="flex items-center gap-1.5 sm:flex-col sm:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
-              <Icon icon="ph:share-network" className="text-sm sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] sm:text-xs lg:text-[0.75vw] font-medium">Share</span>
-            </button>
-
-            <button className="flex items-center gap-1.5 sm:flex-col sm:gap-[0.2vw] text-white hover:text-amber-200 transition-colors cursor-pointer group">
-              <Icon icon="akar-icons:full-screen" className="text-sm sm:text-xl lg:text-[1.5vw] group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] sm:text-xs lg:text-[0.75vw] font-medium">Full Screen</span>
-            </button>
-          </div> */}
         </div>
+
+        {/* Right Side Bottom Corner Mute Toggle Button (Icon Only) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsFlipAudioMuted((prev) => !prev);
+          }}
+          title={isFlipAudioMuted ? "Unmute Flip Sound" : "Mute Flip Sound"}
+          style={{ zIndex: 9999999, cursor: 'pointer' }}
+          className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-[111]  bg-white/25 hover:bg-white/40 backdrop-blur-md border border-white/40 text-white w-9 h-9 sm:w-11 sm:h-11 rounded-full shadow-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer "
+        >
+          <Icon icon={isFlipAudioMuted ? "lucide:volume-x" : "lucide:volume-2"} className="text-base sm:text-xl lg:text-[1.3vw] pointer-events-none cursor-pointer" />
+        </button>
       </motion.div>
 
       {/* Action Buttons */}
       <motion.div className="w-full flex items-center justify-center pt-6 sm:pt-10 lg:pt-[5.5vw] pb-3 lg:pb-[1vw] px-4 lg:px-[3vw] max-w-[1920px] mx-auto z-20">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-[1.2vw] w-full sm:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:flex-row items-center justify-center gap-3 sm:gap-[1.2vw] w-full sm:w-auto">
           <button
             onClick={() => navigate('/my-flipbooks')}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 lg:px-[1.8vw] lg:py-[0.7vw] bg-[#1e232a] text-white rounded-lg font-bold shadow-lg hover:bg-black hover:shadow-xl transition-all duration-300 active:scale-95 text-xs sm:text-sm lg:text-[0.85vw] group cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 lg:px-[1.8vw] lg:py-[0.8vw] bg-[#1e232a] text-white rounded-lg font-bold shadow-lg hover:bg-black hover:shadow-xl transition-all duration-300 active:scale-95 text-xs sm:text-sm lg:text-[0.85vw] group cursor-pointer text-center whitespace-nowrap leading-none"
           >
             <span>My FlipBook</span>
-            <Icon icon="lucide:arrow-right" className="text-sm lg:text-[1vw] group-hover:translate-x-1 transition-transform" />
+            <Icon icon="lucide:arrow-right" className="text-sm lg:text-[1vw] group-hover:translate-x-1 transition-transform shrink-0" />
           </button>
 
           <button
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 lg:px-[1.8vw] lg:py-[0.7vw] bg-white text-gray-800 border border-gray-200 rounded-lg font-bold shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-300 active:scale-95 text-xs sm:text-sm lg:text-[0.85vw] group cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 lg:px-[1.8vw] lg:py-[0.8vw] bg-white text-gray-800 border border-gray-200 rounded-lg font-bold shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-300 active:scale-95 text-xs sm:text-sm lg:text-[0.85vw] group cursor-pointer text-center whitespace-nowrap leading-none"
           >
-            <Icon icon="lucide:play-circle" className="text-sm lg:text-[1vw] text-gray-700" />
+            <Icon icon="lucide:play-circle" className="text-sm lg:text-[1vw] text-gray-700 shrink-0" />
             <span>View Live Demo</span>
           </button>
         </div>
@@ -889,9 +1119,9 @@ const InteractiveDemoSection = () => {
         <div className="relative z-10 w-full flex-1 flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 my-auto py-1 px-2 sm:px-4 lg:px-[3vw]">
 
           {/* Left Side: Enlarged Interactive Flipbook Container */}
-          <div className="w-full lg:w-[54%] flex flex-col items-center justify-center my-auto">
+          <div className="w-full lg:w-[70%] flex flex-col items-center justify-center my-auto">
             {/* Interactive Flipbook */}
-            <div className="relative w-full h-[320px] sm:h-[400px] lg:h-[28vw] max-h-[80vh] flex items-center justify-center z-10 drop-shadow-[0_2vw_3vw_rgba(0,0,0,0.35)] overflow-hidden">
+            <div className="relative w-full h-[400px] sm:h-[480px] lg:h-[29.5vw] max-h-[82vh] flex items-center justify-center z-10 drop-shadow-[0_2vw_3vw_rgba(0,0,0,0.35)] overflow-hidden">
               <HTMLFlipBook
                 key={activeCategory}
                 width={1000}
@@ -937,7 +1167,7 @@ const InteractiveDemoSection = () => {
             <div className="w-full flex flex-col gap-2 lg:gap-[1.5vw]">
 
               {/* Row 1: 3 Cards */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-2.5 lg:gap-[4vw] w-full">
+              <div className="grid grid-cols-3 gap-2 sm:gap-2.5 lg:gap-[1.2vw] w-full">
                 {categories.slice(0, 3).map((cat) => {
                   const isActive = activeCategory === cat.id;
 
@@ -945,12 +1175,12 @@ const InteractiveDemoSection = () => {
                     <button
                       key={cat.id}
                       onClick={() => setActiveCategory(cat.id)}
-                      className={`relative flex flex-col items-center justify-between p-1 sm:p-1.5 lg:p-[0.45vw] lg:h-[8.5vw] rounded-lg sm:rounded-xl lg:rounded-[0.7vw] backdrop-blur-md transition-all duration-300 w-full cursor-pointer overflow-hidden ${isActive
+                      className={`relative flex flex-col items-center justify-between p-1.5 sm:p-2 lg:p-[0.45vw] h-28 sm:h-36 lg:h-[8.5vw] rounded-xl lg:rounded-[0.7vw] backdrop-blur-md transition-all duration-300 w-full cursor-pointer overflow-hidden ${isActive
                         ? 'bg-white/35 border-2 border-white shadow-xl scale-[1.03]'
                         : 'bg-white/15 border border-white/20 hover:bg-white/25 hover:border-white/40'
                         }`}
                     >
-                      <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-md lg:rounded-[0.4vw] bg-black/10 relative">
+                      <div className="w-full h-20 sm:h-28 lg:h-auto lg:flex-1 flex items-center justify-center overflow-hidden rounded-md lg:rounded-[0.4vw] bg-black/10 relative">
                         <img
                           src={cat.img}
                           alt={cat.title}
@@ -958,7 +1188,7 @@ const InteractiveDemoSection = () => {
                         />
                       </div>
 
-                      <div className="w-full flex items-center justify-center lg:justify-between px-0.5 pt-0.5">
+                      <div className="w-full flex items-center justify-center lg:justify-between px-0.5 pt-1 lg:pt-0.5">
                         <span className="text-white font-bold text-[10px] sm:text-xs lg:text-[0.75vw] tracking-tight text-center capitalize truncate">
                           {cat.title}
                         </span>
@@ -971,8 +1201,9 @@ const InteractiveDemoSection = () => {
                 })}
               </div>
 
-              {/* Row 2: 2 Cards centered */}
-              <div className="flex justify-center gap-2 sm:gap-2.5 lg:gap-[1.2vw] w-full px-[5%] lg:px-[23%]">
+              {/* Row 2: 2 Cards (Centered with 65% width on mobile to match Row 1 card sizes) */}
+              <div className="grid grid-cols-6 gap-2 sm:gap-2.5 lg:gap-[1.2vw] w-[65%] sm:w-full mx-auto">
+                <div className="col-span-1 hidden lg:block" />
                 {categories.slice(3, 5).map((cat) => {
                   const isActive = activeCategory === cat.id;
 
@@ -980,12 +1211,12 @@ const InteractiveDemoSection = () => {
                     <button
                       key={cat.id}
                       onClick={() => setActiveCategory(cat.id)}
-                      className={`relative flex flex-col items-center justify-between p-1 sm:p-1.5 lg:p-[0.45vw] lg:h-[8.5vw] w-1/2 rounded-lg sm:rounded-xl lg:rounded-[0.7vw] backdrop-blur-md transition-all duration-300 cursor-pointer overflow-hidden ${isActive
+                      className={`col-span-3 lg:col-span-2 relative flex flex-col items-center justify-between p-1.5 sm:p-2 lg:p-[0.45vw] h-28 sm:h-36 lg:h-[8.5vw] rounded-xl lg:rounded-[0.7vw] backdrop-blur-md transition-all duration-300 cursor-pointer overflow-hidden ${isActive
                         ? 'bg-white/35 border-2 border-white shadow-xl scale-[1.03]'
                         : 'bg-white/15 border border-white/20 hover:bg-white/25 hover:border-white/40'
                         }`}
                     >
-                      <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-md lg:rounded-[0.4vw] bg-black/10 relative">
+                      <div className="w-full h-20 sm:h-28 lg:h-auto lg:flex-1 flex items-center justify-center overflow-hidden rounded-md lg:rounded-[0.4vw] bg-black/10 relative">
                         <img
                           src={cat.img}
                           alt={cat.title}
@@ -993,7 +1224,7 @@ const InteractiveDemoSection = () => {
                         />
                       </div>
 
-                      <div className="w-full flex items-center justify-center lg:justify-between px-0.5 pt-0.5">
+                      <div className="w-full flex items-center justify-center lg:justify-between px-0.5 pt-1 lg:pt-0.5">
                         <span className="text-white font-bold text-[10px] sm:text-xs lg:text-[0.75vw] tracking-tight text-center capitalize truncate">
                           {cat.title}
                         </span>
@@ -1279,7 +1510,7 @@ const ReadingExperienceSection = () => {
       </div>
 
       {/* BOTTOM ROW: 5 Feature Cards */}
-      <div className="w-full max-w-[1600px] shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-[1vw] mt-2 lg:-mt-[4vw] pb-4 lg:pb-[4vw]">
+      <div className="w-[60%] max-w-sm sm:max-w-[1600px] sm:w-full mx-auto shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-[1vw] mt-2 lg:-mt-[4vw] pb-4 lg:pb-[4vw]">
         {features.map((feat) => {
           return (
             <div
@@ -1358,7 +1589,7 @@ const AboutUsSection = ({ navigate }) => {
           <img
             src={aboutUsImg}
             alt="Fisto IDC Interactive Catalogue Showcase"
-            className="w-full max-w-[92vw] sm:max-w-[500px] lg:max-w-[640px] h-auto object-contain drop-shadow-xl lg:absolute lg:right-[-5.9vw] lg:top-[-13vw] hover:scale-102 transition-transform duration-500"
+            className="w-full max-w-[92vw] sm:max-w-[550px] lg:max-w-[860px] lg:w-[50vw] h-auto object-contain drop-shadow-xl lg:absolute lg:right-[-5.9vw] lg:top-[-15vw] hover:scale-102 transition-transform duration-500"
           />
         </div>
       </div>
@@ -2420,6 +2651,11 @@ export default function Home() {
         <InteractiveDemoSection />
       </section>
 
+      {/* Explore More Flipibooks Section */}
+      <section className="relative lg:sticky lg:top-0 z-28 snap-start snap-always w-full bg-[#fcfdff]">
+        <ExploreMoreFlipibooksSection navigate={navigate} />
+      </section>
+
       {/* How It Works - 4 Simple Steps Section */}
       <section className="relative lg:sticky lg:top-0 z-30 snap-start snap-always w-full bg-white">
         <HowItWorksSection />
@@ -2445,99 +2681,7 @@ export default function Home() {
         <FAQSection navigate={navigate} />
       </section>
 
-      {/* Book Section - Featured Flipbook */}
-      <section className="relative lg:sticky lg:top-0 z-70 snap-start snap-always w-full bg-[#e6e6e8]">
-        <div
-          ref={containerRef}
-          className="w-full min-h-[92vh] bg-[#e6e6e8] relative flex flex-col lg:flex-row items-center justify-between px-4 sm:px-8 lg:px-[5vw] py-8 lg:py-[8vh] overflow-hidden font-sans gap-6 lg:gap-[2vw]"
-        >
-          {/* Left Column Text Block */}
-          <div className="max-w-full lg:max-w-[25vw] flex flex-col justify-start self-center lg:self-start z-10 space-y-3 lg:space-y-[2.5vh] pt-2 lg:pt-[2vh] text-center lg:text-left items-center lg:items-start">
-            {/* Top Tag Header */}
-            <div className="flex items-center gap-2 lg:gap-[0.6vw]">
-              <span className="w-[3px] h-4 lg:h-[1.3vw] min-h-[16px] bg-[#3b4998] rounded-full inline-block"></span>
-              <h4 className="text-xs lg:text-[0.9vw] font-bold text-gray-500 uppercase">
-                FEATURED FLIPBOOK
-              </h4>
-            </div>
-
-            {/* Main Title */}
-            <h2 className="text-2xl sm:text-4xl lg:text-[3.2vw] font-semibold text-gray-900 leading-[1.15] tracking-tight">
-              Ideas Inspire. <br />
-              Knowledge <br />
-              Transforms.
-            </h2>
-
-            {/* Subtitle Description */}
-            <p className="text-sm sm:text-base lg:text-[1vw] text-gray-500 font-normal leading-relaxed lg:leading-[1.75]">
-              Explore handpicked flipbooks across creativity, business, lifestyle, and more. <br />
-              Read. Learn. Share. Make every page a meaningful experience.
-            </p>
-          </div>
-
-          {/* Center Column - 3D Interactive Flipbook */}
-          <div className="relative flex-1 flex items-center justify-center z-10 px-2 lg:px-[1vw] w-full">
-            <div className="relative w-full max-w-[92vw] sm:max-w-[80vw] lg:w-[44vw] lg:max-w-[720px] h-[55vw] sm:h-[42vw] lg:h-[31vw] max-h-[500px] flex items-center justify-center drop-shadow-[0_25px_40px_rgba(0,0,0,0.25)]">
-              <HTMLFlipBook
-                width={1000}
-                height={1414}
-                size="stretch"
-                minWidth={200}
-                maxWidth={2000}
-                minHeight={300}
-                maxHeight={3000}
-                maxShadowOpacity={0.5}
-                showCover={false}
-                mobileScrollSupport={true}
-                clickEventForward={false}
-                useMouseEvents={true}
-                onFlip={onPage}
-                flippingTime={1000}
-                swipeDistance={30}
-                ref={bookRef}
-                className="drop-shadow-2xl"
-              >
-                {/* Page 1 */}
-                <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
-                {/* Page 2 */}
-                <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
-                {/* Page 3 */}
-                <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
-                {/* Page 4 */}
-                <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
-                {/* Page 5 */}
-                <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
-                {/* Page 6 */}
-                <div className="bg-white">
-                  <img src={page6} alt="" className="w-full h-full object-cover" />
-                </div>
-              </HTMLFlipBook>
-            </div>
-          </div>
-
-          {/* Right Column Text Block */}
-          <div className="max-w-full lg:max-w-[22vw] flex flex-col justify-center z-10 space-y-3 lg:space-y-[2.5vh] text-center lg:text-left items-center lg:items-start">
-            {/* Main Title */}
-            <h3 className="text-xl sm:text-3xl lg:text-[2.2vw] font-semibold text-gray-900 leading-[1.2] tracking-tight">
-              The Art of <br />
-              Thoughtful <br />
-              Living
-            </h3>
-
-            {/* Page Counter Line */}
-            <div className="pb-2 lg:pb-[1.5vh] border-b border-gray-300 w-32 lg:w-[12vw]">
-              <span className="text-sm lg:text-[1.1vw] text-gray-400 font-medium">
-                {Math.floor(page / 2) + 1}/3 Pages
-              </span>
-            </div>
-
-            {/* Paragraph Description */}
-            <p className="text-xs sm:text-sm lg:text-[0.9vw] text-gray-500 font-normal leading-relaxed lg:leading-[1.7]">
-              Explore timeless insights on mindfulness, creativity, and purposeful living through beautifully crafted stories and practical ideas.
-            </p>
-          </div>
-        </div>
-      </section>
+    
 
       {/* Global Footer */}
       <section className="relative z-[80] w-full bg-[#1e232a]">
