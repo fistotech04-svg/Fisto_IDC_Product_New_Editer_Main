@@ -29,7 +29,8 @@ export function ModelPanel({
   selectedTextureId,
   onOpenMaterialDrawer,
   selectedMaterial,
-  onMapUpload
+  onMapUpload,
+  onCommitHistory
 }) {
   const [isUniformScale, setIsUniformScale] = useState(true);
   const [colorMode, setColorMode] = useState("HEX");
@@ -412,6 +413,9 @@ export function ModelPanel({
                 color={materialSettings?.color || "#EC5137"}
                 onChange={(newColor) => {
                   onUpdateMaterialSetting && onUpdateMaterialSetting("color", newColor);
+                }}
+                onComplete={() => {
+                  onCommitHistory && onCommitHistory();
                 }}
                 opacity={Math.round(Number(materialSettings?.colorIntensity ?? materialSettings?.colorOpacity ?? 100))}
                 onOpacityChange={(newOpacity) => {

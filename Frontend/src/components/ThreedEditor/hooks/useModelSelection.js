@@ -5,17 +5,17 @@ import { useCallback } from "react";
  * Resolves targeted meshes and active materials based on single-mesh, multi-mesh, or group selections.
  */
 export function useModelSelection({ scene, modelName, modelId, deletedMaterials, meshIndexRef }) {
+    const isMeshDeleted = useCallback((child) => {
+        if (!deletedMaterials || deletedMaterials.size === 0) return false;
+        if (child.uuid && deletedMaterials.has(child.uuid)) return true;
+        const m = child.userData?.__preXrayMaterial || child.material;
+        const mats = Array.isArray(m) ? m : [m];
+        return mats.some(mat => mat?.name && deletedMaterials.has(mat.name));
+    }, [deletedMaterials]);
+
     // Helper to resolve all 3D meshes targeted by the current selection
     const resolveTargetMeshes = useCallback((selMat) => {
         if (!selMat || !scene) return [];
-
-        const isMeshDeleted = (child) => {
-            if (!deletedMaterials || deletedMaterials.size === 0) return false;
-            if (child.uuid && deletedMaterials.has(child.uuid)) return true;
-            const m = child.userData?.__preXrayMaterial || child.material;
-            const mats = Array.isArray(m) ? m : [m];
-            return mats.some(mat => mat?.name && deletedMaterials.has(mat.name));
-        };
 
         const targetUuid = selMat.uuid || selMat.meshUuid;
         const targetMat = typeof selMat.material === 'string' ? selMat.material : selMat.material?.name;
@@ -122,45 +122,34 @@ export function useModelSelection({ scene, modelName, modelId, deletedMaterials,
                 }
             });
             if (exactMatch.length > 0) return exactMatch;
-            // If targetUuid was provided and was not found in this scene, it belongs to another model instance!
-            return [];
         }
 
-        // 2. Fallback when targetUuid is not available (e.g. legacy selection by name)
-        if (selMat.isMesh) {
-            if (targetName && meshIndexRef.current.has(targetName)) {
-                const list = meshIndexRef.current.get(targetName).filter(c => !isMeshDeleted(c));
-                if (list.length > 0) return [list[0]];
-            }
-            let singleFound = null;
-            scene.traverse(child => {
-                if (singleFound) return;
-                if (child.isMesh && child.name === targetName && !isMeshDeleted(child)) {
-                    singleFound = child;
-                }
-            });
-            if (singleFound) return [singleFound];
+        // 2. Fallback when targetUuid is not available or not matched
+        if (targetName && meshIndexRef.current.has(targetName)) {
+            const list = meshIndexRef.current.get(targetName).filter(c => !isMeshDeleted(c));
+            if (list.length > 0) return list;
         }
 
         // 3. Material-level selection (e.g. selecting an entire shared material)
         if (targetMat && meshIndexRef.current.has(targetMat)) {
-            return meshIndexRef.current.get(targetMat).filter(c => !isMeshDeleted(c));
+            const list = meshIndexRef.current.get(targetMat).filter(c => !isMeshDeleted(c));
+            if (list.length > 0) return list;
         }
 
         const matches = [];
         scene.traverse(child => {
             if (child.isMesh && (child.material || child.userData?.__preXrayMaterial) && !isMeshDeleted(child)) {
                 const activeMat = child.userData?.__preXrayMaterial || child.material;
-                if (targetMat) {
-                    const mats = Array.isArray(activeMat) ? activeMat : [activeMat];
-                    if (mats.some(m => m && m.name === targetMat)) {
-                        matches.push(child);
-                    }
+                const mats = Array.isArray(activeMat) ? activeMat : [activeMat];
+                const matchesMat = targetMat && mats.some(m => m && (m.name === targetMat || m.userData?.baseMaterialName === targetMat));
+                const matchesName = targetName && (child.name === targetName || child.uuid === targetName || mats.some(m => m && m.name === targetName));
+                if (matchesMat || matchesName) {
+                    matches.push(child);
                 }
             }
         });
         return matches;
-    }, [scene, modelName, modelId, deletedMaterials, meshIndexRef]);
+    }, [scene, modelName, modelId, isMeshDeleted, meshIndexRef]);
 
     // Helper to resolve the primary THREE.Material targeted by the current selection
     const resolveTargetMaterial = useCallback((selMat) => {
@@ -179,8 +168,18 @@ export function useModelSelection({ scene, modelName, modelId, deletedMaterials,
             return null;
         }
 
-        const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene";
+        const isFullModel = !selMat || (modelName && (selMat.name === modelName || selMat === modelName)) || selMat.name === "Scene" || selMat === "Scene" || selMat.name === "All Meshes" || selMat.isAll;
         if (isFullModel) {
+            let firstMat = null;
+            scene.traverse(child => {
+                if (firstMat) return;
+                if (child.isMesh && child.visible !== false && !isMeshDeleted(child) && (child.material || child.userData?.__preXrayMaterial)) {
+                    const activeMat = child.userData?.__preXrayMaterial || child.material;
+                    const mats = Array.isArray(activeMat) ? activeMat : [activeMat];
+                    if (mats[0]) firstMat = mats[0];
+                }
+            });
+            if (firstMat) return firstMat;
             return null;
         }
 
@@ -197,21 +196,20 @@ export function useModelSelection({ scene, modelName, modelId, deletedMaterials,
                 if (child.isMesh && child.uuid === targetUuid && (child.material || child.userData?.__preXrayMaterial)) {
                     const activeMat = child.userData?.__preXrayMaterial || child.material;
                     if (Array.isArray(activeMat)) {
-                        found = targetMat ? (activeMat.find(m => m.name === targetMat) || activeMat[0]) : activeMat[0];
+                        found = targetMat ? (activeMat.find(m => m.name === targetMat || m.userData?.baseMaterialName === targetMat) || activeMat[0]) : activeMat[0];
                     } else {
                         found = activeMat;
                     }
                 }
             });
             if (found) return found;
-            return null;
         }
 
         if (targetMat && meshIndexRef.current.has(targetMat)) {
             const meshes = meshIndexRef.current.get(targetMat);
             if (meshes.length > 0 && (meshes[0].material || meshes[0].userData?.__preXrayMaterial)) {
                 const m = meshes[0].userData?.__preXrayMaterial || meshes[0].material;
-                return Array.isArray(m) ? (m.find(mat => mat.name === targetMat) || m[0]) : m;
+                return Array.isArray(m) ? (m.find(mat => mat.name === targetMat || mat.userData?.baseMaterialName === targetMat) || m[0]) : m;
             }
         }
 
@@ -230,7 +228,10 @@ export function useModelSelection({ scene, modelName, modelId, deletedMaterials,
                 const activeMat = child.userData?.__preXrayMaterial || child.material;
                 const mats = Array.isArray(activeMat) ? activeMat : [activeMat];
                 for (const m of mats) {
-                    if (m && ((targetMat && m.name === targetMat) || (targetName && m.name === targetName))) {
+                    if (m && (
+                        (targetMat && (m.name === targetMat || m.userData?.baseMaterialName === targetMat)) ||
+                        (targetName && (m.name === targetName || child.name === targetName || m.userData?.baseMaterialName === targetName))
+                    )) {
                         found = m;
                         break;
                     }
@@ -238,7 +239,7 @@ export function useModelSelection({ scene, modelName, modelId, deletedMaterials,
             }
         });
         return found;
-    }, [scene, modelName, modelId, meshIndexRef]);
+    }, [scene, modelName, modelId, isMeshDeleted, meshIndexRef]);
 
     return {
         resolveTargetMeshes,

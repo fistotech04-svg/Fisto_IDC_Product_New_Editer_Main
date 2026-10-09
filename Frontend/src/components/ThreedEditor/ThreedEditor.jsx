@@ -41,11 +41,6 @@ import { useThreedMaterialSettings } from "./hooks/useThreedMaterialSettings";
 import { useThreedModelLoader } from "./hooks/useThreedModelLoader";
 import { CAMERA_FRAME_OPTIONS } from "./panels/CameraTab/CameraPanel";
 
-/**
- * ThreedEditor Component
- * Main container orchestration for 3D model editing, material customization,
- * camera views, 3D hotspots, transformations, and export/save pipelines.
- */
 export default function ThreedEditor() {
   // ==========================================================================
   // SECTION 1: ROUTER & GLOBAL CONTEXT BINDINGS
@@ -115,7 +110,7 @@ export default function ThreedEditor() {
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(true);
   const [modelHasAnimationsMap, setModelHasAnimationsMap] = useState({});
   const isUndoRedoRef = useRef(false);
-
+  const isGizmoDraggingRef = useRef(false);
 
   const hasAnimations = useMemo(() => {
     return Object.values(modelHasAnimationsMap).some(Boolean);
@@ -189,19 +184,6 @@ export default function ThreedEditor() {
     loadingProgressRef.current = 100;
     setLoadingProgress(100);
     setLoadingText("Model ready on base!");
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        // Only push a new undo step if this is an ADDED model (not the first load).
-        // The first load is already the baseline via resetHistory().
-        if (modelsRef.current && modelsRef.current.length > 1) {
-          commitHistoryNow(buildSnapshot());
-        } else {
-          // Refresh the baseline in place, keep undo index at 0
-          resetHistory(buildSnapshot());
-        }
-      });
-    });
 
     setTimeout(() => {
       setManualLoading(false);
@@ -573,10 +555,14 @@ export default function ThreedEditor() {
   const [materialSettings, setMaterialSettings] = useState(threedState.materialSettings);
   const [customizedMaterials, setCustomizedMaterials] = useState(() => threedState.customizedMaterials || {});
   const customizedMaterialsRef = useRef(customizedMaterials);
+  useEffect(() => {
+    customizedMaterialsRef.current = customizedMaterials;
+  }, [customizedMaterials]);
   const [savedHdrs, setSavedHdrs] = useState([]);
 
   const getMaterialTargetKeys = useCallback((selMat) => {
-    if (!selMat || selMat.isAll || selMat.name === 'All Meshes') {
+    if (!selMat) return [];
+    if (selMat.isAll || selMat.name === 'All Meshes' || selMat.name === 'All Models') {
       return ['__ALL__'];
     }
     const keys = [];
@@ -584,13 +570,21 @@ export default function ThreedEditor() {
       if (Array.isArray(selMat.uuids)) keys.push(...selMat.uuids);
       if (Array.isArray(selMat.meshNames)) keys.push(...selMat.meshNames);
       if (Array.isArray(selMat.materials)) keys.push(...selMat.materials);
-    } else {
-      if (selMat.uuid) keys.push(selMat.uuid);
-      if (selMat.meshUuid && selMat.meshUuid !== selMat.uuid) keys.push(selMat.meshUuid);
-      if (selMat.meshName) keys.push(selMat.meshName);
-      if (selMat.name) keys.push(selMat.name);
-      if (!selMat.isMesh && selMat.material) keys.push(typeof selMat.material === 'string' ? selMat.material : selMat.material?.name);
+      if (Array.isArray(selMat.items)) {
+        selMat.items.forEach(it => {
+          if (it?.uuid) keys.push(it.uuid);
+          if (it?.meshUuid) keys.push(it.meshUuid);
+          if (it?.name) keys.push(it.name);
+          if (it?.material) keys.push(typeof it.material === 'string' ? it.material : it.material?.name);
+        });
+      }
     }
+    if (selMat.uuid) keys.push(selMat.uuid);
+    if (selMat.meshUuid && selMat.meshUuid !== selMat.uuid) keys.push(selMat.meshUuid);
+    if (selMat.meshName) keys.push(selMat.meshName);
+    if (selMat.name && selMat.name !== 'Scene' && !selMat.isModel) keys.push(selMat.name);
+    if (selMat.material) keys.push(typeof selMat.material === 'string' ? selMat.material : selMat.material?.name);
+
     return Array.from(new Set(keys.filter(Boolean)));
   }, []);
 
@@ -682,20 +676,33 @@ export default function ThreedEditor() {
     hotspots: hotspots
   });
 
+  const historyDebounceTimerRef = useRef(null);
+  const isRestoringHistoryRef = useRef(false);
+
+  // --------------------------------------------------------------------------
+  // stateRef: SINGLE-WRITER mirror of React state for snapshot building.
+  //
+  // Rules:
+  //   - Only the sync effect below writes to stateRef.current.
+  //   - All other code READS from stateRef.current (never writes).
+  //   - buildSnapshot() reads from stateRef.current + applies explicit overrides.
+  // --------------------------------------------------------------------------
   const stateRef = useRef({
     models,
+    modelName,
+    rootTransform,
     transformValues,
     materialSettings,
     customizedMaterials,
-    modelName,
     hiddenMaterials,
+    xrayMaterials,
     deletedMaterials,
     modelMaterialLists,
     selectedMaterial,
     selectedTexture,
     selectedTextureId,
     meshTransforms: meshTransformsRef.current,
-    hotspots: hotspots
+    hotspots
   });
 
   useEffect(() => {
@@ -706,52 +713,48 @@ export default function ThreedEditor() {
       rootTransform,
       transformValues,
       materialSettings,
-      customizedMaterials: customizedMaterialsRef.current,
+      customizedMaterials,
       hiddenMaterials,
       xrayMaterials,
       deletedMaterials,
-      modelMaterialLists: (modelMaterialLists && Object.keys(modelMaterialLists).length > 0)
-        ? modelMaterialLists
-        : modelMaterialListsRef.current,
+      modelMaterialLists:
+        (modelMaterialLists && Object.keys(modelMaterialLists).length > 0)
+          ? modelMaterialLists
+          : modelMaterialListsRef.current,
       selectedMaterial,
       selectedTexture,
       selectedTextureId,
       meshTransforms: meshTransformsRef.current,
       hotspots,
     };
-  }, [models, modelName, rootTransform, transformValues, materialSettings,
-    hiddenMaterials, xrayMaterials, deletedMaterials, modelMaterialLists,
-    selectedMaterial, selectedTexture, selectedTextureId, hotspots]);
+  }, [
+    models, modelName, rootTransform, transformValues,
+    materialSettings, customizedMaterials,
+    hiddenMaterials, xrayMaterials, deletedMaterials,
+    modelMaterialLists, selectedMaterial, selectedTexture, selectedTextureId,
+    hotspots
+  ]);
 
   const buildSnapshot = useCallback((override = {}) => {
     const cur = stateRef.current || {};
-    const curMS = override.materialSettings || cur.materialSettings || {};
-    const curCM = override.customizedMaterials !== undefined ? override.customizedMaterials : (cur.customizedMaterials || customizedMaterialsRef.current || {});
-    const curTV = override.transformValues || cur.transformValues || {};
-    const curHM = override.hiddenMaterials !== undefined ? override.hiddenMaterials : (cur.hiddenMaterials || []);
-    const curXM = override.xrayMaterials !== undefined ? override.xrayMaterials : (cur.xrayMaterials || []);
-    const curDM = override.deletedMaterials !== undefined ? override.deletedMaterials : (cur.deletedMaterials || []);
-    const curModels = override.models || cur.models || [];
-    const curModelName = override.modelName !== undefined ? override.modelName : (cur.modelName ?? "");
-    const curSelMat = override.selectedMaterial !== undefined ? override.selectedMaterial : cur.selectedMaterial;
-    const curSelTex = override.selectedTexture !== undefined ? override.selectedTexture : cur.selectedTexture;
-    const curSelTexId = override.selectedTextureId !== undefined ? override.selectedTextureId : (curSelTex?.id || cur.selectedTextureId || null);
-    const curMatLists = (override.modelMaterialLists && Object.keys(override.modelMaterialLists).length > 0)
-      ? override.modelMaterialLists
-      : (cur.modelMaterialLists && Object.keys(cur.modelMaterialLists).length > 0
-        ? cur.modelMaterialLists
-        : (modelMaterialListsRef.current && Object.keys(modelMaterialListsRef.current).length > 0 ? modelMaterialListsRef.current : {}));
-    const curMeshTransforms = override.meshTransforms !== undefined ? override.meshTransforms : (cur.meshTransforms || meshTransformsRef.current || {});
-    const curHotspots = override.hotspots !== undefined ? override.hotspots : (cur.hotspots || hotspots || []);
-    const curRootTransform = override.rootTransform || cur.rootTransform || rootTransformRef.current || defaultTransform;
+    const pick = (key, fallback) =>
+      override[key] !== undefined ? override[key] : (cur[key] !== undefined ? cur[key] : fallback);
+
+    const curMS = pick('materialSettings', materialSettings || {});
+    const curCM = pick('customizedMaterials', customizedMaterialsRef.current || customizedMaterials || {});
+    const curTV = pick('transformValues', transformValues || {});
+    const curRoot = pick('rootTransform', rootTransformRef.current || rootTransform || defaultTransform);
+    const curModels = pick('models', models || []);
+    const curHotspots = pick('hotspots', hotspots || []);
+    const curMeshTransforms = pick('meshTransforms', meshTransformsRef.current || {});
 
     return {
-      models: Array.isArray(curModels) ? curModels.map(m => ({ ...m })) : [],
-      modelName: curModelName,
+      models: Array.isArray(curModels) ? curModels : [],
+      modelName: pick('modelName', modelName || ''),
       rootTransform: {
-        position: { ...(curRootTransform?.position || { x: 0, y: 0, z: 0 }) },
-        rotation: { ...(curRootTransform?.rotation || { x: 0, y: 0, z: 0 }) },
-        scale: { ...(curRootTransform?.scale || { x: 1, y: 1, z: 1 }) }
+        position: { ...(curRoot?.position || { x: 0, y: 0, z: 0 }) },
+        rotation: { ...(curRoot?.rotation || { x: 0, y: 0, z: 0 }) },
+        scale: { ...(curRoot?.scale || { x: 1, y: 1, z: 1 }) }
       },
       transformValues: {
         position: { ...(curTV?.position || { x: 0, y: 0, z: 0 }) },
@@ -760,8 +763,6 @@ export default function ThreedEditor() {
       },
       materialSettings: {
         ...curMS,
-        useFactorColor: false,
-        lastChangedProp: null,
         lightPosition: { ...(curMS?.lightPosition || { x: 10, y: 10, z: 10 }) },
         offset: { ...(curMS?.offset || { x: 0, y: 0 }) },
         maps: { ...(curMS?.maps || {}) }
@@ -777,21 +778,17 @@ export default function ThreedEditor() {
           },
         ])
       ),
-
-      hiddenMaterials: Array.from(curHM instanceof Set ? curHM : (curHM || [])),
-      xrayMaterials: Array.from(curXM instanceof Set ? curXM : (curXM || [])),
-      deletedMaterials: Array.from(curDM instanceof Set ? curDM : (curDM || [])),
-      modelMaterialLists: { ...curMatLists },
-      selectedMaterial: curSelMat ? { ...curSelMat } : null,
-      selectedTexture: curSelTex ? { ...curSelTex } : null,
-      selectedTextureId: curSelTexId,
+      hiddenMaterials: Array.from(cur.hiddenMaterials instanceof Set ? cur.hiddenMaterials : (hiddenMaterials instanceof Set ? hiddenMaterials : (cur.hiddenMaterials || []))),
+      xrayMaterials: Array.from(cur.xrayMaterials instanceof Set ? cur.xrayMaterials : (xrayMaterials instanceof Set ? xrayMaterials : (cur.xrayMaterials || []))),
+      deletedMaterials: Array.from(cur.deletedMaterials instanceof Set ? cur.deletedMaterials : (deletedMaterials instanceof Set ? deletedMaterials : (cur.deletedMaterials || []))),
+      modelMaterialLists: { ...(cur.modelMaterialLists || modelMaterialLists || {}) },
+      selectedMaterial: cur.selectedMaterial ? { ...cur.selectedMaterial } : (selectedMaterial ? { ...selectedMaterial } : null),
+      selectedTexture: cur.selectedTexture ? { ...cur.selectedTexture } : (selectedTexture ? { ...selectedTexture } : null),
+      selectedTextureId: cur.selectedTextureId ?? selectedTextureId ?? null,
       meshTransforms: JSON.parse(JSON.stringify(curMeshTransforms || {})),
       hotspots: Array.isArray(curHotspots) ? curHotspots.map(h => ({ ...h })) : []
     };
-  }, [defaultTransform, hotspots]);
-
-  const historyDebounceTimerRef = useRef(null);
-  const isRestoringHistoryRef = useRef(false);
+  }, [defaultTransform, materialSettings, customizedMaterials, transformValues, rootTransform, models, hotspots, modelName, hiddenMaterials, xrayMaterials, deletedMaterials, modelMaterialLists, selectedMaterial, selectedTexture, selectedTextureId]);
 
   const commitHistoryNow = useCallback((snapshot) => {
     if (historyDebounceTimerRef.current) {
@@ -813,15 +810,115 @@ export default function ThreedEditor() {
     }, delay);
   }, [pushHistory, buildSnapshot]);
 
-  useEffect(() => {
-    if (isRestoringHistoryRef.current) {
-      isRestoringHistoryRef.current = false;
+    const computeSnapshotSignature = useCallback((snap) => {
+    if (!snap) return '';
+    try {
+      const toArr = (v) => {
+        if (!v) return [];
+        if (Array.isArray(v)) return v;
+        if (v instanceof Set) return Array.from(v);
+        return [];
+      };
+      return JSON.stringify({
+        // Real edits live in customizedMaterials — do NOT include
+        // materialSettings.color/metallic/roughness/etc. here, because
+        // those values merely mirror whichever material is currently
+        // selected. Selecting a different material changes materialSettings
+        // but is NOT a user edit.
+        cm: snap.customizedMaterials || {},
+        env: snap.materialSettings?.environment,
+        cEnv: snap.materialSettings?.customEnvMap,
+        lCol: snap.materialSettings?.lightColor,
+        lInt: snap.materialSettings?.lightIntensity,
+        exp: snap.materialSettings?.exposure,
+        flr: snap.materialSettings?.floorType,
+        flrC: snap.materialSettings?.floorColor,
+        flrR: snap.materialSettings?.floorRoughness,
+        tv: snap.transformValues || {},
+        rt: snap.rootTransform || {},
+        mt: snap.meshTransforms || {},
+        hs: snap.hotspots || [],
+        hm: toArr(snap.hiddenMaterials).sort(),
+        xm: toArr(snap.xrayMaterials).sort(),
+        dm: toArr(snap.deletedMaterials).sort(),
+        mm: snap.modelMaterialLists || {},
+        mn: snap.modelName || '',
+        ml: snap.models?.length || 0,
+      });
+    } catch (_) {
+      return '';
     }
-  }, [resetKey]);
+  }, []);
+
+  const restoreCooldownTimerRef = useRef(null);
+
+  // --------------------------------------------------------------------------
+  // AUTO-COMMIT: single source of history commits.
+  //
+  // Every state change relevant to the snapshot gets committed here.
+  // Signature dedupe prevents redundant pushes (deep-equal via JSON is fine
+  // because snapshots are plain data with no circular refs).
+  // --------------------------------------------------------------------------
+  const lastCommittedSigRef = useRef('');
+
+  useEffect(() => {
+    if (isRestoringHistoryRef.current) return;
+    if (isUndoRedoRef.current) return;
+    if (isGizmoDraggingRef.current) return;
+
+    const liveSnap = buildSnapshot();
+    const liveSig = computeSnapshotSignature(liveSnap);
+    if (!liveSig) return;
+
+    // ── Compare against the CURRENT HEAD of history, not just lastCommittedSigRef
+    const headIndex = indexRef.current;
+    const headSnap = historyRef.current[headIndex];
+    const headSig = headSnap ? computeSnapshotSignature(headSnap) : '';
+
+    // If the live state is already equal to what's at the history head,
+    // there is nothing new to commit — just sync our marker and bail.
+    if (liveSig === headSig) {
+      lastCommittedSigRef.current = liveSig;
+      return;
+    }
+
+    // Second-level dedupe: if we've already scheduled this exact signature, don't re-schedule.
+    if (liveSig === lastCommittedSigRef.current) return;
+    lastCommittedSigRef.current = liveSig;
+
+    if (historyDebounceTimerRef.current) clearTimeout(historyDebounceTimerRef.current);
+    historyDebounceTimerRef.current = setTimeout(() => {
+      historyDebounceTimerRef.current = null;
+      if (isRestoringHistoryRef.current) return;
+      if (isUndoRedoRef.current) return;
+
+      // Re-verify at flush time: maybe undo happened while we were waiting.
+      const flushSnap = buildSnapshot();
+      const flushSig = computeSnapshotSignature(flushSnap);
+      const headIdx = indexRef.current;
+      const headAtFlush = historyRef.current[headIdx];
+      const headSigAtFlush = headAtFlush ? computeSnapshotSignature(headAtFlush) : '';
+      if (flushSig === headSigAtFlush) return;
+
+      pushHistory(flushSnap);
+    }, 250);
+  }, [
+    models, modelName, rootTransform, transformValues,
+    materialSettings?.environment, materialSettings?.customEnvMap,
+    materialSettings?.lightColor, materialSettings?.lightIntensity,
+    materialSettings?.exposure, materialSettings?.floorType,
+    materialSettings?.floorColor, materialSettings?.floorRoughness,
+    customizedMaterials,
+    hiddenMaterials, xrayMaterials, deletedMaterials,
+    modelMaterialLists,
+    meshTransformsState, hotspots,
+    buildSnapshot, pushHistory, computeSnapshotSignature,
+  ]);
 
   const applyHistoryState = useCallback((targetState) => {
     if (!targetState) return;
     isRestoringHistoryRef.current = true;
+    isUndoRedoRef.current = true;
 
     if (historyDebounceTimerRef.current) {
       clearTimeout(historyDebounceTimerRef.current);
@@ -855,7 +952,26 @@ export default function ThreedEditor() {
           navigate("/editor/threed_editor", { replace: true });
         }
       } else {
-        setModels(targetState.models);
+        // IMPORTANT: Do NOT replace the models array if the identity is the same.
+        // Replacing it forces GenericModel to remount, which re-captures the
+        // currently-customized material state as the new "pristine" baseline —
+        // making the first edit look like the original on undo.
+        setModels(prev => {
+          const next = targetState.models;
+          if (
+            prev.length === next.length &&
+            prev.every((m, i) =>
+              m &&
+              next[i] &&
+              m.id === next[i].id &&
+              m.url === next[i].url &&
+              m.fileName === next[i].fileName
+            )
+          ) {
+            return prev;
+          }
+          return next;
+        });
       }
     }
 
@@ -878,11 +994,14 @@ export default function ThreedEditor() {
         scale: { ...(targetState.transformValues.scale || { x: 1, y: 1, z: 1 }) }
       });
     }
+
+    // Do NOT force-clear useFactorColor. The applier needs it to know that
+    // restored material settings must be applied to the live meshes.
     if (targetState.materialSettings !== undefined) {
       setMaterialSettings({
         ...targetState.materialSettings,
-        useFactorColor: false,
-        lastChangedProp: null
+        lastChangedProp: null,
+        useFactorColor: targetState.materialSettings.useFactorColor ?? false,
       });
     }
     if (targetState.customizedMaterials !== undefined) {
@@ -910,7 +1029,6 @@ export default function ThreedEditor() {
       meshTransformsRef.current = nextTransforms;
       setMeshTransformsState(nextTransforms);
     }
-
     if (targetState.hotspots !== undefined) {
       setHotspots(Array.isArray(targetState.hotspots) ? targetState.hotspots : []);
     }
@@ -919,152 +1037,57 @@ export default function ThreedEditor() {
     const texId = targetState.selectedTextureId !== undefined ? targetState.selectedTextureId : (tex?.id || null);
     setSelectedTextureId(texId);
 
-    stateRef.current = {
-      models: targetState.models !== undefined ? targetState.models : stateRef.current.models,
-      modelName: targetState.modelName !== undefined ? targetState.modelName : stateRef.current.modelName,
-      rootTransform: targetState.rootTransform !== undefined ? targetState.rootTransform : stateRef.current.rootTransform,
-      transformValues: targetState.transformValues !== undefined ? targetState.transformValues : stateRef.current.transformValues,
-      materialSettings: targetState.materialSettings !== undefined
-        ? { ...targetState.materialSettings, useFactorColor: false, lastChangedProp: null }
-        : stateRef.current.materialSettings,
-      customizedMaterials: targetState.customizedMaterials !== undefined ? targetState.customizedMaterials : stateRef.current.customizedMaterials,
-      hiddenMaterials: targetState.hiddenMaterials !== undefined ? targetState.hiddenMaterials : stateRef.current.hiddenMaterials,
-      xrayMaterials: targetState.xrayMaterials !== undefined ? targetState.xrayMaterials : stateRef.current.xrayMaterials,
-      deletedMaterials: targetState.deletedMaterials !== undefined ? targetState.deletedMaterials : stateRef.current.deletedMaterials,
-      modelMaterialLists: targetState.modelMaterialLists !== undefined ? targetState.modelMaterialLists : stateRef.current.modelMaterialLists,
-      selectedMaterial: targetState.selectedMaterial !== undefined ? targetState.selectedMaterial : stateRef.current.selectedMaterial,
-      selectedTexture: targetState.selectedTexture !== undefined ? targetState.selectedTexture : stateRef.current.selectedTexture,
-      selectedTextureId: targetState.selectedTextureId !== undefined ? targetState.selectedTextureId : stateRef.current.selectedTextureId,
-      meshTransforms: targetState.meshTransforms !== undefined ? targetState.meshTransforms : stateRef.current.meshTransforms,
-      hotspots: targetState.hotspots !== undefined ? targetState.hotspots : stateRef.current.hotspots,
-    };
+    lastCommittedSigRef.current = computeSnapshotSignature(targetState);
+    setResetKey(prev => prev + 1);
 
-    const selMat = targetState.selectedMaterial;
-    if (selMat && targetState.customizedMaterials) {
-      const keys = [
-        selMat.uuid,
-        selMat.meshUuid,
-        selMat.meshName,
-        selMat.name,
-        typeof selMat.material === 'string' ? selMat.material : selMat.material?.name,
-      ].filter(Boolean);
-
-      let restored = null;
-      for (const k of keys) {
-        if (targetState.customizedMaterials[k]) {
-          restored = targetState.customizedMaterials[k];
-          break;
-        }
-      }
-
-      const scalarFields = [
-        'color', 'colorIntensity', 'metallic', 'roughness', 'alpha',
-        'emissiveColor', 'emissiveIntensity', 'normal', 'bump',
-        'scale', 'scaleY', 'rotation', 'offset', 'ao',
-        'reflection', 'specular'
-      ];
-
-      if (restored) {
-        const scalarOverrides = {};
-        scalarFields.forEach(field => {
-          if (restored[field] !== undefined) {
-            scalarOverrides[field] = restored[field];
-          }
-        });
-
-        setMaterialSettings(prev => ({
-          ...prev,
-          ...(targetState.materialSettings || {}),
-          ...scalarOverrides,
-          ...(restored.maps ? { maps: { ...restored.maps } } : {}),
-          ...(restored.appliedTexture !== undefined
-            ? { appliedTexture: restored.appliedTexture }
-            : {})
-        }));
-      } else if (targetState.materialSettings) {
-        // Find default initial values from modelMaterialDataMap if available
-        let defaultData = null;
-        for (const modelId in modelMaterialDataMap) {
-          const mData = modelMaterialDataMap[modelId];
-          if (!mData) continue;
-          for (const key of keys) {
-            if (mData[key]) {
-              defaultData = mData[key];
-              break;
-            }
-          }
-          if (defaultData) break;
-        }
-
-        setMaterialSettings(prev => ({
-          ...prev,
-          ...targetState.materialSettings,
-          ...(defaultData?.color ? { color: defaultData.color } : {})
-        }));
-      }
-    } else if (targetState.materialSettings) {
-      setMaterialSettings(prev => ({
-        ...prev,
-        ...targetState.materialSettings
-      }));
+    if (restoreCooldownTimerRef.current) {
+      clearTimeout(restoreCooldownTimerRef.current);
     }
-
-
-
-    if (
-      targetState.models !== undefined ||
-      targetState.customizedMaterials !== undefined ||
-      targetState.materialSettings !== undefined
-    ) {
-      setResetKey(prev => prev + 1);
-    }
-    requestAnimationFrame(() => {
+    restoreCooldownTimerRef.current = setTimeout(() => {
+      lastCommittedSigRef.current = computeSnapshotSignature(buildSnapshot());
       isRestoringHistoryRef.current = false;
-    });
-  }, [models.length, setTransformValues, sanitizeTransformValues, urlModelId, navigate]);
+      isUndoRedoRef.current = false;
+      restoreCooldownTimerRef.current = null;
+    }, 450);
+  }, [setTransformValues, sanitizeTransformValues, urlModelId, navigate, computeSnapshotSignature, buildSnapshot]);
 
   const handleUndo = useCallback(() => {
+    // Cancel any pending debounced commit — flushing it would duplicate
+    // the current head-of-history snapshot.
     if (historyDebounceTimerRef.current) {
       clearTimeout(historyDebounceTimerRef.current);
       historyDebounceTimerRef.current = null;
-      const pendingState = buildSnapshot();
-      pushHistory(pendingState);
     }
+
     isUndoRedoRef.current = true;
-    isRestoringHistoryRef.current = true;   // <-- ADD
+    isRestoringHistoryRef.current = true;
 
     const prevState = undo();
     if (prevState) {
       applyHistoryState(prevState);
-    }
-
-    requestAnimationFrame(() => {
+    } else {
       isUndoRedoRef.current = false;
       isRestoringHistoryRef.current = false;
-    });
-
-  }, [undo, applyHistoryState, buildSnapshot, pushHistory]);
+    }
+  }, [undo, applyHistoryState]);
 
   const handleRedo = useCallback(() => {
     if (historyDebounceTimerRef.current) {
       clearTimeout(historyDebounceTimerRef.current);
       historyDebounceTimerRef.current = null;
-      const pendingState = buildSnapshot();
-      pushHistory(pendingState);
     }
+
     isUndoRedoRef.current = true;
     isRestoringHistoryRef.current = true;
 
     const nextState = redo();
     if (nextState) {
       applyHistoryState(nextState);
-    }
-
-    requestAnimationFrame(() => {
+    } else {
       isUndoRedoRef.current = false;
       isRestoringHistoryRef.current = false;
-    });
-  }, [redo, applyHistoryState, buildSnapshot, pushHistory]);
+    }
+  }, [redo, applyHistoryState]);
 
   const [sceneResetTrigger, setSceneResetTrigger] = useState(0);
   const [uvUnwrapTrigger, setUvUnwrapTrigger] = useState(0);
@@ -1072,7 +1095,6 @@ export default function ThreedEditor() {
   // ==========================================================================
   // SECTION 8: SPECIALIZED CUSTOM HOOKS
   // ==========================================================================
-  // Hook A: Viewport Camera Framing & Perspectives
   const {
     frameModelFullView,
     frameModelFullViewRef,
@@ -1097,18 +1119,9 @@ export default function ThreedEditor() {
       setMeshTransformsState({});
       meshTransformsRef.current = {};
       setSceneResetTrigger?.(prev => prev + 1);
-      commitHistoryNow(buildSnapshot({
-        meshTransforms: {},
-        transformValues: {
-          position: { x: 0, y: 0, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 },
-          scale: { x: 1, y: 1, z: 1 }
-        }
-      }));
     }
   });
 
-  // Hook B: 3D Pins & Hotspots Management
   const {
     isPlacingHotspotRef,
     isHotspotFocusingRef,
@@ -1143,7 +1156,6 @@ export default function ThreedEditor() {
     toast
   });
 
-  // Hook C: Model Hierarchy & Material Tree Structure
   const {
     activeMaterialList,
     handleToggleVisibility,
@@ -1198,7 +1210,6 @@ export default function ThreedEditor() {
     setThreedState
   });
 
-  // Hook D: PBR Materials & Factor Customization
   const {
     updateMaterialSetting,
     handleMaterialSync,
@@ -1225,7 +1236,6 @@ export default function ThreedEditor() {
     hasLocalFiles: false
   });
 
-  // Hook E: File Loading, CAD Conversion & Drag-and-Drop
   const {
     processFile,
     handleSelectGalleryModel,
@@ -1298,7 +1308,6 @@ export default function ThreedEditor() {
         const rawBackendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
         const backendUrl = rawBackendUrl.trim().replace(/\/+$/, '');
 
-        // Path A: Load model from URL parameter
         if (urlModelId) {
           startModelLoading({
             id: urlModelId,
@@ -1402,6 +1411,7 @@ export default function ThreedEditor() {
                 transformValues: loadedTransformValues || defaultTransform,
                 materialSettings: loadedMaterialSettings || defaultMaterialSettings
               });
+              lastCommittedSigRef.current = '';
               startMountingBridgeTicker(loadingProgressRef.current);
               return;
             }
@@ -1416,7 +1426,6 @@ export default function ThreedEditor() {
           }
         }
 
-        // Path B: Temporary model transferred from InteractionPanel
         const tempThreedEditModelStr = localStorage.getItem('tempThreedEditModel');
         if (tempThreedEditModelStr) {
           try {
@@ -1473,6 +1482,7 @@ export default function ThreedEditor() {
               transformValues: loadedTransformValues || defaultTransform,
               materialSettings: loadedMaterialSettings || defaultMaterialSettings
             });
+            lastCommittedSigRef.current = '';
             localStorage.removeItem('tempThreedEditModel');
             startMountingBridgeTicker(loadingProgressRef.current);
             return;
@@ -1487,7 +1497,6 @@ export default function ThreedEditor() {
           }
         }
 
-        // Path C: Default empty canvas workspace
         setModels([]);
         setModelUrl(null);
         setModelName("");
@@ -1675,6 +1684,11 @@ export default function ThreedEditor() {
     });
 
     try {
+      const converted = await convertModelFileIfNeeded(file, (pct, txt) => {
+        setLoadingProgress(pct);
+        if (txt) setLoadingText(txt);
+      }, backendUrl);
+
       const offsetIndex = models.length;
       const initialTransform = offsetIndex === 0
         ? defaultTransform
@@ -1706,12 +1720,7 @@ export default function ThreedEditor() {
           modelName: nextModelName,
           selectedMaterial: null
         }));
-      } else {
-        commitHistoryNow(buildSnapshot({
-          models: nextModels,
-          modelName: nextModelName,
-          selectedMaterial: null
-        }));
+        lastCommittedSigRef.current = '';
       }
 
       setIsSidebarCollapsed(false);
@@ -1866,25 +1875,12 @@ export default function ThreedEditor() {
       setRootTransform(next);
     }
     setTransformValues(next);
-
-    const snapshot = buildSnapshot({
-      models: nextModels,
-      transformValues: next,
-      rootTransform: rootTransformRef.current,
-      meshTransforms: meshTransformsRef.current
-    });
-    if (isDragging) {
-      commitHistoryDebounced(snapshot, 300);
-    } else {
-      commitHistoryNow(snapshot);
-    }
   };
 
   const handleResetTransform = (type) => {
     const isSelectAll = !selectedMaterial || selectedMaterial?.isAll || selectedMaterial?.name === 'All Models' || selectedMaterial?.name === 'Scene' || selectedMaterial?.name === 'All Meshes';
 
     if (!type || type === 'all') {
-      // 1. Reset all models transforms back to original defaults
       const resetModels = models.map((m, idx) => {
         const mOffset = idx === 0
           ? { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } }
@@ -1908,17 +1904,9 @@ export default function ThreedEditor() {
       meshTransformsRef.current = {};
       setSceneResetTrigger?.(prev => prev + 1);
       setTransformResetKey(Date.now());
-
-      commitHistoryNow(buildSnapshot({
-        models: resetModels,
-        transformValues: defaultVals,
-        rootTransform: rootTransformRef.current,
-        meshTransforms: {}
-      }));
       return;
     }
 
-    // Individual property resets ('position' | 'rotation' | 'scale')
     let activeModelIndex = models.findIndex(m =>
       (selectedMaterial?.id && m.id === selectedMaterial.id) ||
       (selectedMaterial?.modelId && m.id === selectedMaterial.modelId) ||
@@ -1973,16 +1961,10 @@ export default function ThreedEditor() {
 
     setTransformValues(next);
     setTransformResetKey(Date.now());
-
-    commitHistoryNow(buildSnapshot({
-      models: nextModels,
-      transformValues: next,
-      rootTransform: rootTransformRef.current,
-      meshTransforms: meshTransformsRef.current
-    }));
   };
 
   const handleTransformStart = useCallback(() => {
+    isGizmoDraggingRef.current = true;
     if (historyDebounceTimerRef.current) {
       clearTimeout(historyDebounceTimerRef.current);
       historyDebounceTimerRef.current = null;
@@ -1994,6 +1976,7 @@ export default function ThreedEditor() {
   }, [commitHistoryNow]);
 
   const handleTransformEnd = useCallback((finalMeshTransforms) => {
+    isGizmoDraggingRef.current = false;
     if (controlsRef.current) {
       controlsRef.current.enabled = true;
     }
@@ -2007,16 +1990,11 @@ export default function ThreedEditor() {
         meshTransformsRef.current = nextTransforms;
         setMeshTransformsState(nextTransforms);
       }
-      commitHistoryNow(buildSnapshot({
-        models: modelsRef.current,
-        meshTransforms: nextTransforms,
-        rootTransform: rootTransformRef.current,
-        transformValues: stateRef.current.transformValues
-      }));
+      // Auto-commit effect will detect the meshTransformsState change.
     } catch (err) {
       console.warn("[ThreedEditor] Error during transform end history snapshot:", err);
     }
-  }, [commitHistoryNow, buildSnapshot]);
+  }, []);
 
   const [settings, setSettings] = useState({
     backgroundColor: "#393939",
@@ -2037,6 +2015,17 @@ export default function ThreedEditor() {
   // ==========================================================================
   // SECTION 13: TEXTURE APPLICATION & INTERACTIVE SELECTION
   // ==========================================================================
+
+  // Wrapper for the RightPanel's onUpdateMaterialSetting. Delegates to the
+  // hook for applying to Three.js, and to the auto-commit effect for history.
+  const handleMaterialUIUpdateWithHistory = useCallback(
+    (key, value, skipHistory = false) => {
+      handleMaterialUIUpdate(key, value);
+      // History commit is automatic via the auto-commit effect.
+    },
+    [handleMaterialUIUpdate]
+  );
+
   const handleSelectTexture = useCallback((textureData) => {
     const isReset = !textureData || !textureData.id;
     const isNone = textureData?.id === 'none';
@@ -2071,6 +2060,7 @@ export default function ThreedEditor() {
           ...(prev.customEnvMap || prev.maps?.envMap ? { envMap: prev.customEnvMap || prev.maps?.envMap } : {})
         };
         next.lastChangedProp = 'maps';
+        next.useFactorColor = true;
       } else {
         let finalMaps = { ...(textureData.maps || {}) };
 
@@ -2131,62 +2121,55 @@ export default function ThreedEditor() {
         }
       }
 
-      const curSel = stateRef.current.selectedMaterial;
+      const curSel = stateRef.current.selectedMaterial || selectedMaterial;
       const targetKeys = getMaterialTargetKeys(curSel);
       if (targetKeys.length > 0) {
-        const nextCustomMap = { ...(customizedMaterialsRef.current || {}) };
-        targetKeys.forEach(tKey => {
-          const prevEntry = nextCustomMap[tKey] || {};
-          if (isReset || isNone) {
-            nextCustomMap[tKey] = {
-              ...prevEntry,
-              maps: next.maps,
-              useFactorColor: true
-            };
-          } else {
-            nextCustomMap[tKey] = {
-              ...prevEntry,
-              appliedTexture: newTexture,
-              maps: next.maps,
-              metallic: next.metallic,
-              roughness: next.roughness,
-              normal: next.normal,
-              bump: next.bump,
-              ao: next.ao,
-              color: next.color,
-              alpha: next.alpha !== undefined ? next.alpha : prevEntry.alpha,
-              emissiveColor: next.emissiveColor || prevEntry.emissiveColor,
-              emissiveIntensity: next.emissiveIntensity !== undefined ? next.emissiveIntensity : prevEntry.emissiveIntensity,
-              scale: next.scale,
-              useFactorColor: true
-            };
-          }
-          if (tKey === '__ALL__') {
-            try {
-              const liveMeshes = [];
-              if (sceneWrapperRef.current) {
-                sceneWrapperRef.current.traverse((obj) => {
-                  if ((obj.isMesh || obj.isSkinnedMesh) && obj.uuid) {
-                    liveMeshes.push(obj.uuid);
-                    if (obj.name) liveMeshes.push(obj.name);
-                  }
-                });
-              }
-              nextCustomMap[tKey].__meshes__ = Array.from(new Set(liveMeshes));
-            } catch (_) { }
-          }
+        setCustomizedMaterials(prevCustom => {
+          const nextCustomMap = { ...prevCustom };
+          targetKeys.forEach(tKey => {
+            const prevEntry = nextCustomMap[tKey] || {};
+            if (isReset || isNone) {
+              nextCustomMap[tKey] = {
+                ...prevEntry,
+                maps: next.maps,
+                useFactorColor: true
+              };
+            } else {
+              nextCustomMap[tKey] = {
+                ...prevEntry,
+                appliedTexture: newTexture,
+                maps: next.maps,
+                metallic: next.metallic,
+                roughness: next.roughness,
+                normal: next.normal,
+                bump: next.bump,
+                ao: next.ao,
+                color: next.color,
+                alpha: next.alpha !== undefined ? next.alpha : prevEntry.alpha,
+                emissiveColor: next.emissiveColor || prevEntry.emissiveColor,
+                emissiveIntensity: next.emissiveIntensity !== undefined ? next.emissiveIntensity : prevEntry.emissiveIntensity,
+                scale: next.scale,
+                useFactorColor: true
+              };
+            }
+            if (tKey === '__ALL__') {
+              try {
+                const liveMeshes = [];
+                if (sceneWrapperRef.current) {
+                  sceneWrapperRef.current.traverse((obj) => {
+                    if ((obj.isMesh || obj.isSkinnedMesh) && obj.uuid) {
+                      liveMeshes.push(obj.uuid);
+                      if (obj.name) liveMeshes.push(obj.name);
+                    }
+                  });
+                }
+                nextCustomMap[tKey].__meshes__ = Array.from(new Set(liveMeshes));
+              } catch (_) { }
+            }
+          });
+          return nextCustomMap;
         });
-
-        customizedMaterialsRef.current = nextCustomMap;
-        setCustomizedMaterials(nextCustomMap);
       }
-
-      commitHistoryNow(buildSnapshot({
-        materialSettings: next,
-        customizedMaterials: customizedMaterialsRef.current,
-        selectedTexture: newTexture,
-        selectedTextureId: newTextureId
-      }));
 
       if (isReset || isNone) {
         setResetKey(prev => prev + 1);
@@ -2194,10 +2177,15 @@ export default function ThreedEditor() {
 
       return { ...next };
     });
-  }, [commitHistoryNow, buildSnapshot, getMaterialTargetKeys]);
+  }, [getMaterialTargetKeys, selectedMaterial]);
 
   const handleSelectMaterial = useCallback((val) => {
-    // When in Lighting or Camera tab, do not allow selecting materials or meshes
+    setTimeout(() => {
+      try {
+        lastCommittedSigRef.current = computeSnapshotSignature(buildSnapshot());
+      } catch (_) { /* ignore */ }
+    }, 0);
+
     if (activeLeftTabRef.current === "lighting" || activeLeftTabRef.current === "camera") {
       return;
     }
@@ -2208,9 +2196,8 @@ export default function ThreedEditor() {
       ...prev,
       appliedTexture: null,
       lastChangedProp: null,
+      useFactorColor: false,
     }));
-
-
 
     const target = typeof val === 'object' ? { ...val } : { name: val };
     if (target.name && typeof target.name !== 'string') {
@@ -2218,7 +2205,6 @@ export default function ThreedEditor() {
     }
     const isShift = !!target.isShift;
 
-    // Direct placement interception when hotspot creation mode is active
     if (isPlacingHotspotRef.current) {
       setIsPlacingHotspot(false);
       isPlacingHotspotRef.current = false;
@@ -2454,7 +2440,6 @@ export default function ThreedEditor() {
   useEffect(() => {
     if (isRestoringHistoryRef.current) return;
     setMaterialSettings(prev => {
-      // When unselecting material (clicking on empty canvas), clear any active material preview/appliedTexture
       if (!selectedMaterial) {
         return {
           ...prev,
@@ -2576,10 +2561,8 @@ export default function ThreedEditor() {
     }
   }, [selectedMaterial, lastHotspotClickTimeRef, isHotspotFocusingRef]);
 
-  // Keyboard shortcuts for Center Canvas (W = Move, R = Rotate, S = Scale, H = Hand)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore if user is typing in input, textarea, select, or contentEditable elements
       const target = e.target;
       const tagName = target?.tagName?.toUpperCase();
       if (
@@ -2592,7 +2575,6 @@ export default function ThreedEditor() {
         return;
       }
 
-      // Ignore if modifier keys are pressed (Ctrl, Alt, Meta/Cmd) to prevent conflicting with browser or system shortcuts
       if (e.ctrlKey || e.metaKey || e.altKey) {
         return;
       }
@@ -2631,7 +2613,6 @@ export default function ThreedEditor() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Global Progress Loader */}
       {!showModelGalleryModal && (
         <GlobalLoader
           manualLoading={manualLoading || isSyncing}
@@ -2641,7 +2622,6 @@ export default function ThreedEditor() {
         />
       )}
 
-      {/* Export Options Modal Dialog */}
       {showExportModal && (
         <Export3DModal
           onClose={() => setShowExportModal(false)}
@@ -2659,7 +2639,6 @@ export default function ThreedEditor() {
         />
       )}
 
-      {/* Main Canvas & Editor Viewport */}
       <div className="flex flex-1 overflow-hidden relative w-full h-full bg-[#1e2025]">
         <LeftSidebar
           activeTab={activeLeftTab}
@@ -2708,7 +2687,6 @@ export default function ThreedEditor() {
           onRenameMaterial={handleRenameMaterial}
         />
 
-        {/* Material & Color Preset Drawer */}
         <MaterialSelectorDrawer
           isOpen={isMaterialDrawerOpen || (activeLeftTab === "materials" && isMaterialDrawerOpen)}
           onClose={() => setIsMaterialDrawerOpen(false)}
@@ -2721,9 +2699,13 @@ export default function ThreedEditor() {
           }}
           selectedColor={materialSettings?.color}
           onSelectColor={(colorData) => {
-            if (typeof colorData === 'object') {
-              // 1. Build next settings OUTSIDE the state updater so we have a stable ref
-              const prev = materialSettings;
+            if (typeof colorData !== 'object') {
+              handleMaterialUIUpdate('color', colorData);
+              return;
+            }
+
+            // Pure state updates — the auto-commit effect handles history.
+            setMaterialSettings(prev => {
               const next = {
                 ...prev,
                 materialName: colorData.name || prev.materialName || 'Custom Color',
@@ -2734,56 +2716,42 @@ export default function ThreedEditor() {
                 ao: colorData.ao !== undefined ? colorData.ao : prev.ao,
                 bump: colorData.bump !== undefined ? colorData.bump : prev.bump,
                 alpha: colorData.alpha !== undefined ? colorData.alpha : prev.alpha,
+                colorIntensity: colorData.colorIntensity !== undefined ? colorData.colorIntensity : (prev.colorIntensity ?? 100),
                 useFactorColor: true,
-                lastChangedProp: 'color'
+                lastChangedProp: 'color',
               };
+              return next;
+            });
 
-              // 2. Build next customizedMaterials OUTSIDE too
-              const curSel = selectedMaterial;   // <-- use the React state, not stateRef
-              const targetKeys = getMaterialTargetKeys(curSel);
-              let nextCustomMap = { ...(customizedMaterialsRef.current || {}) };
-              if (targetKeys.length > 0) {
+            const targetKeys = getMaterialTargetKeys(selectedMaterial);
+            if (targetKeys.length > 0) {
+              setCustomizedMaterials(prev => {
+                const nextMap = { ...prev };
                 targetKeys.forEach(tKey => {
-                  const prevCustom = nextCustomMap[tKey] || {};
-                  nextCustomMap[tKey] = {
+                  const prevCustom = nextMap[tKey] || {};
+                  nextMap[tKey] = {
                     ...prevCustom,
-                    materialName: next.materialName,
-                    color: next.color,
-                    metallic: next.metallic,
-                    roughness: next.roughness,
-                    normal: next.normal,
-                    ao: next.ao,
-                    bump: next.bump,
-                    alpha: next.alpha,
+                    materialName: colorData.name || prevCustom.materialName || 'Custom Color',
+                    color: colorData.color || colorData.hex || prevCustom.color,
+                    metallic: colorData.metallic !== undefined ? colorData.metallic : prevCustom.metallic,
+                    roughness: colorData.roughness !== undefined ? colorData.roughness : prevCustom.roughness,
+                    normal: colorData.normal !== undefined ? colorData.normal : prevCustom.normal,
+                    ao: colorData.ao !== undefined ? colorData.ao : prevCustom.ao,
+                    bump: colorData.bump !== undefined ? colorData.bump : prevCustom.bump,
+                    alpha: colorData.alpha !== undefined ? colorData.alpha : prevCustom.alpha,
+                    colorIntensity: colorData.colorIntensity ?? prevCustom.colorIntensity ?? 100,
                     useFactorColor: true,
                   };
                 });
-              }
-
-              // 3. Write refs + state FIRST (synchronously)
-              customizedMaterialsRef.current = nextCustomMap;
-              stateRef.current.materialSettings = next;
-              stateRef.current.customizedMaterials = nextCustomMap;
-
-              setMaterialSettings(next);
-              setCustomizedMaterials(nextCustomMap);
-
-              // 4. Commit history with BOTH overrides explicit
-              commitHistoryNow(buildSnapshot({
-                materialSettings: next,
-                customizedMaterials: nextCustomMap
-              }));
-            } else {
-              handleMaterialUIUpdate('color', colorData);
+                return nextMap;
+              });
             }
           }}
           refreshTrigger={materialRefreshKey}
         />
 
-        {/* Center Workspace (Canvas + Floating Tools + Bottom Swatch Tray) */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 relative">
           <div className="flex-1 relative overflow-hidden flex flex-col w-full h-full" style={getCameraBgStyle()}>
-            {/* Top Viewport Floating Controls */}
             {activeLeftTab !== "camera" && (
               <CanvasFloatingToolbar
                 cameraMode={cameraViewMode}
@@ -2812,7 +2780,6 @@ export default function ThreedEditor() {
               />
             )}
 
-            {/* Snapshot / Screenshot Modal */}
             {isScreenshotOpen && (
               <CameraModal
                 isOpen={isScreenshotOpen}
@@ -2828,7 +2795,6 @@ export default function ThreedEditor() {
               />
             )}
 
-            {/* Empty Canvas Placeholder */}
             {models.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none select-none">
                 <div className="flex flex-col items-center gap-[0.75vw] opacity-50">
@@ -2838,8 +2804,6 @@ export default function ThreedEditor() {
               </div>
             )}
 
-            {/* 3D Scene Viewport */}
-            {/* Camera Viewfinder Overlay (Clean Opacity Vignette Mask without loud orange dots) */}
             {activeLeftTab === "camera" && (() => {
               const activeFrame = CAMERA_FRAME_OPTIONS.find((f) => f.id === selectedFrameId || f.id === selectedFrameId?.replace(/_[a-c]$/, ''));
               if (!activeFrame || !activeFrame.aspect) return null;
@@ -2864,7 +2828,6 @@ export default function ThreedEditor() {
                       maxWidth: isSquare ? "72vh" : "94%",
                     }}
                   >
-                    {/* Viewfinder ratio badge */}
                     <div className="absolute top-[0.5vw] left-[0.6vw] bg-black/70 text-white text-[0.68vw] font-semibold px-[0.5vw] py-[0.18vw] rounded-[0.3vw] backdrop-blur-xs select-none shadow-sm">
                       {activeFrame.name || activeFrame.ratio} ({activeFrame.ratio})
                     </div>
@@ -2872,8 +2835,6 @@ export default function ThreedEditor() {
                 </div>
               );
             })()}
-
-
 
             <ThreedCanvasViewport
               models={models}
@@ -2946,7 +2907,6 @@ export default function ThreedEditor() {
               cameraBgColor={cameraBgColor}
             />
 
-            {/* Camera Saved Angles Bottom Tray (Overlay positioned inside viewport) */}
             {activeLeftTab === "camera" && (
               <CameraBottomTray
                 snapshots={savedCameraAngles}
@@ -2985,7 +2945,6 @@ export default function ThreedEditor() {
           </div>
         </div>
 
-        {/* Right Settings Panel (Model / Materials / Environment / Hotspots) */}
         <div className="w-[23vw] min-w-[305px] max-w-[360px] h-full border-l border-gray-200 bg-white z-40 relative flex flex-col shrink-0">
           <RightPanel
             activeLeftTab={activeLeftTab}
@@ -3012,7 +2971,8 @@ export default function ThreedEditor() {
             onToggleXray={handleToggleXray}
             isLoading={manualLoading}
             materialSettings={materialSettings}
-            onUpdateMaterialSetting={handleMaterialUIUpdate}
+            onUpdateMaterialSetting={handleMaterialUIUpdateWithHistory}
+            onCommitHistory={() => commitHistoryNow(buildSnapshot())}
             activeAccordion={activeAccordion}
             setActiveAccordion={setActiveAccordion}
             transformValues={transformValues}
@@ -3059,24 +3019,21 @@ export default function ThreedEditor() {
                   useFactorColor: false,
                   lastChangedProp: null
                 };
-
-                const curSel = stateRef.current.selectedMaterial;
-                const targetKeys = getMaterialTargetKeys(curSel);
-                const nextCustomMap = { ...(customizedMaterialsRef.current || {}) };
-                targetKeys.forEach(tKey => {
-                  delete nextCustomMap[tKey];
-                });
-                customizedMaterialsRef.current = nextCustomMap;
-                setCustomizedMaterials(nextCustomMap);
-
-                commitHistoryNow(buildSnapshot({
-                  materialSettings: next,
-                  customizedMaterials: nextCustomMap,
-                  selectedTexture: null,
-                  selectedTextureId: null
-                }));
                 return { ...next };
               });
+
+              const curSel = stateRef.current.selectedMaterial || selectedMaterial;
+              const targetKeys = getMaterialTargetKeys(curSel);
+              if (targetKeys.length > 0) {
+                setCustomizedMaterials(prev => {
+                  const nextMap = { ...prev };
+                  targetKeys.forEach(tKey => {
+                    delete nextMap[tKey];
+                  });
+                  return nextMap;
+                });
+              }
+
               setResetKey(prev => prev + 1);
             }}
             onUvUnwrap={() => setUvUnwrapTrigger(prev => prev + 1)}
@@ -3106,7 +3063,6 @@ export default function ThreedEditor() {
         </div>
       </div>
 
-      {/* Auxiliary Modals */}
       {showAddModelModal && (
         <AddModelModal
           isOpen={showAddModelModal}
