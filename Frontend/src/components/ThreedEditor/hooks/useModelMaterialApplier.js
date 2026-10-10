@@ -58,6 +58,11 @@ export function useModelMaterialApplier({
                 if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
             };
 
+            const undoTargetedMeshes = (typeof resolveTargetMeshes === 'function' && selMat)
+                ? resolveTargetMeshes(selMat)
+                : [];
+            const undoTargetMeshSet = new Set(undoTargetedMeshes);
+
             scene.traverse((child) => {
                 if ((!child.isMesh && !child.isSkinnedMesh) || !child.material) return;
 
@@ -72,10 +77,55 @@ export function useModelMaterialApplier({
                         scene.userData?.__pristineMaterialRegistry?.get(m.name) ||
                         scene.userData?.__pristineMaterialRegistry?.get(m.userData?.baseMaterialName);
 
+                    // Check if this mesh/material is specifically targeted by selectedMaterial.
+                    // Must ONLY be true if an explicit selection exists and targets this mesh/material.
+                    // Never default to true when no selection exists (!selMat), preventing full-model coloring!
+                    const isTargetedMesh = Boolean(
+                        selMat && (
+                            isFullModel ||
+                            undoTargetMeshSet.has(child) ||
+                            (selMat.meshUuid && (child.uuid === selMat.meshUuid || child.userData?.meshUuid === selMat.meshUuid)) ||
+                            (selMat.uuid && (child.uuid === selMat.uuid || m.uuid === selMat.uuid)) ||
+                            (selMat.name && (child.name === selMat.name || m.name === selMat.name || m.userData?.baseMaterialName === selMat.name))
+                        )
+                    );
+
+                    const lookupKeys = [
+                        child.uuid,
+                        child.userData?.meshUuid,
+                        child.userData?.initialUuid,
+                        child.name,
+                        child.userData?.initialName,
+                        m.name,
+                        m.uuid,
+                        m.userData?.baseMaterialName,
+                        m.userData?.initialName
+                    ].filter(Boolean);
+
                     // Unconditional hard-reset on undo/reset.
-                    // Wipes any previous session state so baseline defaults are clean before
-                    // applying customizedMaterials.
-                    if (pristine?.color && m.color) {
+                    // Check if this mesh/material has an active customization in the restored snapshot:
+                    const hasActiveCustomization = Boolean(
+                        customizedMaterials && (
+                            customizedMaterials['__ALL__'] ||
+                            lookupKeys.some(k => customizedMaterials[k] && customizedMaterials[k].color)
+                        )
+                    );
+
+                    // If this mesh/material is the one currently active in materialSettings/color picker
+                    // AND there is an active customization in the restored history snapshot,
+                    // prioritize materialSettings.color so the model immediately reflects the color picker on undo!
+                    // If no customization exists (e.g. on full undo all), restore the pristine/originalColor!
+                    if (isTargetedMesh && hasActiveCustomization && materialSettings?.color && m.color) {
+                        try {
+                            const intensity = (materialSettings.colorIntensity ?? 100) / 100;
+                            const finalCol = new THREE.Color(materialSettings.color);
+                            finalCol.multiplyScalar(intensity);
+                            m.color.copy(finalCol);
+                            m.needsUpdate = true;
+                        } catch (_) {
+                            if (pristine?.color) m.color.copy(pristine.color);
+                        }
+                    } else if (pristine?.color && m.color) {
                         m.color.copy(pristine.color);
                         m.needsUpdate = true;
                     } else if (m.userData.originalColor && m.color) {
@@ -141,18 +191,6 @@ export function useModelMaterialApplier({
                     // ═════════════════════════════════════════════════════════════
                     // EXISTING customization-restore logic (unchanged below)
                     // ═════════════════════════════════════════════════════════════
-                    const lookupKeys = [
-                        child.uuid,
-                        child.userData?.meshUuid,
-                        child.userData?.initialUuid,
-                        child.name,
-                        child.userData?.initialName,
-                        m.name,
-                        m.uuid,
-                        m.userData?.baseMaterialName,
-                        m.userData?.initialName
-                    ].filter(Boolean);
-
                     let customSetting = null;
                     if (customizedMaterials) {
                         for (const k of lookupKeys) {
@@ -882,6 +920,9 @@ export function useModelMaterialApplier({
                                         m.transparent = true;
                                         m.alphaTest = 0.05;
                                         m.userData.appliedMap = cachedTex;
+                                        if (m.color && typeof m.color.set === 'function') {
+                                            m.color.set('#ffffff');
+                                        }
                                         if (materialSettings.appliedTexture) {
                                             m.userData.appliedTexture = materialSettings.appliedTexture;
                                             m.userData.appliedTextureId = materialSettings.appliedTexture.id || null;
@@ -914,6 +955,9 @@ export function useModelMaterialApplier({
                                         m.transparent = true;
                                         m.alphaTest = 0.05;
                                         m.userData.appliedMap = tex;
+                                        if (m.color && typeof m.color.set === 'function') {
+                                            m.color.set('#ffffff');
+                                        }
                                         if (materialSettings.appliedTexture) {
                                             m.userData.appliedTexture = materialSettings.appliedTexture;
                                             m.userData.appliedTextureId = materialSettings.appliedTexture.id || null;
