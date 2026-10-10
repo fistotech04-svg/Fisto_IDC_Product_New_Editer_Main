@@ -69,20 +69,20 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
             ) : (
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className={`flex items-center justify-between w-full border-[1.5px] border-gray-300 rounded-[0.5vw] px-[1vw] py-[0.6vh] text-[0.9vw] text-gray-500 bg-white hover:bg-gray-50 transition-colors focus:outline-none ${buttonClassName}`}
+                    className={`flex items-center justify-between w-full border border-gray-200 rounded-xl px-3 py-1.5 text-xs sm:text-sm text-slate-700 bg-white hover:bg-slate-50 transition-colors focus:outline-none ${buttonClassName}`}
                 >
-                    <span className="font-normal pr-[2vw]">{value}</span>
-                    <svg className={`w-[0.9vw] h-[0.9vw] text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <span className="font-medium pr-4">{value}</span>
+                    <Icon icon="lucide:chevron-down" className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
             )}
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-[0.5vh] w-full bg-white rounded-[0.5vw] shadow-[0_4px_15px_rgba(0,0,0,0.1)] py-[1vh] z-50 border border-gray-100">
+                <div className="absolute top-full right-0 mt-1 w-44 bg-white rounded-xl shadow-lg py-1.5 z-50 border border-gray-100">
                     {options.map((opt, idx) => (
                         <div
                             key={idx}
                             onClick={() => { onChange(opt); setIsOpen(false); }}
-                            className="px-[1.2vw] py-[0.8vh] text-[0.9vw] text-[#4a5568] hover:bg-gray-50 hover:text-black cursor-pointer transition-colors"
+                            className="px-3.5 py-2 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-[#ea7233] cursor-pointer transition-colors font-medium"
                         >
                             {opt}
                         </div>
@@ -95,6 +95,7 @@ const CustomDropdown = ({ options, value, onChange, className, buttonClassName, 
 
 const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, authorPicture, authorBgColor, bookName, authorName, location, pages, views, rating, description, onShare, onDownload, onProfileClick, onAddToShelf, isAddedToShelf }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isLiked, setIsLiked] = useState(false);
     const menuRef = useRef(null);
 
     const handleOpenBook = () => {
@@ -146,136 +147,146 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
     const canDownload = isDownloadEnabled(rawBook);
 
     const menuItems = [
-        { name: 'View Book', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> },
-        { name: 'Creator Profile', icon: <Icon icon="solar:user-bold" className="w-[1vw] h-[1vw]" /> },
-        { name: isAddedToShelf ? 'Book Added' : 'Add to Shelf', icon: isAddedToShelf ? <Icon icon="lucide:check" className="w-[1vw] h-[1vw] text-green-500" /> : <Icon icon="ri:book-shelf-line" className="w-[1vw] h-[1vw]" /> },
-        ...(canShare ? [{ name: 'Share', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> }] : []),
-        ...(canDownload ? [{ name: 'Download', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> }] : []),
-        { name: 'Report', icon: <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> }
+        { name: 'View Book', icon: <Icon icon="lucide:eye" className="w-4 h-4" /> },
+        { name: 'Creator Profile', icon: <Icon icon="solar:user-bold" className="w-4 h-4" /> },
+        { name: isAddedToShelf ? 'Book Added' : 'Add to Shelf', icon: isAddedToShelf ? <Icon icon="lucide:check" className="w-4 h-4 text-green-500" /> : <Icon icon="ri:book-shelf-line" className="w-4 h-4" /> },
+        ...(canShare ? [{ name: 'Share', icon: <Icon icon="lucide:share-2" className="w-4 h-4" /> }] : []),
+        ...(canDownload ? [{ name: 'Download', icon: <Icon icon="lucide:download" className="w-4 h-4" /> }] : []),
+        { name: 'Report', icon: <Icon icon="lucide:flag" className="w-4 h-4" /> }
     ];
 
     return (
-        <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col hover:shadow-md transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative group">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-2.5 sm:p-3 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between relative group">
+            
             {/* Thumbnail Container */}
-            <div className="relative w-full aspect-[4/4] flex items-center justify-center">
-                <img src={coverImg} alt="Flipbook Cover" className="w-full h-full object-cover" />
+            <div className="relative w-full aspect-[4/3] rounded-xl bg-slate-100 flex items-center justify-center">
+                <img src={coverImg} alt="Flipbook Cover" className="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-105" />
 
-                {/* Menu Button */}
-                <div className={`absolute top-[0.8vw] right-[0.8vw] transition-opacity duration-200 ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} ref={menuRef}>
+                {/* Top Right Floating Icons */}
+                <div className="absolute top-2.5 right-2.5 flex flex-col items-center gap-1.5 z-10">
+                    {/* Favorite Heart Button */}
                     <button
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="bg-white/80 backdrop-blur-sm p-[0.1vw] rounded-[0.3vw] hover:bg-white text-gray-800 focus:outline-none transition-colors shadow-sm"
+                        onClick={() => setIsLiked(!isLiked)}
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center shadow-sm hover:bg-white transition-colors"
                     >
-                        <svg className="w-[1.2vw] h-[1.2vw]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+                        <Icon
+                            icon={isLiked ? "fa6-solid:heart" : "fa6-regular:heart"}
+                            className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLiked ? "text-red-500" : "text-slate-900"}`}
+                        />
                     </button>
 
-                    {/* Dropdown Menu */}
-                    {isMenuOpen && (
-                        <div className="absolute top-[110%] right-0 w-[9.5vw] bg-white rounded-[0.6vw] shadow-[0_8px_30px_rgb(0,0,0,0.12)] py-[1.2vh] z-20 border border-gray-100">
-                            {menuItems.map((menuItem, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => {
-                                        setIsMenuOpen(false);
-                                        if (menuItem.name === 'View Book') {
-                                            handleOpenBook();
-                                        } else if (menuItem.name === 'Creator Profile') {
-                                            if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location });
-                                        } else if (menuItem.name === 'Share') {
-                                            if (onShare) onShare(rawBook);
-                                        } else if (menuItem.name === 'Download') {
-                                            if (onDownload) onDownload(rawBook);
-                                        } else if (menuItem.name === 'Add to Shelf' || menuItem.name === 'Book Added') {
-                                            if (onAddToShelf) onAddToShelf(rawBook);
-                                        }
-                                    }}
-                                    className="w-[8.8vw] flex items-center mx-[0.5vw] gap-[0.8vw] px-[0.8vw] py-[0.8vh] transition-colors text-left rounded-md text-gray-600 hover:text-black hover:bg-gray-50"
-                                >
-                                    <span className="transition-colors flex items-center justify-center">{menuItem.icon}</span>
-                                    <span className="text-[0.75vw] font-medium transition-colors">{menuItem.name}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    {/* Menu Dropdown Button */}
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-slate-900 hover:bg-white transition-colors shadow-sm"
+                        >
+                            <Icon icon="lucide:more-vertical" className="w-4 h-4" />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isMenuOpen && (
+                            <div className="absolute top-full right-0 mt-1.5 w-40 bg-white rounded-xl shadow-xl py-1 z-30 border border-slate-100">
+                                {menuItems.map((menuItem, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => {
+                                            setIsMenuOpen(false);
+                                            if (menuItem.name === 'View Book') {
+                                                handleOpenBook();
+                                            } else if (menuItem.name === 'Creator Profile') {
+                                                if (onProfileClick) onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location });
+                                            } else if (menuItem.name === 'Share') {
+                                                if (onShare) onShare(rawBook);
+                                            } else if (menuItem.name === 'Download') {
+                                                if (onDownload) onDownload(rawBook);
+                                            } else if (menuItem.name === 'Add to Shelf' || menuItem.name === 'Book Added') {
+                                                if (onAddToShelf) onAddToShelf(rawBook);
+                                            }
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 transition-colors text-left rounded-lg text-xs text-slate-700 hover:text-[#ea7233] hover:bg-orange-50/50 font-medium"
+                                    >
+                                        <span>{menuItem.icon}</span>
+                                        <span>{menuItem.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Card Details */}
-            <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
+            <div className="pt-3 pb-1 px-1 flex flex-col flex-1 bg-white">
+                
                 {/* Author Info */}
-                <div className="flex items-center gap-[0.6vw]">
+                <div className="flex items-center gap-2">
                     {displayAvatar ? (
                         <img
                             src={displayAvatar}
                             alt={authorName}
-                            className="w-[2.5vw] h-[2.5vw] rounded-full border border-gray-200 object-cover cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-slate-200 object-cover cursor-pointer hover:opacity-80 transition-opacity shrink-0"
                             onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
                         />
                     ) : (
                         <div
-                            className="w-[2.5vw] h-[2.5vw] rounded-full flex items-center justify-center text-white text-[1.1vw] font-bold shrink-0 cursor-pointer hover:opacity-80 transition-opacity shadow-inner"
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 cursor-pointer hover:opacity-80 transition-opacity shadow-inner"
                             style={{ backgroundColor: avatarColor }}
                             onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: null, picture: null, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
                         >
                             {authorName ? authorName.charAt(0).toUpperCase() : 'U'}
                         </div>
                     )}
+
                     <div
-                        className="flex flex-col min-w-0 pr-[0.5vw] cursor-pointer"
+                        className="flex flex-col min-w-0 cursor-pointer"
                         onClick={() => onProfileClick && onProfileClick({ name: authorName, profileImg: displayAvatar, picture: displayAvatar, role: 'Creator', email: rawBook?.userEmail, emailId: rawBook?.userEmail, avatarBgColor: authorBgColor, location })}
                     >
-                        <span className="text-[0.85vw] font-semibold text-gray-900 leading-tight truncate hover:text-indigo-600 transition-colors">{authorName || 'Alex Johnson'}</span>
-                        <span className="flex items-center gap-[0.2vw] text-[0.7vw] text-gray-400 mt-[0.2vh] truncate">
-                            <Icon icon="lucide:map-pin" className="w-[0.75vw] h-[0.75vw] text-gray-400 shrink-0" />
-                            <span className="truncate">{location ? String(location).replace(/📍/g, '').trim() : 'Coimbatore'}</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900 leading-tight truncate hover:text-[#ea7233] transition-colors">
+                            {authorName || 'Alex Johnson'}
+                        </span>
+                        <span className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 truncate">
+                            <span>{location ? String(location).replace(/📍/g, '').trim() : 'Coimbatore'}</span>
+                            <Icon icon="fa6-solid:map-pin" className="w-2.5 h-3.5 text-red-500 shrink-0" />
                         </span>
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="flex items-center gap-[0.3vw] justify-start text-[0.75vw] text-gray-700 font-medium mt-[1.5vh] whitespace-nowrap">
-                    <div className="flex items-center gap-[0.3vw]">
-                        <span className="text-black font-semibold">{pages || 12}</span>
-                        <span className="font-normal text-gray-500">Pages</span>
-                    </div>
-                    <span className="text-gray-200">|</span>
-                    <span className="flex items-center gap-[0.3vw]">
-                        <svg className="w-[0.9vw] text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                {/* Stats Row */}
+                <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-600 font-medium mt-2.5 pb-1 border-b border-slate-100 whitespace-nowrap">
+                    <span className="font-semibold text-slate-800">{pages || 12} Pages</span>
+                    <span className="text-slate-300">|</span>
+                    <span className="flex items-center gap-1 text-slate-600">
+                        <Icon icon="lucide:eye" className="w-3 h-3 text-slate-400" />
                         {views || '12.5k'}
                     </span>
-                    <span className="text-gray-200">|</span>
-                    <span className="flex items-center gap-[0.3vw]">
-                        <svg className="w-[0.9vw] text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path></svg>
+                    <span className="text-slate-300">|</span>
+                    <span className="flex items-center gap-1 text-slate-800">
+                        <Icon icon="fa6-solid:star" className="w-3 h-3 text-amber-400" />
                         {rating || 4.5}
                     </span>
                 </div>
 
-                {/* Title & Desc & Button */}
-                <div className="relative flex-1 mt-[1.2vh]">
-                    <div className="relative group/tt block max-w-full">
-                        <h4 className="text-[0.9vw] font-semibold text-black truncate tracking-tight pr-[2.2vw] cursor-default">
+                {/* Title & Description & Arrow Button */}
+                <div className="relative pt-2 flex-1 flex flex-col justify-between min-h-[4rem]">
+                    <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate tracking-tight pr-8">
                             {bookName || 'Name of the Flipbook'}
                         </h4>
-                        {/* Hover Tooltip (TopToolbar style) */}
-                        <div className="absolute left-0 bottom-full mb-[0.35vw] hidden group-hover/tt:flex flex-col items-start pointer-events-none z-50 whitespace-nowrap max-w-[18vw]">
-                            <div className="bg-gray-900 text-white text-[0.65vw] font-medium px-[0.5vw] py-[0.25vw] rounded-[0.3vw] shadow-lg truncate max-w-full">
-                                {bookName || 'Name of the Flipbook'}
-                            </div>
-                            <div className="w-0 h-0 ml-[0.8vw] -mt-[0.2px] border-x-[0.3vw] border-x-transparent border-t-[0.3vw] border-t-gray-900" />
-                        </div>
+                        <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-1 pr-8 line-clamp-2">
+                            {description || '“Bring your content to life with a real, interactive experience”'}
+                        </p>
                     </div>
-                    <p className="text-[0.7vw] text-gray-500 leading-relaxed mt-[0.5vh] pr-[2.2vw] line-clamp-2">
-                        {description || '“Bring your content to life with a real, interactive experience”'}
-                    </p>
 
-                    {/* Action Button */}
+                    {/* Action Arrow Button */}
                     <button
                         onClick={handleOpenBook}
-                        className="absolute bottom-[0.5vw] right-[-0.5vw] bg-black text-white w-[2vw] h-[2vw] rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-md cursor-pointer"
+                        className="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#ea7233] hover:bg-[#d65a1c] text-white flex items-center justify-center shadow-md transition-all cursor-pointer hover:scale-110"
                     >
-                        <svg className="w-[1.5vw] h-[1.5vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 7l-10 10M17 7H8M17 7v9"></path></svg>
+                        <Icon icon="lucide:arrow-up-right" className="w-4 h-4 stroke-[2.5]" />
                     </button>
                 </div>
+
             </div>
         </div>
     );
@@ -283,41 +294,187 @@ const FlipbookCard = ({ v_id, shareId, access, rawBook, coverImg, profileImg, au
 
 const FlipbookCardSkeleton = () => {
     return (
-        <div className="bg-white border border-gray-100 rounded-[0.8vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative animate-pulse">
-            <div className="relative w-full aspect-[4/4] bg-gray-200"></div>
-            <div className="p-[1.2vw] flex flex-col flex-1 bg-white">
-                <div className="flex items-center gap-[0.6vw]">
-                    <div className="w-[2.5vw] h-[2.5vw] rounded-full bg-gray-200 shrink-0"></div>
-                    <div className="flex flex-col gap-[0.3vh]">
-                        <div className="h-[0.85vw] bg-gray-200 rounded w-[6vw]"></div>
-                        <div className="h-[0.7vw] bg-gray-100 rounded w-[4vw]"></div>
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-xs animate-pulse flex flex-col justify-between">
+            <div className="w-full aspect-[4/3] bg-slate-200 rounded-xl mb-3"></div>
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-200"></div>
+                    <div className="space-y-1 flex-1">
+                        <div className="h-3 bg-slate-200 rounded w-2/3"></div>
+                        <div className="h-2 bg-slate-100 rounded w-1/3"></div>
                     </div>
                 </div>
-                <div className="flex items-center gap-[0.3vw] justify-start text-[0.75vw] mt-[1.5vh]">
-                    <div className="h-[0.75vw] bg-gray-200 rounded w-[3.5vw]"></div>
-                    <span className="text-gray-200">|</span>
-                    <div className="h-[0.75vw] bg-gray-200 rounded w-[3vw]"></div>
-                    <span className="text-gray-200">|</span>
-                    <div className="h-[0.75vw] bg-gray-200 rounded w-[2.5vw]"></div>
+                <div className="h-3 bg-slate-100 rounded w-full"></div>
+                <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+            </div>
+        </div>
+    );
+};
+
+const CreatorCard = ({ creator, onProfileClick, onToggleFollow, isFollowingLoading, currentUserEmail, index = 0 }) => {
+    const emailKey = (creator.emailId || creator.email || '').toLowerCase();
+    const isSelf = currentUserEmail && emailKey === currentUserEmail.toLowerCase();
+    const displayAvatar = creator.picture && creator.picture !== 'color_only' ? creator.picture : null;
+    const avatarColor = getAvatarColor(creator.name || emailKey, creator.avatarBgColor);
+
+    const presetGradients = [
+        'linear-gradient(135deg, #be8639 0%, #8c5b1e 100%)',
+        'linear-gradient(135deg, #c68e41 0%, #9e6727 100%)',
+        'linear-gradient(135deg, #ae772e 0%, #784c17 100%)',
+        'linear-gradient(135deg, #be8639 0%, #9e6727 100%)',
+        'linear-gradient(135deg, #c68e41 0%, #784c17 100%)'
+    ];
+
+    let bannerStyle = presetGradients[index % presetGradients.length];
+
+    if (creator.bannerBg) {
+        const val = typeof creator.bannerBg === 'string' ? creator.bannerBg : (creator.bannerBg.value || '');
+        if (val) {
+            // Check if it's an image URL or path
+            if (val.startsWith('http') || val.startsWith('data:') || val.startsWith('/') || val.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)) {
+                bannerStyle = `url("${val}") center/cover no-repeat`;
+            } else if (val.includes('#be8639') || val.includes('#9e6727')) {
+                // Legacy default teal -> use requested #be8639 gradient
+                bannerStyle = presetGradients[index % presetGradients.length];
+            } else {
+                // Custom color, gradient, or CSS background set by user
+                bannerStyle = val;
+            }
+        }
+    }
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200/70 shadow-2xs overflow-hidden flex flex-col justify-between hover:shadow-md transition-all duration-300 relative group">
+            
+            {/* Top Banner & Header */}
+            <div>
+                {/* Banner Gradient */}
+                <div
+                    className="w-full h-28 sm:h-32 relative cursor-pointer"
+                    style={{ background: bannerStyle }}
+                    onClick={() => onProfileClick(creator)}
+                />
+
+                {/* Avatar & Follow Row (overlapping banner) */}
+                <div className="px-5 flex items-end justify-between -mt-10 mb-2 relative z-10">
+                    <div
+                        className="w-20 h-20 sm:w-22 sm:h-22 rounded-full p-1 bg-white shadow-sm overflow-hidden cursor-pointer shrink-0"
+                        onClick={() => onProfileClick(creator)}
+                    >
+                        {displayAvatar ? (
+                            <img
+                                src={displayAvatar}
+                                alt={creator.name}
+                                className="w-full h-full object-cover rounded-full"
+                            />
+                        ) : (
+                            <div
+                                className="w-full h-full rounded-full flex items-center justify-center text-white text-xl font-bold"
+                                style={{ backgroundColor: avatarColor }}
+                            >
+                                {creator.name ? creator.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                        )}
+                    </div>
+
+                    {!isSelf && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleFollow(emailKey);
+                            }}
+                            disabled={isFollowingLoading}
+                            className={`px-6 py-1.5 rounded-full text-xs font-bold transition-all shadow-2xs mb-1 cursor-pointer flex items-center justify-center gap-1 ${
+                                creator.isFollowing
+                                    ? 'bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200'
+                                    : 'bg-black text-white hover:bg-slate-800'
+                            }`}
+                        >
+                            {isFollowingLoading ? (
+                                <Icon icon="line-md:loading-loop" className="w-3.5 h-3.5" />
+                            ) : creator.isFollowing ? (
+                                <span>Following</span>
+                            ) : (
+                                <span>Follow</span>
+                            )}
+                        </button>
+                    )}
                 </div>
-                <div className="relative flex-1 mt-[1.2vh] min-h-[4vw]">
-                    <div className="h-[0.9vw] bg-gray-200 rounded w-[9vw]"></div>
-                    <div className="h-[0.7vw] bg-gray-100 rounded w-[11vw] mt-[0.5vh]"></div>
-                    <div className="absolute bottom-[0.5vw] right-[-0.5vw] bg-gray-200 w-[2vw] h-[2vw] rounded-full"></div>
+
+                {/* Left Aligned Creator Info */}
+                <div className="px-5 pt-1 pb-3 text-left">
+                    <h3
+                        className="text-base sm:text-lg font-bold text-slate-900 leading-snug cursor-pointer hover:text-[#ea7233] transition-colors truncate"
+                        onClick={() => onProfileClick(creator)}
+                    >
+                        {creator.name || 'Monkey D. Luffy'}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium truncate mt-0.5">
+                        {creator.industryType || creator.companyName || 'Product Designer'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-3 leading-relaxed line-clamp-2 font-normal">
+                        {creator.about || '"Bring your content to life with a real, interactive experience"'}
+                    </p>
                 </div>
             </div>
+
+            {/* Bottom Stats Footer */}
+            <div className="px-5 py-3 border-t border-slate-100/80 flex items-center justify-around text-center">
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-1.5 text-slate-800 font-bold text-xs sm:text-sm">
+                        <Icon icon="boxicons:book" className="w-4 h-4 text-slate-700" />
+                        <span>{creator.totalBooks !== undefined && creator.totalBooks !== null ? creator.totalBooks : (creator.booksCount || 0)}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5">Total Books</span>
+                </div>
+                
+                <div className="w-[1px] h-7 bg-slate-100" />
+
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-1.5 text-slate-800 font-bold text-xs sm:text-sm">
+                        <Icon icon="lucide:user" className="w-3.5 h-3.5 text-slate-700" />
+                        <span>{creator.followersCount !== undefined && creator.followersCount !== null ? creator.followersCount : (creator.followers?.length || 0)}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5">Followers</span>
+                </div>
+            </div>
+
         </div>
     );
 };
 
 const Explore = () => {
     const [exploreMode, setExploreMode] = useState('books'); // 'books' | 'creators'
-
     const [booksData, setBooksData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const toast = useToast();
     const [shelfBookIds, setShelfBookIds] = useState([]);
+
+    // Mobile/Tab Filter Drawer State
+    const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+
+    // Sidebar Filter States
+    const [selectedCategories, setSelectedCategories] = useState([]);
+    const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedPages, setSelectedPages] = useState([]);
+    const [selectedPublishDates, setSelectedPublishDates] = useState([]);
+    
+    // Creator Sidebar Filter States
+    const [industrySearch, setIndustrySearch] = useState('');
+    const [selectedCreatorCategories, setSelectedCreatorCategories] = useState([]);
+    const [selectedCreatorTypes, setSelectedCreatorTypes] = useState([]);
+    const [selectedLocationCountry, setSelectedLocationCountry] = useState('All Countries');
+    const [selectedLocationState, setSelectedLocationState] = useState('All States');
+    const [selectedLocationCity, setSelectedLocationCity] = useState('All Cities');
+    const [selectedSpecializations, setSelectedSpecializations] = useState([]);
+    const [selectedCreatorBooks, setSelectedCreatorBooks] = useState([]);
+    const [selectedCreatorFollowers, setSelectedCreatorFollowers] = useState([]);
+    
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState('Most Popular');
+    const [category, setCategory] = useState('All Category');
 
     const currentUserEmail = React.useMemo(() => {
         try {
@@ -448,7 +605,7 @@ const Explore = () => {
         }
         const isAdded = shelfBookIds.includes(rawBook.v_id);
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        
+
         try {
             if (isAdded) {
                 const res = await axios.post(`${backendUrl}/api/profile/remove-from-shelf`, {
@@ -482,17 +639,6 @@ const Explore = () => {
             toast.error(err.response?.data?.message || "Error updating shelf");
         }
     };
-
-    const [category, setCategory] = useState("All Category");
-    const [sortBy, setSortBy] = useState("Most Popular");
-    const [showMoreRatings, setShowMoreRatings] = useState(false);
-
-    // Sidebar Filters State
-    const [selectedTypes, setSelectedTypes] = useState([]);
-    const [selectedCategories, setSelectedCategories] = useState([]);
-    const [selectedRating, setSelectedRating] = useState(null);
-    const [maxPages, setMaxPages] = useState(100);
-    const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -549,7 +695,7 @@ const Explore = () => {
                             type: typeName,
                             has3D: has3D,
                             is3D: has3D,
-                            category: book.Customized_Settings?.FlipbookInfo?.category
+                            category: book.Customized_Settings?.FlipbookInfo?.category || "Catalog"
                         };
                     }).filter(book => book.access === 'public');
 
@@ -584,10 +730,8 @@ const Explore = () => {
         fetchTopCreators();
     }, [currentUserEmail]);
 
-    // Filter booksData based on all filters
+    // Filter booksData based on active selections
     const filteredBooks = booksData.filter(book => {
-        if (category !== "All Category" && book.category?.toLowerCase() !== category.toLowerCase()) return false;
-
         if (searchQuery && !book.bookName.toLowerCase().includes(searchQuery.toLowerCase()) && !book.authorName?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
         if (selectedTypes.length > 0) {
@@ -607,133 +751,223 @@ const Explore = () => {
             if (!isCatMatched) return false;
         }
 
-        if (selectedRating && book.rating < selectedRating) return false;
+        if (selectedPages.length > 0 && !selectedPages.includes('All')) {
+            const bookPages = Number(book.pages || 1);
+            const isPageMatched = selectedPages.some(pageOpt => {
+                if (pageOpt === '1 - 8 Pages') return bookPages >= 1 && bookPages <= 8;
+                if (pageOpt === '8 - 16 Pages') return bookPages > 8 && bookPages <= 16;
+                if (pageOpt === '16 - 24 Pages') return bookPages > 16 && bookPages <= 24;
+                if (pageOpt === '24 - MAX Pages') return bookPages > 24;
+                return true;
+            });
+            if (!isPageMatched) return false;
+        }
 
-        if (book.pages > maxPages) return false;
+        if (selectedPublishDates.length > 0 && !selectedPublishDates.includes('All Time')) {
+            const rawDate = book.rawBook?.createdAt || book.rawBook?.updatedAt;
+            if (rawDate) {
+                const created = new Date(rawDate);
+                const now = new Date();
+                const diffDays = (now - created) / (1000 * 60 * 60 * 24);
+                const isDateMatched = selectedPublishDates.some(dateOpt => {
+                    if (dateOpt === 'Today') return diffDays <= 1;
+                    if (dateOpt === 'Before 3 days') return diffDays <= 3;
+                    if (dateOpt === 'This Week') return diffDays <= 7;
+                    if (dateOpt === 'This Month') return diffDays <= 30;
+                    if (dateOpt === 'This Year') return diffDays <= 365;
+                    return true;
+                });
+                if (!isDateMatched) return false;
+            }
+        }
 
         return true;
     });
 
-    // Filter creators based on search
+    // Dynamic Filter Count Helpers for Books
+    const getCategoryCount = (item) => {
+        const norm = item.toLowerCase();
+        return booksData.filter(b => {
+            const cat = (b.category || '').toLowerCase();
+            if (norm.includes('photograph')) return cat.includes('photo');
+            return cat === norm;
+        }).length;
+    };
+
+    const getTypeCount = (item) => {
+        if (item === "3D Added Flipbook") {
+            return booksData.filter(b => b.has3D || b.is3D).length;
+        }
+        const norm = item.toLowerCase();
+        return booksData.filter(b => (b.type || '').toLowerCase() === norm).length;
+    };
+
+    const getPageCount = (item) => {
+        if (item === 'All') return booksData.length;
+        if (item === '1 - 8 Pages') return booksData.filter(b => b.pages >= 1 && b.pages <= 8).length;
+        if (item === '8 - 16 Pages') return booksData.filter(b => b.pages > 8 && b.pages <= 16).length;
+        if (item === '16 - 24 Pages') return booksData.filter(b => b.pages > 16 && b.pages <= 24).length;
+        if (item === '24 - MAX Pages') return booksData.filter(b => b.pages > 24).length;
+        return booksData.length;
+    };
+
+    const getPublishDateCount = (item) => {
+        if (item === 'All Time') return booksData.length;
+        const now = new Date();
+        return booksData.filter(b => {
+            if (!b.rawBook?.createdAt) return true;
+            const created = new Date(b.rawBook.createdAt);
+            const diffDays = (now - created) / (1000 * 60 * 60 * 24);
+            if (item === 'Today') return diffDays <= 1;
+            if (item === 'Before 3 days') return diffDays <= 3;
+            if (item === 'This Week') return diffDays <= 7;
+            if (item === 'This Month') return diffDays <= 30;
+            if (item === 'This Year') return diffDays <= 365;
+            return true;
+        }).length;
+    };
+
+    const getIndustryCount = (item) => {
+        const norm = item.toLowerCase();
+        return topCreators.filter(c => {
+            const ind = (c.industryType || c.companyName || 'Manufacturing').toLowerCase();
+            return ind.includes(norm);
+        }).length;
+    };
+
+    const getCreatorTypeCount = (item) => {
+        const norm = item.toLowerCase();
+        return topCreators.filter(c => {
+            const role = (c.role || c.creatorType || 'Individual').toLowerCase();
+            return role.includes(norm);
+        }).length;
+    };
+
+    const getSpecializationCount = (item) => {
+        const norm = item.toLowerCase().split(' ')[0];
+        return topCreators.filter(c => {
+            const spec = (c.specialization || c.industryType || 'Product Catalogues').toLowerCase();
+            return spec.includes(norm);
+        }).length;
+    };
+
+    const getCreatorCategoryCount = (item) => {
+        if (item === 'All') return topCreators.length;
+        const norm = item.toLowerCase().split(' ')[0];
+        return topCreators.filter(c => {
+            const ind = (c.industryType || c.companyName || 'Product Designer').toLowerCase();
+            return ind.includes(norm);
+        }).length;
+    };
+
+    const getCreatorBooksFilterCount = (item) => {
+        if (item === 'All') return topCreators.length;
+        return topCreators.filter(c => {
+            const bCount = c.totalBooks !== undefined ? c.totalBooks : (c.booksCount || 0);
+            if (item === '1 - 5 Books') return bCount >= 1 && bCount <= 5;
+            if (item === '5 - 10 Books') return bCount > 5 && bCount <= 10;
+            if (item === '10+ Books') return bCount > 10;
+            return true;
+        }).length;
+    };
+
+    const getCreatorFollowersFilterCount = (item) => {
+        if (item === 'All') return topCreators.length;
+        return topCreators.filter(c => {
+            const fCount = c.followersCount !== undefined ? c.followersCount : (c.followers?.length || 0);
+            if (item === '1 - 50 Followers') return fCount >= 1 && fCount <= 50;
+            if (item === '50 - 200 Followers') return fCount > 50 && fCount <= 200;
+            if (item === '200+ Followers') return fCount > 200;
+            return true;
+        }).length;
+    };
+
     const filteredCreators = topCreators.filter(creator => {
-        if (currentUserEmail && (creator.emailId?.toLowerCase() === currentUserEmail || creator.email?.toLowerCase() === currentUserEmail)) {
-            return false;
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            const nameMatch = creator.name?.toLowerCase().includes(q);
+            const emailMatch = (creator.emailId || creator.email)?.toLowerCase().includes(q);
+            const companyMatch = creator.companyName?.toLowerCase().includes(q);
+            const industryMatch = creator.industryType?.toLowerCase().includes(q);
+            if (!nameMatch && !emailMatch && !companyMatch && !industryMatch) return false;
         }
-        if (searchQuery.trim()) {
-            const q = searchQuery.trim().toLowerCase();
-            return (
-                (creator.name && creator.name.toLowerCase().includes(q)) ||
-                (creator.email && creator.email.toLowerCase().includes(q)) ||
-                (creator.emailId && creator.emailId.toLowerCase().includes(q)) ||
-                (creator.city && creator.city.toLowerCase().includes(q)) ||
-                (creator.industryType && creator.industryType.toLowerCase().includes(q)) ||
-                (creator.about && creator.about.toLowerCase().includes(q))
-            );
+
+        if (selectedCreatorCategories.length > 0 && !selectedCreatorCategories.includes('All')) {
+            const ind = (creator.industryType || creator.companyName || 'Manufacturing').toLowerCase();
+            const isMatch = selectedCreatorCategories.some(cat => ind.includes(cat.toLowerCase().split(' ')[0]));
+            if (!isMatch) return false;
         }
+
+        if (selectedCreatorTypes.length > 0) {
+            const role = (creator.role || creator.creatorType || 'Individual').toLowerCase();
+            const isMatch = selectedCreatorTypes.some(type => role.includes(type.toLowerCase().split(' ')[0]));
+            if (!isMatch) return false;
+        }
+
+        if (selectedSpecializations.length > 0) {
+            const spec = (creator.specialization || creator.industryType || 'Product Catalogues').toLowerCase();
+            const isMatch = selectedSpecializations.some(s => spec.includes(s.toLowerCase().split(' ')[0]));
+            if (!isMatch) return false;
+        }
+
+        if (selectedCreatorBooks.length > 0 && !selectedCreatorBooks.includes('All')) {
+            const bCount = creator.totalBooks !== undefined ? creator.totalBooks : (creator.booksCount || 0);
+            const isMatch = selectedCreatorBooks.some(range => {
+                if (range === '1 - 5 Books') return bCount >= 1 && bCount <= 5;
+                if (range === '5 - 10 Books') return bCount > 5 && bCount <= 10;
+                if (range === '10+ Books') return bCount > 10;
+                return true;
+            });
+            if (!isMatch) return false;
+        }
+
+        if (selectedCreatorFollowers.length > 0 && !selectedCreatorFollowers.includes('All')) {
+            const fCount = creator.followersCount !== undefined ? creator.followersCount : (creator.followers?.length || 0);
+            const isMatch = selectedCreatorFollowers.some(range => {
+                if (range === '1 - 50 Followers') return fCount >= 1 && fCount <= 50;
+                if (range === '50 - 200 Followers') return fCount > 50 && fCount <= 200;
+                if (range === '200+ Followers') return fCount > 200;
+                return true;
+            });
+            if (!isMatch) return false;
+        }
+
         return true;
     });
 
-    // Applied filter tags list
-    const appliedFilterChips = React.useMemo(() => {
-        const chips = [];
-
-        selectedTypes.forEach(type => {
-            chips.push({
-                id: `type-${type}`,
-                label: type,
-                onRemove: () => setSelectedTypes(prev => prev.filter(t => t !== type))
-            });
-        });
-
-        selectedCategories.forEach(cat => {
-            chips.push({
-                id: `cat-${cat}`,
-                label: cat,
-                onRemove: () => setSelectedCategories(prev => prev.filter(c => c !== cat))
-            });
-        });
-
-        if (selectedRating !== null) {
-            chips.push({
-                id: 'rating',
-                label: `${selectedRating} Star`,
-                onRemove: () => setSelectedRating(null)
-            });
-        }
-
-        if (searchQuery.trim()) {
-            chips.push({
-                id: 'search',
-                label: `"${searchQuery}"`,
-                onRemove: () => setSearchQuery("")
-            });
-        }
-
-        if (category !== "All Category") {
-            chips.push({
-                id: 'top-cat',
-                label: category,
-                onRemove: () => setCategory("All Category")
-            });
-        }
-
-        return chips;
-    }, [selectedTypes, selectedCategories, selectedRating, searchQuery, category]);
-
-    const handleClearAllFilters = () => {
-        setSelectedTypes([]);
+    const handleResetAll = () => {
         setSelectedCategories([]);
-        setSelectedRating(null);
-        setSearchQuery("");
-        setCategory("All Category");
-        setMaxPages(100);
+        setSelectedTypes([]);
+        setSelectedPages([]);
+        setSelectedPublishDates([]);
+        setIndustrySearch('');
+        setSelectedCreatorCategories([]);
+        setSelectedCreatorTypes([]);
+        setSelectedLocationCountry('All Countries');
+        setSelectedLocationState('All States');
+        setSelectedLocationCity('All Cities');
+        setSelectedSpecializations([]);
+        setSelectedCreatorBooks([]);
+        setSelectedCreatorFollowers([]);
+        setSearchQuery('');
+    };
+
+    const removeChip = (type, val) => {
+        if (type === 'type') setSelectedTypes(prev => prev.filter(t => t !== val));
+        if (type === 'cat') setSelectedCategories(prev => prev.filter(c => c !== val));
+        if (type === 'page') setSelectedPages(prev => prev.filter(p => p !== val));
+        if (type === 'date') setSelectedPublishDates(prev => prev.filter(d => d !== val));
+        if (type === 'creatorCat') setSelectedCreatorCategories(prev => prev.filter(c => c !== val));
+        if (type === 'creatorBook') setSelectedCreatorBooks(prev => prev.filter(b => b !== val));
+        if (type === 'creatorFollower') setSelectedCreatorFollowers(prev => prev.filter(f => f !== val));
     };
 
     return (
-        <div className="w-full bg-white font-sans pb-0">
-            <style>{`
-                input[type="range"].custom-range-slider { 
-                    -webkit-appearance: none; 
-                    width: 100%; 
-                    background: transparent; 
-                    position: relative; 
-                    outline: none;
-                }
-                input[type="range"].custom-range-slider::before { 
-                    content: ""; 
-                    position: absolute; 
-                    top: -0.75vw; 
-                    bottom: -0.75vw; 
-                    left: 0; 
-                    right: 0; 
-                    cursor: pointer; 
-                    z-index: 1; 
-                }
-                input[type="range"].custom-range-slider::-webkit-slider-runnable-track { 
-                    height: 0.3vw; 
-                    border-radius: 0.15vw; 
-                    background: inherit; 
-                }
-                input[type="range"].custom-range-slider::-webkit-slider-thumb { 
-                    -webkit-appearance: none !important; 
-                    height: 1vw !important; 
-                    width: 1vw !important; 
-                    border-radius: 50% !important; 
-                    background: #4D47FF !important; 
-                    border: 0.1vw solid #ffffff !important; 
-                    box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4) !important; 
-                    margin-top: -0.35vw !important; 
-                    cursor: pointer !important; 
-                    transition: box-shadow 0.15s ease !important; 
-                    position: relative; 
-                    z-index: 2; 
-                }
-                input[type="range"].custom-range-slider::-webkit-slider-thumb:hover { 
-                    box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6) !important; 
-                }
-            `}</style>
-
-            {/* Top Hero Section Banner */}
+        <div className="w-full bg-white text-slate-900 font-sans min-h-screen pb-12">
+            
+            {/* ------------------------------------------------------------- */}
+            {/* ORIGINAL HERO SECTION BANNER (UNTOUCHED) */}
+            {/* ------------------------------------------------------------- */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -765,456 +999,901 @@ const Explore = () => {
                 </div>
             </motion.div>
 
-            {/* Main Content Section */}
-            <div className="w-full px-[2vw] md:px-[2vw] py-[4vh] space-y-[4vh]">
+            {/* ------------------------------------------------------------- */}
+            {/* MAIN SEPARATE TWO-COLUMN LAYOUT: SIDEBAR & RIGHT CONTENT */}
+            {/* ------------------------------------------------------------- */}
+            {/* MOBILE & TABLET FILTER SLIDE-OVER DRAWER MODAL */}
+            {isFilterDrawerOpen && (
+                <div className="fixed inset-0 z-50 flex lg:hidden">
+                    {/* Backdrop */}
+                    <div
+                        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+                        onClick={() => setIsFilterDrawerOpen(false)}
+                    />
 
-                {/* Top Control Bar */}
-                <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md py-[1.5vh] px-[2vw] -mx-[2vw] flex flex-col md:flex-row justify-between items-center gap-[2vw] border-b border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all">
-                    
-                    {/* Left: Explore by Toggle */}
-                    <div className="flex items-center gap-[1.2vw]">
-                        <h2 className="text-[1.8vw] font-medium text-gray-900 tracking-tight">Explore by :</h2>
-                        
-                        {/* Books / Creators Switch Pills */}
-                        <div className="flex items-center bg-[#f3f4f6] p-[0.25vw] rounded-[0.5vw] border border-gray-200">
-                            <button
-                                onClick={() => setExploreMode('books')}
-                                className={`px-[1.2vw] py-[0.5vh] rounded-[0.35vw] text-[0.85vw] font-semibold transition-all duration-200 cursor-pointer ${
-                                    exploreMode === 'books'
-                                        ? 'bg-black text-white shadow-sm'
-                                        : 'text-gray-500 hover:text-black'
-                                }`}
-                            >
-                                Books
-                            </button>
-                            <button
-                                onClick={() => setExploreMode('creators')}
-                                className={`px-[1.2vw] py-[0.5vh] rounded-[0.35vw] text-[0.85vw] font-semibold transition-all duration-200 cursor-pointer ${
-                                    exploreMode === 'creators'
-                                        ? 'bg-black text-white shadow-sm'
-                                        : 'text-gray-500 hover:text-black'
-                                }`}
-                            >
-                                Creators
-                            </button>
-                        </div>
-
-                        {exploreMode === 'books' && (
-                            <CustomDropdown
-                                options={['All Category', 'Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog']}
-                                value={category}
-                                onChange={setCategory}
-                                className="min-w-[12vw]"
-                            />
-                        )}
-                    </div>
-
-                    {/* Right: Search Bar & Sort By */}
-                    <div className="flex items-center gap-[1.5vw] w-full md:w-auto">
-                        <div className="relative flex items-center w-full md:w-[22vw]">
-                            <svg className="w-[1vw] h-[1vw] text-gray-400 absolute left-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input
-                                type="text"
-                                placeholder={exploreMode === 'books' ? "Search Flipbook..." : "Search Creator..."}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full border-[1.5px] border-gray-300 rounded-[0.5vw] pl-[2.8vw] pr-[1vw] py-[0.6vh] text-[0.9vw] text-gray-700 outline-none focus:border-gray-400 placeholder-gray-400 transition-all"
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between border-[1.5px] border-gray-300 rounded-[0.5vw] p-[0.3vw] pl-[1vw] bg-white">
-                            <div className="flex items-center gap-[0.5vw] text-gray-600 text-[0.9vw]">
-                                <svg className="w-[1vw] h-[1vw]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
-                                <span className="font-medium whitespace-nowrap">Sort by : </span>
-                            </div>
-
-                            <CustomDropdown
-                                options={['Most Popular', 'Newest']}
-                                value={sortBy}
-                                onChange={setSortBy}
-                                className="ml-[0.5vw] w-[8.5vw]"
-                                renderButton={(val, isOpen, setIsOpen) => (
-                                    <button
-                                        onClick={() => setIsOpen(!isOpen)}
-                                        className="flex items-center justify-between w-full gap-[0.8vw] bg-[#f3f4f6] rounded-[0.4vw] px-[0.8vw] py-[0.3vh] focus:outline-none cursor-pointer"
-                                    >
-                                        <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap text-left flex-1">{val}</span>
-                                        <svg className={`w-[0.9vw] h-[0.9vw] text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                    </button>
-                                )}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Layout Grid */}
-                <div className="flex flex-col md:flex-row gap-[2vw] items-start">
-
-                    {/* Left Sidebar Filter */}
-                    <div className="w-full md:w-[16vw] flex-shrink-0 space-y-[1.5vh]">
-                        {/* Title */}
-                        <div className="flex items-center justify-between px-[0.5vw]">
-                            <div className="flex items-center gap-[0.5vw]">
-                                <Icon icon="flowbite:filter-outline" className="w-[1.3vw] h-[1.3vw] text-black" />
-                                <span className="font-semibold text-[1.1vw] text-black">
-                                    {exploreMode === 'books' ? 'Filter Books By' : 'Filter Creators By'}
-                                </span>
-                            </div>
-                            {appliedFilterChips.length > 0 && (
+                    {/* Drawer Content */}
+                    <div className="relative ml-auto w-full max-w-xs sm:max-w-sm h-full bg-white shadow-2xl p-5 overflow-y-auto flex flex-col justify-between z-10 space-y-6">
+                        <div>
+                            {/* Drawer Header */}
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                                <div className="flex items-center gap-2">
+                                    <Icon icon="fluent:filter-28-filled" className="w-5 h-5 text-slate-900" />
+                                    <h2 className="text-xl font-bold text-slate-900">
+                                        {exploreMode === 'creators' ? 'Filter Creators' : 'Filter Books'}
+                                    </h2>
+                                </div>
                                 <button
-                                    onClick={handleClearAllFilters}
-                                    className="flex items-center gap-[0.2vw] text-[0.8vw] text-red-500 hover:text-red-600 font-medium transition-colors cursor-pointer"
+                                    type="button"
+                                    onClick={() => setIsFilterDrawerOpen(false)}
+                                    className="p-1 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
                                 >
-                                    <span>Clear all</span>
-                                    <Icon icon="lucide:trash-2" className="w-[0.85vw] h-[0.85vw]" />
+                                    <Icon icon="lucide:x" className="w-5 h-5" />
                                 </button>
-                            )}
-                        </div>
+                            </div>
 
-                        {/* Filter Container */}
-                        <div className="bg-white border border-gray-200 rounded-[0.5vw] flex flex-col shadow-sm">
+                            {/* Drawer Filters (Reused sidebar filter list) */}
+                            {exploreMode === 'creators' ? (
+                                <div className="space-y-5">
+                                    {/* 1. Creator Category */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="iconamoon:category" className="w-4 h-4 text-slate-700" />
+                                            <span>Creator Category</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'All',
+                                                'Product Designer',
+                                                'Graphic Designer',
+                                                'Business / Brand',
+                                                'Photographer',
+                                                'Agency / Studio'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedCreatorCategories.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedCreatorCategories([...selectedCreatorCategories, item]);
+                                                                else setSelectedCreatorCategories(selectedCreatorCategories.filter(c => c !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getCreatorCategoryCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
 
-                            {/* Flipbook Type */}
-                            {exploreMode === 'books' && (
-                                <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
-                                    <h3 className="font-semibold text-[0.95vw] text-black">Flipbook Type</h3>
-                                    <div className="space-y-[1.2vh]">
-                                        {['Landscape', 'Portrait', 'Square', '3D Added Flipbook'].map((type, i) => (
-                                            <label key={i} className="flex items-center justify-between cursor-pointer group">
-                                                <span className="text-[0.85vw] text-gray-800">{type}</span>
-                                                <div className="relative flex items-center justify-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors"
-                                                        checked={selectedTypes.includes(type)}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) setSelectedTypes([...selectedTypes, type]);
-                                                            else setSelectedTypes(selectedTypes.filter(t => t !== type));
-                                                        }}
-                                                    />
-                                                    <svg className="absolute w-[0.75vw] h-[0.75vw] text-white pointer-events-none opacity-0 peer-checked:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                                                </div>
-                                            </label>
-                                        ))}
+                                    {/* 2. Total Books Created */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="fluent:document-one-page-multiple-20-regular" className="w-4 h-4 text-slate-700" />
+                                            <span>Books Created</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'All',
+                                                '1 - 5 Books',
+                                                '5 - 10 Books',
+                                                '10+ Books'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedCreatorBooks.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedCreatorBooks([...selectedCreatorBooks, item]);
+                                                                else setSelectedCreatorBooks(selectedCreatorBooks.filter(b => b !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getCreatorBooksFilterCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 3. Followers Range */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="fa6-regular:user" className="w-4 h-4 text-slate-700" />
+                                            <span>Followers Range</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'All',
+                                                '1 - 50 Followers',
+                                                '50 - 200 Followers',
+                                                '200+ Followers'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedCreatorFollowers.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedCreatorFollowers([...selectedCreatorFollowers, item]);
+                                                                else setSelectedCreatorFollowers(selectedCreatorFollowers.filter(f => f !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getCreatorFollowersFilterCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-5">
+                                    {/* 1. Category */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="iconamoon:category" className="w-4 h-4 text-slate-700" />
+                                            <span>Category</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'Brochure',
+                                                'Catalog',
+                                                'Magazine',
+                                                'Portfolio',
+                                                'Storybook',
+                                                'Photographs Book'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedCategories.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedCategories([...selectedCategories, item]);
+                                                                else setSelectedCategories(selectedCategories.filter(c => c !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getCategoryCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Flipbook Type */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="fluent-emoji-high-contrast:page-facing-up" className="w-4 h-4 text-slate-700" />
+                                            <span>Flipbook Type</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'Landscape',
+                                                'Portrait',
+                                                'Square',
+                                                '3D Added Flipbook'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedTypes.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedTypes([...selectedTypes, item]);
+                                                                else setSelectedTypes(selectedTypes.filter(t => t !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getTypeCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 3. Pages */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="fluent:document-one-page-multiple-20-regular" className="w-4 h-4 text-slate-700" />
+                                            <span>Pages</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'All',
+                                                '1 - 8 Pages',
+                                                '8 - 16 Pages',
+                                                '16 - 24 Pages',
+                                                '24 - MAX Pages'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedPages.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedPages([...selectedPages, item]);
+                                                                else setSelectedPages(selectedPages.filter(p => p !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getPageCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 4. Publish Date */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                            <Icon icon="uiw:date" className="w-4 h-4 text-slate-700" />
+                                            <span>Publish Date</span>
+                                        </div>
+                                        <div className="space-y-2 pt-1">
+                                            {[
+                                                'All Time',
+                                                'Today',
+                                                'Before 3 days',
+                                                'This Week',
+                                                'This Month',
+                                                'This Year'
+                                            ].map((item, idx) => (
+                                                <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedPublishDates.includes(item)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedPublishDates([...selectedPublishDates, item]);
+                                                                else setSelectedPublishDates(selectedPublishDates.filter(d => d !== item));
+                                                            }}
+                                                            className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                        />
+                                                        <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                        {getPublishDateCount(item)}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             )}
+                        </div>
 
-                            {/* Category */}
-                            <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh]">
-                                <h3 className="font-semibold text-[0.95vw] text-black">Category</h3>
-                                <div className="space-y-[1.2vh]">
-                                    {['Brochure', 'Catalog', 'Magazine', 'Portfolio', 'Storybook', 'Photography Book', 'Product Catalog'].map((cat, i) => (
-                                        <label key={i} className="flex items-center justify-between cursor-pointer group">
-                                            <span className="text-[0.85vw] text-gray-800">{cat}</span>
-                                            <div className="relative flex items-center justify-center">
+                        {/* Drawer Bottom Actions */}
+                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <button
+                                type="button"
+                                onClick={handleResetAll}
+                                className="px-4 py-2 rounded-xl text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                            >
+                                Reset All
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsFilterDrawerOpen(false)}
+                                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#ea7233] hover:bg-[#d65a1c] transition-colors shadow-xs"
+                            >
+                                Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ------------------------------------------------------------- */}
+            {/* MAIN SEPARATE TWO-COLUMN LAYOUT: SIDEBAR & RIGHT CONTENT */}
+            {/* ------------------------------------------------------------- */}
+            <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 sm:gap-8 items-start">
+                
+                {/* LEFT SIDEBAR FILTER PANEL (Desktop visible, Mobile/Tablet toggleable) */}
+                <aside className="hidden lg:block w-64 shrink-0 space-y-6">
+                    
+                    {/* Header Title & Reset All Link */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                            <Icon icon="fluent:filter-28-filled" className="w-6 h-6 text-slate-900" />
+                            <h2 className="text-2xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+                                {exploreMode === 'creators' ? 'Filter Creators' : 'Filter Books'}
+                            </h2>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleResetAll}
+                            className="text-xs sm:text-sm font-semibold text-red-500 hover:text-red-600 cursor-pointer transition-colors"
+                        >
+                            Reset All
+                        </button>
+                    </div>
+
+                    {exploreMode === 'creators' ? (
+                        <>
+                            {/* 1. Industry */}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="lucide:building-2" className="w-4 h-4 text-slate-700" />
+                                    <span>Industry</span>
+                                </div>
+                                <div className="space-y-2 pt-1">
+                                    {[
+                                        'Manufacturing',
+                                        'Healthcare',
+                                        'Education',
+                                        'Real Estate',
+                                        'Architecture',
+                                        'Travel & Hospitality',
+                                        'Food & Beverage',
+                                        'Automotive'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
                                                 <input
                                                     type="checkbox"
-                                                    className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-[3px] checked:bg-[#5551ff] checked:border-[#5551ff] cursor-pointer transition-colors"
-                                                    checked={selectedCategories.includes(cat)}
+                                                    checked={selectedCreatorCategories.includes(item)}
                                                     onChange={(e) => {
-                                                        if (e.target.checked) setSelectedCategories([...selectedCategories, cat]);
-                                                        else setSelectedCategories(selectedCategories.filter(c => c !== cat));
+                                                        if (e.target.checked) setSelectedCreatorCategories([...selectedCreatorCategories, item]);
+                                                        else setSelectedCreatorCategories(selectedCreatorCategories.filter(c => c !== item));
                                                     }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
                                                 />
-                                                <svg className="absolute w-[0.75vw] h-[0.75vw] text-white pointer-events-none opacity-0 peer-checked:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                                <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
                                             </div>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Ratings */}
-                            {exploreMode === 'books' && (
-                                <div className="p-[1.2vw] border-b border-gray-200 space-y-[1.5vh] relative">
-                                    <svg width="0" height="0" className="absolute">
-                                        <defs>
-                                            <linearGradient id="star-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                <stop offset="0%" stopColor="#FFCA44" />
-                                                <stop offset="50%" stopColor="#FFE091" />
-                                                <stop offset="100%" stopColor="#FFCA44" />
-                                            </linearGradient>
-                                            <linearGradient id="half-star" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                <stop offset="0%" stopColor="#FFCA44" />
-                                                <stop offset="25%" stopColor="#FFE091" />
-                                                <stop offset="50%" stopColor="#FFCA44" />
-                                                <stop offset="50%" stopColor="#ffffff" />
-                                                <stop offset="100%" stopColor="#ffffff" />
-                                            </linearGradient>
-                                        </defs>
-                                    </svg>
-                                    <h3 className="font-semibold text-[0.95vw] text-black">Ratings</h3>
-                                    <div className="space-y-[1.2vh]">
-                                        {[
-                                            { val: 5, stars: [1, 1, 1, 1, 1], label: "5 Star" },
-                                            { val: 4.5, stars: [1, 1, 1, 1, 0.5], label: "4.5 Star" },
-                                            { val: 4, stars: [1, 1, 1, 1, 0], label: "4 Star" },
-                                            { val: 3.5, stars: [1, 1, 1, 0.5, 0], label: "3.5 Star" },
-                                            { val: 3, stars: [1, 1, 1, 0, 0], label: "3 Star" },
-                                            { val: 2.5, stars: [1, 1, 0.5, 0, 0], label: "2.5 Star" },
-                                            { val: 2, stars: [1, 1, 0, 0, 0], label: "2 Star" },
-                                            { val: 1.5, stars: [1, 0.5, 0, 0, 0], label: "1.5 Star" },
-                                            { val: 1, stars: [1, 0, 0, 0, 0], label: "1 Star" }
-                                        ].slice(0, showMoreRatings ? 9 : 3).map((rate, i) => (
-                                            <label key={i} className="flex items-center justify-between cursor-pointer group">
-                                                <div className="flex items-center gap-[0.8vw]">
-                                                    <div className="relative flex items-center justify-center shrink-0 w-[1.1vw] h-[1.1vw] min-w-[18px] min-h-[18px]">
-                                                        <input
-                                                            type="radio"
-                                                            name="rating"
-                                                            className="sr-only"
-                                                            checked={selectedRating === rate.val}
-                                                            onChange={() => setSelectedRating(selectedRating === rate.val ? null : rate.val)}
-                                                        />
-                                                        <svg
-                                                            onClick={() => setSelectedRating(selectedRating === rate.val ? null : rate.val)}
-                                                            className="w-full h-full cursor-pointer overflow-visible"
-                                                            viewBox="0 0 24 24"
-                                                            fill="none"
-                                                        >
-                                                            {selectedRating === rate.val ? (
-                                                                <>
-                                                                    <circle cx="12" cy="12" r="10" stroke="#5551ff" strokeWidth="2" fill="none" />
-                                                                    <circle cx="12" cy="12" r="5" fill="#5551ff" />
-                                                                </>
-                                                            ) : (
-                                                                <circle cx="12" cy="12" r="10" stroke="#374151" strokeWidth="1.8" fill="none" />
-                                                            )}
-                                                        </svg>
-                                                    </div>
-                                                    <span className="text-[0.85vw] text-gray-800">{rate.label}</span>
-                                                </div>
-                                                <div className="flex gap-[0.2vw]">
-                                                    {rate.stars.map((s, idx) => (
-                                                        <svg key={idx} className="w-[1.1vw] h-[1.1vw] overflow-visible" fill={s === 1 ? "url(#star-gradient)" : s === 0.5 ? "url(#half-star)" : "white"} stroke="url(#star-gradient)" strokeWidth="1" viewBox="0 0 20 20">
-                                                            <path d="M10 1L12.7 6.5L19 7.4L14.5 11.8L15.6 18.1L10 15.2L4.4 18.1L5.5 11.8L1 7.4L7.3 6.5Z"></path>
-                                                        </svg>
-                                                    ))}
-                                                </div>
-                                            </label>
-                                        ))}
+                            {/* 2. Creator Type */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="fa6-regular:user" className="w-4 h-4 text-slate-700" />
+                                    <span>Creator Type</span>
+                                </div>
+                                <div className="space-y-2 pt-1">
+                                    {[
+                                        'Individual',
+                                        'Freelancer',
+                                        'Agency',
+                                        'Company / Organization'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedCreatorTypes.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedCreatorTypes([...selectedCreatorTypes, item]);
+                                                        else setSelectedCreatorTypes(selectedCreatorTypes.filter(t => t !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getCreatorTypeCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 3. Location (Country, State, City) */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="fa6-solid:map-pin" className="w-4 h-4 text-slate-700" />
+                                    <span>Location</span>
+                                </div>
+                                <div className="space-y-2.5 pt-1">
+                                    <div className="space-y-1">
+                                        <span className="text-[11px] font-semibold text-slate-500">Country</span>
+                                        <select
+                                            value={selectedLocationCountry}
+                                            onChange={(e) => setSelectedLocationCountry(e.target.value)}
+                                            className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-none focus:border-[#ea7233]"
+                                        >
+                                            <option value="All Countries">All Countries</option>
+                                            <option value="India">India</option>
+                                            <option value="United States">United States</option>
+                                            <option value="United Kingdom">United Kingdom</option>
+                                        </select>
                                     </div>
-                                    <button
-                                        onClick={() => setShowMoreRatings(!showMoreRatings)}
-                                        className="text-[#5551ff] text-[0.85vw] mt-[1vh] font-medium hover:underline focus:outline-none cursor-pointer"
-                                    >
-                                        {showMoreRatings ? 'Less' : 'More'}
+                                    <div className="space-y-1">
+                                        <span className="text-[11px] font-semibold text-slate-500">State</span>
+                                        <select
+                                            value={selectedLocationState}
+                                            onChange={(e) => setSelectedLocationState(e.target.value)}
+                                            className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-none focus:border-[#ea7233]"
+                                        >
+                                            <option value="All States">All States</option>
+                                            <option value="Tamil Nadu">Tamil Nadu</option>
+                                            <option value="California">California</option>
+                                            <option value="London">London</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[11px] font-semibold text-slate-500">City</span>
+                                        <select
+                                            value={selectedLocationCity}
+                                            onChange={(e) => setSelectedLocationCity(e.target.value)}
+                                            className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-none focus:border-[#ea7233]"
+                                        >
+                                            <option value="All Cities">All Cities</option>
+                                            <option value="Coimbatore">Coimbatore</option>
+                                            <option value="Chennai">Chennai</option>
+                                            <option value="San Francisco">San Francisco</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 4. Specialization */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="iconamoon:category" className="w-4 h-4 text-slate-700" />
+                                    <span>Specialization</span>
+                                </div>
+                                <div className="space-y-2 pt-1">
+                                    {[
+                                        'Product Catalogues',
+                                        'Brochures',
+                                        'Portfolios',
+                                        'Interactive Presentations',
+                                        '3D Showcases'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedSpecializations.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedSpecializations([...selectedSpecializations, item]);
+                                                        else setSelectedSpecializations(selectedSpecializations.filter(s => s !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getSpecializationCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 3. Followers Range */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="fa6-regular:user" className="w-4 h-4 text-slate-700" />
+                                    <span>Followers Range</span>
+                                </div>
+                                <div className="space-y-2.5 pt-1">
+                                    {[
+                                        'All',
+                                        '1 - 50 Followers',
+                                        '50 - 200 Followers',
+                                        '200+ Followers'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedCreatorFollowers.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedCreatorFollowers([...selectedCreatorFollowers, item]);
+                                                        else setSelectedCreatorFollowers(selectedCreatorFollowers.filter(f => f !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs sm:text-sm text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getCreatorFollowersFilterCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* 1. Category */}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="iconamoon:category" className="w-4 h-4 text-slate-700" />
+                                    <span>Category</span>
+                                </div>
+                                <div className="space-y-2.5 pt-1">
+                                    {[
+                                        'Brochure',
+                                        'Catalog',
+                                        'Magazine',
+                                        'Portfolio',
+                                        'Storybook',
+                                        'Photographs Book'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedCategories.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedCategories([...selectedCategories, item]);
+                                                        else setSelectedCategories(selectedCategories.filter(c => c !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs sm:text-sm text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getCategoryCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                    <button type="button" className="text-xs text-slate-400 font-semibold flex items-center gap-1 pt-1 hover:text-slate-600">
+                                        <span>Show more</span>
+                                        <Icon icon="lucide:chevron-down" className="w-3 h-3" />
                                     </button>
                                 </div>
-                            )}
+                            </div>
 
-                            {/* Max Pages */}
-                            {exploreMode === 'books' && (
-                                <div className="p-[1.2vw] space-y-[1.5vh]">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="font-semibold text-[0.95vw] text-black">Max Pages</h3>
-                                        <span className="text-[0.8vw] text-gray-400">4 - 100</span>
-                                    </div>
-                                    <div className="flex items-center gap-[1vw] pt-[1vh] pb-[0.5vh]">
-                                        <input type="range" min="4" max="100" value={maxPages} onChange={(e) => setMaxPages(Number(e.target.value))} className="w-full cursor-pointer custom-range-slider" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((maxPages - 4) / 96) * 100}%, #E2E8F0 ${((maxPages - 4) / 96) * 100}%, #E2E8F0 100%)` }} />
-                                        <span className="text-[0.8vw] text-black font-medium whitespace-nowrap min-w-[3.5vw]">{maxPages} pages</span>
+                            {/* 2. Flipbook Type */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="fluent-emoji-high-contrast:page-facing-up" className="w-4 h-4 text-slate-700" />
+                                    <span>Flipbook Type</span>
+                                </div>
+                                <div className="space-y-2.5 pt-1">
+                                    {[
+                                        'Landscape',
+                                        'Portrait',
+                                        'Square',
+                                        '3D Added Flipbook'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedTypes.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedTypes([...selectedTypes, item]);
+                                                        else setSelectedTypes(selectedTypes.filter(t => t !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs sm:text-sm text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getTypeCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                    <button type="button" className="text-xs text-slate-400 font-semibold flex items-center gap-1 pt-1 hover:text-slate-600">
+                                        <span>Show more</span>
+                                        <Icon icon="lucide:chevron-down" className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 3. Pages */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="fluent:document-one-page-multiple-20-regular" className="w-4 h-4 text-slate-700" />
+                                    <span>Pages</span>
+                                </div>
+                                <div className="space-y-2.5 pt-1">
+                                    {[
+                                        'All',
+                                        '1 - 8 Pages',
+                                        '8 - 16 Pages',
+                                        '16 - 24 Pages',
+                                        '24 - MAX Pages'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPages.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedPages([...selectedPages, item]);
+                                                        else setSelectedPages(selectedPages.filter(p => p !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs sm:text-sm text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getPageCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 4. Publish Date */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                                    <Icon icon="uiw:date" className="w-4 h-4 text-slate-700" />
+                                    <span>Publish Date</span>
+                                </div>
+                                <div className="space-y-2.5 pt-1">
+                                    {[
+                                        'All Time',
+                                        'Today',
+                                        'Before 3 days',
+                                        'This Week',
+                                        'This Month',
+                                        'This Year'
+                                    ].map((item, idx) => (
+                                        <label key={idx} className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPublishDates.includes(item)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedPublishDates([...selectedPublishDates, item]);
+                                                        else setSelectedPublishDates(selectedPublishDates.filter(d => d !== item));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-[#ea7233] focus:ring-[#ea7233] cursor-pointer accent-[#ea7233]"
+                                                />
+                                                <span className="text-xs sm:text-sm text-slate-700 font-medium group-hover:text-slate-900">{item}</span>
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 min-w-[24px] text-center">
+                                                {getPublishDateCount(item)}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                </aside>
+
+                {/* RIGHT MAIN CONTENT SECTION */}
+                <main className="flex-1 w-full flex flex-col gap-6">
+                    
+                    {/* Right Section Top Control Bar */}
+                    <div className="w-full flex flex-col gap-4">
+                        <div className="w-full flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                            
+                            {/* Explore by & Applied Filters Column */}
+                            <div className="flex flex-col gap-2.5 w-full lg:w-auto">
+                                {/* Explore by Title & Switcher Pills */}
+                                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                    <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight">
+                                        Explore by :
+                                    </h1>
+
+                                    {/* Books / Creators Toggle Pills */}
+                                    <div className="bg-slate-100/90 p-1 rounded-xl inline-flex items-center gap-1 border border-slate-200/60">
+                                        <button
+                                            type="button"
+                                            onClick={() => setExploreMode('books')}
+                                            className={`px-5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                                                exploreMode === 'books'
+                                                    ? 'bg-black text-white shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                                            }`}
+                                        >
+                                            Books
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setExploreMode('creators')}
+                                            className={`px-5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                                                exploreMode === 'creators'
+                                                    ? 'bg-black text-white shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                                            }`}
+                                        >
+                                            Creators
+                                        </button>
                                     </div>
                                 </div>
-                            )}
+
+                                {/* Applied Filters Row (Directly below Explore by) */}
+                                {(selectedTypes.length > 0 || selectedCategories.length > 0 || selectedPages.filter(p => p !== 'All').length > 0 || selectedPublishDates.filter(d => d !== 'All Time').length > 0) && (
+                                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                        <span className="text-xs sm:text-sm font-semibold text-slate-800 mr-1">Applied Filters :</span>
+                                        
+                                        {selectedTypes.map(type => (
+                                            <span key={`type-${type}`} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-[#ea7233] border border-orange-200 bg-orange-50/60 shadow-2xs">
+                                                <span>{type}</span>
+                                                <button type="button" onClick={() => removeChip('type', type)} className="hover:text-red-600 cursor-pointer">
+                                                    <Icon icon="lucide:x" className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+
+                                        {selectedCategories.map(cat => (
+                                            <span key={`cat-${cat}`} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-[#ea7233] border border-orange-200 bg-orange-50/60 shadow-2xs">
+                                                <span>{cat}</span>
+                                                <button type="button" onClick={() => removeChip('cat', cat)} className="hover:text-red-600 cursor-pointer">
+                                                    <Icon icon="lucide:x" className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+
+                                        {selectedPages.filter(p => p !== 'All').map(p => (
+                                            <span key={`page-${p}`} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-[#ea7233] border border-orange-200 bg-orange-50/60 shadow-2xs">
+                                                <span>{p}</span>
+                                                <button type="button" onClick={() => removeChip('page', p)} className="hover:text-red-600 cursor-pointer">
+                                                    <Icon icon="lucide:x" className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+
+                                        {selectedPublishDates.filter(d => d !== 'All Time').map(d => (
+                                            <span key={`date-${d}`} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-[#ea7233] border border-orange-200 bg-orange-50/60 shadow-2xs">
+                                                <span>{d}</span>
+                                                <button type="button" onClick={() => removeChip('date', d)} className="hover:text-red-600 cursor-pointer">
+                                                    <Icon icon="lucide:x" className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Controls: Filter Toggle Button, Search, Sort By & Favorites */}
+                            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                                
+                                {/* Mobile / Tablet Filter Hamburger Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsFilterDrawerOpen(true)}
+                                    className="flex lg:hidden items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-800 bg-white hover:bg-slate-50 font-bold transition-colors shadow-2xs cursor-pointer"
+                                >
+                                    <Icon icon="fluent:filter-28-filled" className="w-4 h-4 text-[#ea7233]" />
+                                    <span>Filters</span>
+                                </button>
+
+                                {/* Search Input Bar */}
+                                <div className="relative flex-1 lg:w-72">
+                                    <Icon icon="lucide:search" className="w-4 h-4 text-red-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search Flipbook..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#ea7233] bg-white transition-all shadow-2xs"
+                                    />
+                                </div>
+
+                                {/* Sort By Selector */}
+                                <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-1.5 bg-white shadow-2xs">
+                                    <span className="text-xs sm:text-sm text-slate-500 font-medium whitespace-nowrap">Sort by :</span>
+                                    <CustomDropdown
+                                        options={['Most Popular', 'Newest', 'Top Rated']}
+                                        value={sortBy}
+                                        onChange={setSortBy}
+                                        buttonClassName="border-none py-0 px-1 text-slate-800 font-bold bg-transparent hover:bg-transparent"
+                                    />
+                                </div>
+
+                                {/* Favorites Button */}
+                                <button
+                                    type="button"
+                                    className="flex items-center gap-2 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-700 hover:text-red-500 bg-white hover:bg-slate-50 font-semibold transition-colors shadow-2xs cursor-pointer"
+                                >
+                                    <Icon icon="fa6-solid:heart" className="w-3.5 h-3.5 text-red-500" />
+                                    <span>Favorites</span>
+                                </button>
+
+                            </div>
 
                         </div>
                     </div>
 
-                    {/* Right Area (Books + Creators) */}
-                    <div className="flex-1 flex flex-col">
-                        {/* MODE 1: BOOKS GRID */}
-                        {exploreMode === 'books' && (
-                            <>
-                                {isLoading ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                        {[...Array(10)].map((_, idx) => (
-                                            <FlipbookCardSkeleton key={idx} />
-                                        ))}
-                                    </div>
-                                ) : error ? (
-                                    <div className="w-full py-[10vh] flex flex-col items-center justify-center text-red-500">
-                                        <svg className="w-[3vw] h-[3vw] mb-[1vh]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        <span className="text-[1.2vw] font-medium">{error}</span>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                        {filteredBooks.map((book, index) => (
-                                            <FlipbookCard
-                                                key={book.v_id || index}
-                                                v_id={book.v_id}
-                                                shareId={book.shareId}
-                                                access={book.access}
-                                                rawBook={book.rawBook}
-                                                coverImg={covers[index % 5]}
-                                                profileImg={profiles[index % 5]}
-                                                authorPicture={book.authorPicture}
-                                                authorBgColor={book.authorBgColor}
-                                                bookName={book.bookName}
-                                                authorName={book.authorName}
-                                                location={book.location}
-                                                pages={book.pages}
-                                                views={book.views}
-                                                rating={book.rating}
-                                                description={book.description}
-                                                onShare={handleOpenShareModal}
-                                                onDownload={handleOpenExportModal}
-                                                onProfileClick={handleProfileClick}
-                                                onAddToShelf={handleAddToShelf}
-                                            />
-                                        ))}
-                                        {filteredBooks.length === 0 && (
-                                            <div className="col-span-full py-[5vh] text-center font-semibold text-gray-700 text-[1vw]">
-                                                No flipbooks found matching your filters.
-                                            </div>
-                                        )}
+                    {/* CARDS GRID */}
+                    {exploreMode === 'creators' ? (
+                        isCreatorsLoading ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 sm:gap-5">
+                                {[...Array(8)].map((_, idx) => (
+                                    <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs animate-pulse h-64"></div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4 sm:gap-5">
+                                {filteredCreators.map((creator, index) => {
+                                    const emailKey = (creator.emailId || creator.email || '').toLowerCase();
+                                    return (
+                                        <CreatorCard
+                                            key={emailKey || index}
+                                            index={index}
+                                            creator={creator}
+                                            onProfileClick={handleProfileClick}
+                                            onToggleFollow={handleToggleFollow}
+                                            isFollowingLoading={Boolean(followingLoadingMap[emailKey])}
+                                            currentUserEmail={currentUserEmail}
+                                        />
+                                    );
+                                })}
+                                {filteredCreators.length === 0 && (
+                                    <div className="col-span-full py-16 text-center font-semibold text-slate-600 text-sm bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                        No creators found matching your search.
                                     </div>
                                 )}
-                            </>
-                        )}
-
-                        {/* MODE 2: CREATORS GRID */}
-                        {exploreMode === 'creators' && (
-                            <div className="w-full">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[1.5vw]">
-                                    {isCreatorsLoading ? (
-                                        Array.from({ length: 10 }).map((_, idx) => (
-                                            <div key={idx} className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col shadow-[0_2px_10px_rgba(0,0,0,0.06)] animate-pulse">
-                                                <div className="h-[14vh] w-full bg-gray-200"></div>
-                                                <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
-                                                    <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
-                                                        <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white bg-gray-300"></div>
-                                                        <div className="h-[1.5vw] w-[4vw] bg-gray-200 rounded-full mb-[1vw]"></div>
-                                                    </div>
-                                                    <div className="h-[1vw] bg-gray-200 rounded w-3/4 mt-[0.5vh]"></div>
-                                                    <div className="h-[0.7vw] bg-gray-100 rounded w-1/2 mt-[0.5vh]"></div>
-                                                    <div className="h-[0.7vw] bg-gray-100 rounded w-full mt-[1vh]"></div>
-                                                    <div className="w-full h-[1px] bg-gray-100 my-[1.5vh]"></div>
-                                                    <div className="flex items-center justify-between px-[0.5vw]">
-                                                        <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
-                                                        <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
-                                                        <div className="h-[1vw] w-[3vw] bg-gray-200 rounded"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        filteredCreators.map((creator, idx) => {
-                                            const bannerStyle = {
-                                                background: creator.bannerBg?.type === 'solid' ? creator.bannerBg?.value : undefined,
-                                                backgroundImage: (creator.bannerBg?.type === 'gradient' || creator.bannerBg?.type === 'media')
-                                                    ? creator.bannerBg?.value
-                                                    : (creator.bannerBg?.value || defaultGradients[idx % defaultGradients.length]),
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center'
-                                            };
-                                            const displayAvatar = (creator.picture && creator.picture !== 'color_only') ? creator.picture : null;
-                                            const avatarColor = getAvatarColor(creator.name || creator.email, creator.avatarBgColor);
-
-                                            return (
-                                                <div
-                                                    key={creator.emailId || idx}
-                                                    className="bg-white border border-gray-100 rounded-[1vw] overflow-hidden flex flex-col hover:shadow-xl transition-shadow duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
-                                                >
-                                                    {/* Banner */}
-                                                    <div className="h-[14vh] w-full relative" style={bannerStyle}></div>
-
-                                                    {/* Body */}
-                                                    <div className="px-[1.2vw] pb-[1.2vw] relative bg-white flex-1 flex flex-col">
-                                                        {/* Avatar & Follow Button */}
-                                                        <div className="flex justify-between items-end -mt-[2.5vw] mb-[1vh]">
-                                                            <div
-                                                                className="relative shrink-0 z-10 cursor-pointer hover:opacity-90 transition-opacity"
-                                                                onClick={() => handleProfileClick(creator)}
-                                                            >
-                                                                <div className="w-[6vw] h-[6vw] rounded-full border-[0.25vw] border-white overflow-hidden bg-white relative z-10 flex items-center justify-center shadow-sm">
-                                                                    {displayAvatar ? (
-                                                                        <img src={displayAvatar} alt={creator.name} className="w-full h-full object-cover bg-gray-50" />
-                                                                    ) : (
-                                                                        <div
-                                                                            className="w-full h-full flex items-center justify-center text-white text-[2.2vw] font-bold"
-                                                                            style={{ backgroundColor: avatarColor }}
-                                                                        >
-                                                                            {creator.name ? creator.name.charAt(0).toUpperCase() : 'U'}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                {/* Left Smooth Corner */}
-                                                                <svg className="absolute top-[1.8vw] -left-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
-                                                                    <path d="M0,10 L10,10 L10,0 A10,10 0 0,1 0,10 Z" fill="white" />
-                                                                </svg>
-                                                                {/* Right Smooth Corner */}
-                                                                <svg className="absolute top-[1.8vw] -right-[0.56vw] w-[0.8vw] h-[0.8vw] z-10" viewBox="0 0 10 10">
-                                                                    <path d="M10,10 L0,10 L0,0 A10,10 0 0,0 10,10 Z" fill="white" />
-                                                                </svg>
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleToggleFollow(creator.emailId || creator.email);
-                                                                }}
-                                                                disabled={followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()]}
-                                                                className={`w-[5.2vw] h-[1.7vw] rounded-full text-[0.85vw] font-medium transition-colors z-10 mb-[1vw] cursor-pointer flex items-center justify-center gap-[0.3vw] ${creator.isFollowing
-                                                                        ? 'bg-white text-black border border-gray-200 shadow-inner hover:bg-gray-50'
-                                                                        : 'bg-black text-white hover:bg-gray-800 shadow-sm'
-                                                                    }`}
-                                                            >
-                                                                {followingLoadingMap[(creator.emailId || creator.email)?.toLowerCase()] ? (
-                                                                    <Icon icon="line-md:loading-loop" className="w-[0.9vw] h-[0.9vw]" />
-                                                                ) : creator.isFollowing ? (
-                                                                    <span>Unfollow</span>
-                                                                ) : (
-                                                                    <span>Follow</span>
-                                                                )}
-                                                            </button>
-                                                        </div>
-
-                                                        {/* Info */}
-                                                        <h4
-                                                            className="text-[1vw] font-semibold text-gray-900 mt-[0.5vh] truncate cursor-pointer hover:text-indigo-600 transition-colors"
-                                                            onClick={() => handleProfileClick(creator)}
-                                                        >
-                                                            {creator.name || 'Creator'}
-                                                        </h4>
-                                                        <p className="text-[0.7vw] text-gray-400 truncate">{creator.industryType || creator.companyName || 'Product Designer'}</p>
-                                                        <p className="text-[0.7vw] text-gray-500 mt-[1vh] leading-relaxed line-clamp-3 flex-1">
-                                                            {creator.about || '“Bring your content to life with a real, interactive experience”'}
-                                                        </p>
-
-                                                        {/* Divider */}
-                                                        <div className="w-full h-[1px] bg-gray-100 mt-[1.5vh] mb-[1vh]"></div>
-
-                                                        {/* Stats */}
-                                                        <div className="flex items-center justify-between px-[0.5vw]">
-                                                            <div className="flex flex-col items-center">
-                                                                <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
-                                                                    <Icon icon="boxicons:book" className="w-[1.1vw] h-[1.1vw]" />
-                                                                    <span>{creator.totalBooks || 0}</span>
-                                                                </div>
-                                                                <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Total Books</span>
-                                                            </div>
-                                                            <div className="w-[1px] h-[2.5vh] bg-gray-200"></div>
-                                                            <div className="flex flex-col items-center">
-                                                                <div className="flex items-center gap-[0.3vw] text-gray-800 font-semibold text-[0.85vw]">
-                                                                    <Icon icon="lucide:user" className="w-[1vw] h-[1vw]" />
-                                                                    <span>{creator.followersCount || (creator.followers?.length || 0)}</span>
-                                                                </div>
-                                                                <span className="text-[0.65vw] text-gray-400 mt-[0.2vh]">Followers</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
                             </div>
-                        )}
-                    </div>
-                </div>
+                        )
+                    ) : isLoading ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+                            {[...Array(10)].map((_, idx) => (
+                                <FlipbookCardSkeleton key={idx} />
+                            ))}
+                        </div>
+                    ) : error ? (
+                        <div className="py-20 text-center text-red-500">
+                            <Icon icon="lucide:alert-circle" className="w-10 h-10 mx-auto mb-2" />
+                            <p className="font-semibold text-sm">{error}</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+                            {filteredBooks.map((book, index) => (
+                                <FlipbookCard
+                                    key={book.v_id || index}
+                                    v_id={book.v_id}
+                                    shareId={book.shareId}
+                                    access={book.access}
+                                    rawBook={book.rawBook}
+                                    coverImg={covers[index % 5]}
+                                    profileImg={profiles[index % 5]}
+                                    authorPicture={book.authorPicture}
+                                    authorBgColor={book.authorBgColor}
+                                    bookName={book.bookName}
+                                    authorName={book.authorName}
+                                    location={book.location}
+                                    pages={book.pages}
+                                    views={book.views}
+                                    rating={book.rating}
+                                    description={book.description}
+                                    onShare={handleOpenShareModal}
+                                    onDownload={handleOpenExportModal}
+                                    onProfileClick={handleProfileClick}
+                                    onAddToShelf={handleAddToShelf}
+                                    isAddedToShelf={shelfBookIds.includes(book.v_id)}
+                                />
+                            ))}
+                            {filteredBooks.length === 0 && (
+                                <div className="col-span-full py-16 text-center font-semibold text-slate-600 text-sm bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                    No flipbooks found matching your filters.
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </main>
+
             </div>
 
             {/* Footer */}
-            <Footer />
+            <div className="mt-16">
+                <Footer />
+            </div>
 
             {/* Share Modal */}
             <ShareModal
@@ -1237,6 +1916,7 @@ const Explore = () => {
                 onClose={() => setIsProfileModalOpen(false)}
                 creator={selectedCreator}
             />
+
         </div>
     );
 };

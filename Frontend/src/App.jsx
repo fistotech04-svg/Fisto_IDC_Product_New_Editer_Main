@@ -37,6 +37,7 @@ import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
 import NetworkStatus from './pages/NetworkStatus';
+import Pricing from './pages/Pricing';
 import ComingSoon from './pages/ComingSoon';
 
 function SettingsIndexRedirect() {
@@ -116,7 +117,7 @@ function App() {
               <Route path="/contact" element={<ContactUs />} />
               <Route path="/features" element={<ComingSoon title="Features" />} />
               <Route path="/converter" element={<ComingSoon title="Converter" />} />
-              <Route path="/pricing" element={<ComingSoon title="Pricing" />} />
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="/help" element={<ComingSoon title="Help & Support" />} />
             </Route>
 
