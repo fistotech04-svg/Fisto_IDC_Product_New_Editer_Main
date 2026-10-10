@@ -130,6 +130,7 @@ export function MaterialsPanel({
   materialList = [],
   materialSettings,
   onUpdateMaterialSetting,
+  onCommitHistory,
   selectedTextureId,
   onOpenMaterialDrawer
 }) {
@@ -509,6 +510,9 @@ export function MaterialsPanel({
                 color={materialSettings?.color || "#EC5137"}
                 onChange={(newColor) => {
                   onUpdateMaterialSetting && onUpdateMaterialSetting("color", newColor);
+                }}
+                onComplete={() => {
+                  onCommitHistory && onCommitHistory();
                 }}
                 opacity={Math.round(Number(materialSettings?.colorIntensity ?? materialSettings?.colorOpacity ?? 100))}
                 onOpacityChange={(newOpacity) => {

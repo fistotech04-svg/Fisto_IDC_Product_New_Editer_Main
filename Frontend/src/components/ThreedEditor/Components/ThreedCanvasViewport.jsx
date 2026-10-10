@@ -1,4 +1,4 @@
-﻿import React, { Suspense } from "react";
+import React, { Suspense } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { TransformControls, Environment } from "@react-three/drei";
@@ -82,6 +82,7 @@ export default function ThreedCanvasViewport({
   handleMaterialSync,
   selectedTexture,
   resetKey,
+  transformResetKey,
   sceneResetTrigger,
   uvUnwrapTrigger,
   handleTextureApplied,
@@ -204,7 +205,7 @@ export default function ThreedCanvasViewport({
           })}
 
           <Suspense fallback={null}>
-            <SceneWrapperSync sceneWrapperRef={sceneWrapperRef} rootTransform={rootTransform} resetKey={resetKey} />
+            <SceneWrapperSync sceneWrapperRef={sceneWrapperRef} rootTransform={rootTransform} resetKey={transformResetKey || resetKey} />
             <group ref={sceneWrapperRef}>
               {models.map((model, index) => {
                 const defaultOffset = index === 0
@@ -243,6 +244,7 @@ export default function ThreedCanvasViewport({
                     onUpdateMaterialSetting={handleMaterialSync}
                     selectedTexture={selectedTexture}
                     resetKey={resetKey}
+                    transformResetKey={transformResetKey}
                     sceneResetTrigger={sceneResetTrigger}
                     uvUnwrapTrigger={uvUnwrapTrigger}
                     onTextureApplied={handleTextureApplied}

@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { resolveUploadsPath } from "../../../../utils/supabaseUtils";
 import { textureData } from "../../../../data/textureData";
@@ -29,7 +29,8 @@ export function ModelPanel({
   selectedTextureId,
   onOpenMaterialDrawer,
   selectedMaterial,
-  onMapUpload
+  onMapUpload,
+  onCommitHistory
 }) {
   const [isUniformScale, setIsUniformScale] = useState(true);
   const [colorMode, setColorMode] = useState("HEX");
@@ -157,14 +158,6 @@ export function ModelPanel({
         <div className="flex items-center justify-between gap-[0.4vw]">
           <div className="flex items-center gap-[0.2vw] w-[3.8vw] shrink-0">
             <span className="text-[0.75vw] font-medium text-gray-800">Move</span>
-            <button
-              type="button"
-              onClick={() => onResetTransform && onResetTransform('position')}
-              className="p-[0.1vw] text-gray-400 hover:text-[#ea543a] transition-colors cursor-pointer rounded"
-              title="Reset Position to imported state"
-            >
-              <Icon icon="solar:restart-linear" className="w-[0.7vw] h-[0.7vw]" />
-            </button>
           </div>
           <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
             <AxisInput
@@ -192,14 +185,6 @@ export function ModelPanel({
         <div className="flex items-center justify-between gap-[0.4vw]">
           <div className="flex items-center gap-[0.2vw] w-[3.8vw] shrink-0">
             <span className="text-[0.75vw] font-medium text-gray-800">Rotate</span>
-            <button
-              type="button"
-              onClick={() => onResetTransform && onResetTransform('rotation')}
-              className="p-[0.1vw] text-gray-400 hover:text-[#ea543a] transition-colors cursor-pointer rounded"
-              title="Reset Rotate to imported state"
-            >
-              <Icon icon="solar:restart-linear" className="w-[0.7vw] h-[0.7vw]" />
-            </button>
           </div>
           <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
             <AxisInput
@@ -236,14 +221,6 @@ export function ModelPanel({
               title={isUniformScale ? "All axes linked" : "Individual axes"}
             >
               <Icon icon={isUniformScale ? "solar:link-bold" : "solar:link-broken-linear"} className="w-[0.8vw] h-[0.8vw]" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onResetTransform && onResetTransform('scale')}
-              className="p-[0.1vw] text-gray-400 hover:text-[#ea543a] transition-colors cursor-pointer rounded ml-[0.05vw]"
-              title="Reset Scale to imported state"
-            >
-              <Icon icon="solar:restart-linear" className="w-[0.7vw] h-[0.7vw]" />
             </button>
           </div>
           <div className="grid grid-cols-3 gap-[0.3vw] flex-1 min-w-0">
@@ -436,6 +413,9 @@ export function ModelPanel({
                 color={materialSettings?.color || "#EC5137"}
                 onChange={(newColor) => {
                   onUpdateMaterialSetting && onUpdateMaterialSetting("color", newColor);
+                }}
+                onComplete={() => {
+                  onCommitHistory && onCommitHistory();
                 }}
                 opacity={Math.round(Number(materialSettings?.colorIntensity ?? materialSettings?.colorOpacity ?? 100))}
                 onOpacityChange={(newOpacity) => {

@@ -33,6 +33,7 @@ export default function RightPanel({
   isLoading,
   materialSettings,
   onUpdateMaterialSetting,
+  onCommitHistory,
   activeAccordion,
   setActiveAccordion,
   transformValues,
@@ -112,7 +113,6 @@ export default function RightPanel({
                 materialList={materialList}
                 materialSettings={materialSettings}
                 onUpdateMaterialSetting={onUpdateMaterialSetting}
-                onMapUpload={onMapUpload}
               />
             )}
 
@@ -140,6 +140,7 @@ export default function RightPanel({
                 onOpenMaterialDrawer={onOpenMaterialDrawer}
                 selectedMaterial={selectedMaterial}
                 onMapUpload={onMapUpload}
+                onCommitHistory={onCommitHistory}
               />
             )}
 
@@ -151,6 +152,7 @@ export default function RightPanel({
                 materialList={materialList}
                 materialSettings={materialSettings}
                 onUpdateMaterialSetting={onUpdateMaterialSetting}
+                onCommitHistory={onCommitHistory}
                 selectedTextureId={selectedTextureId}
                 onOpenMaterialDrawer={onOpenMaterialDrawer}
               />

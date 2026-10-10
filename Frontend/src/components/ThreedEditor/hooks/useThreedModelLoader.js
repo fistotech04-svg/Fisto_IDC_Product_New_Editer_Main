@@ -144,11 +144,21 @@ export function useThreedModelLoader({
         modelName: nextModelName
       }));
 
-      commitHistoryNow(buildSnapshot({
-        models: nextModels,
-        modelName: nextModelName,
-        selectedMaterial: { id: modelId, modelId: modelId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
-      }));
+      if (models.length === 0) {
+        resetHistory(buildSnapshot({
+          models: nextModels,
+          modelName: nextModelName,
+          selectedMaterial: { id: modelId, modelId: modelId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
+        }));
+      }
+      else {
+        commitHistoryNow(buildSnapshot({
+          models: nextModels,
+          modelName: nextModelName,
+          selectedMaterial: { id: modelId, modelId: modelId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
+        }));
+      }
+
 
       setIsSidebarCollapsed(false);
       startMountingBridgeTicker(loadingProgressRef.current);
@@ -261,11 +271,20 @@ export function useThreedModelLoader({
       modelName: nextModelName
     }));
 
-    commitHistoryNow(buildSnapshot({
-      models: nextModels,
-      modelName: nextModelName,
-      selectedMaterial: { id: instanceId, modelId: instanceId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
-    }));
+    if (models.length === 0) {
+      resetHistory(buildSnapshot({
+        models: nextModels,
+        modelName: nextModelName,
+        selectedMaterial: { id: instanceId, modelId: instanceId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
+      }));
+    }
+    else {
+      commitHistoryNow(buildSnapshot({
+        models: nextModels,
+        modelName: nextModelName,
+        selectedMaterial: { id: instanceId, modelId: instanceId, name: newModel.name, parentGroup: newModel.name, isModel: true, isGroup: true }
+      }));
+    }
 
     setIsSidebarCollapsed(false);
     startMountingBridgeTicker(loadingProgressRef.current);

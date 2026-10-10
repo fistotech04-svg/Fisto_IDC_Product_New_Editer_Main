@@ -187,27 +187,28 @@ export function LightingPanel({
   const currentControls = materialSettings || controls || {};
   const handleUpdate = onUpdateMaterialSetting || updateControl || (() => {});
 
-  // State for See All environments expansion
+  // State for See All environments dropdown / expansion
   const [showAllEnvironments, setShowAllEnvironments] = useState(false);
+  const [envFilterCategory, setEnvFilterCategory] = useState("all");
 
   // State for Color Picker popover
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const [isLightSelectOpen, setIsLightSelectOpen] = useState(false);
-  const lightSelectRef = useRef(null);
+  const envDropdownRef = useRef(null);
 
+  // Close environment dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (lightSelectRef.current && !lightSelectRef.current.contains(e.target)) {
-        setIsLightSelectOpen(false);
+      if (envDropdownRef.current && !envDropdownRef.current.contains(e.target)) {
+        setShowAllEnvironments(false);
       }
     };
-    if (isLightSelectOpen) {
+    if (showAllEnvironments) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isLightSelectOpen]);
+  }, [showAllEnvironments]);
 
   // State for dynamic HDRI list loaded from backend database
   const [dynamicHdris, setDynamicHdris] = useState(() => [...builtInHdris]);
@@ -225,10 +226,27 @@ export function LightingPanel({
     ...(dynamicHdris || []).map((hdr) => ({
       id: `builtin_${hdr.id}`,
       name: hdr.name,
+      category: hdr.category || "Other",
       preview: hdr.preview,
       envValue: `builtin_${hdr.id}`,
     })),
   ], [dynamicHdris]);
+
+  const filteredEnvironments = useMemo(() => {
+    if (envFilterCategory === "all") return environmentOptions;
+    return environmentOptions.filter((opt) => {
+      if (envFilterCategory === "Studio") {
+        return opt.id === "studio" || opt.id === "softbox" || opt.category === "Indoor";
+      }
+      if (envFilterCategory === "Outdoor") {
+        return opt.id === "daylight" || opt.category === "Day" || opt.category === "Evening";
+      }
+      if (envFilterCategory === "Night") {
+        return opt.category === "Night";
+      }
+      return true;
+    });
+  }, [environmentOptions, envFilterCategory]);
 
   const colorPickerContainerRef = useRef(null);
 
@@ -460,68 +478,140 @@ export function LightingPanel({
   return (
     <div className="flex flex-col gap-[1.1vw] select-none">
       {/* ── 1. SECTION: ENVIRONMENT ── */}
-      <div className="flex flex-col gap-[0.6vw]">
-        {/* Header with See All Toggle */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-[0.5vw] flex-1">
-            <span className="text-[0.82vw] font-bold text-gray-900">Environment</span>
-            <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
-          </div>
+      <div className="flex flex-col gap-[0.6vw] relative">
+        {/* Section Header */}
+        <div className="flex items-center gap-[0.5vw]">
+          <span className="text-[0.82vw] font-bold text-gray-900">Environment</span>
+          <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
+        </div>
 
+        {/* Clean Dropdown Selector Bar */}
+        <div ref={envDropdownRef} className="relative w-full">
+          {/* Main Dropdown Button displaying Active Environment */}
           <button
             type="button"
             onClick={() => setShowAllEnvironments((prev) => !prev)}
-            className="flex items-center gap-[0.2vw] text-[0.72vw] font-semibold text-[#ea543a] hover:text-[#d43f26] transition-colors cursor-pointer ml-[0.6vw] shrink-0"
+            className={`w-full h-[2.8vw] px-[0.6vw] bg-white rounded-[0.45vw] border flex items-center justify-between transition-all cursor-pointer shadow-2xs group ${
+              showAllEnvironments
+                ? "border-[#ea543a] ring-2 ring-[#ea543a]/20"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
           >
-            <span>{showAllEnvironments ? "Show Less" : "See All"}</span>
-            <Icon
-              icon="heroicons:chevron-down-20-solid"
-              className={`w-[0.85vw] h-[0.85vw] transition-transform duration-200 ${
-                showAllEnvironments ? "rotate-180" : "rotate-0"
-              }`}
-            />
-          </button>
-        </div>
+            {/* Active Thumbnail + Name */}
+            <div className="flex items-center gap-[0.6vw] min-w-0">
+              <div className="w-[2.7vw] h-[1.8vw] rounded-[0.3vw] overflow-hidden border border-gray-200 shrink-0 bg-gray-100 shadow-2xs">
+                <img
+                  src={
+                    environmentOptions.find(
+                      (e) => e.envValue === activeEnv || (e.id === "studio" && activeEnv === "studio")
+                    )?.preview || BASE_ENVIRONMENT_PRESETS[0].preview
+                  }
+                  alt="active env"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="text-[0.82vw] font-bold text-gray-800 truncate">
+                {environmentOptions.find(
+                  (e) => e.envValue === activeEnv || (e.id === "studio" && activeEnv === "studio")
+                )?.name || "Studio"}
+              </span>
+            </div>
 
-        {/* Environment Cards Grid */}
-        <div className="grid grid-cols-3 gap-[0.6vw]">
-          {(showAllEnvironments ? environmentOptions : environmentOptions.slice(0, 3)).map((item) => {
-            const isSelected = activeEnv === item.envValue || (item.id === "studio" && activeEnv === "studio");
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleUpdate("environment", item.envValue)}
-                className="flex flex-col items-center gap-[0.35vw] group cursor-pointer text-left"
-              >
-                <div
-                  className={`relative w-full aspect-16/10 rounded-[0.45vw] overflow-hidden border-2 transition-all duration-200 shadow-2xs ${
-                    isSelected
-                      ? "border-[#ea543a] ring-2 ring-[#ea543a]/20 scale-102"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <img
-                    src={item.preview}
-                    alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  {isSelected && (
-                    <div className="absolute top-[0.2vw] right-[0.2vw] w-[0.9vw] h-[0.9vw] bg-[#ea543a] rounded-full flex items-center justify-center shadow-xs">
-                      <Icon icon="heroicons:check-20-solid" className="w-[0.65vw] h-[0.65vw] text-white" />
-                    </div>
-                  )}
-                </div>
-                <span
-                  className={`text-[0.7vw] font-semibold tracking-tight truncate w-full text-center transition-colors ${
-                    isSelected ? "text-[#ea543a]" : "text-gray-600 group-hover:text-gray-900"
-                  }`}
-                >
-                  {item.name}
+            {/* Chevron Icon (Clearly visible with strong contrast) */}
+            <div className="flex items-center shrink-0">
+              <Icon
+                icon="heroicons:chevron-up-down-20-solid"
+                className={`w-[1.05vw] h-[1.05vw] transition-colors duration-200 ${
+                  showAllEnvironments ? "text-[#ea543a]" : "text-gray-600 group-hover:text-gray-900"
+                }`}
+              />
+            </div>
+          </button>
+
+          {/* Expanded Dropdown Menu with Categories & Grid */}
+          {showAllEnvironments && (
+            <div className="absolute top-[calc(100%+0.3vw)] left-0 right-0 z-50 bg-white rounded-[0.55vw] border border-gray-200 shadow-xl p-[0.6vw] flex flex-col gap-[0.45vw] animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* Category Filter Tabs */}
+              <div className="grid grid-cols-4 gap-[0.2vw] bg-gray-100/90 p-[0.15vw] rounded-[0.35vw]">
+                {["all", "Studio", "Outdoor", "Night"].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setEnvFilterCategory(cat)}
+                    className={`py-[0.16vw] rounded-[0.28vw] text-[0.62vw] font-semibold capitalize text-center transition-all cursor-pointer ${
+                      envFilterCategory === cat
+                        ? "bg-white text-gray-900 shadow-2xs font-bold"
+                        : "text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Scrollable Environments Grid (3 Columns) */}
+              <div className="grid grid-cols-3 gap-[0.4vw] max-h-[16vw] overflow-y-auto pr-[0.15vw] [scrollbar-width:thin] [scrollbar-color:#d1d5db_transparent]">
+                {filteredEnvironments.map((item) => {
+                  const isSelected = activeEnv === item.envValue || (item.id === "studio" && activeEnv === "studio");
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        handleUpdate("environment", item.envValue);
+                        setShowAllEnvironments(false);
+                      }}
+                      className={`flex flex-col items-center gap-[0.2vw] p-[0.2vw] rounded-[0.38vw] group cursor-pointer text-left transition-all ${
+                        isSelected ? "bg-orange-50/70" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <div
+                        className={`relative w-full aspect-16/10 rounded-[0.35vw] overflow-hidden border transition-all duration-200 shadow-2xs ${
+                          isSelected
+                            ? "border-[#ea543a] ring-2 ring-[#ea543a]/30 scale-[1.02]"
+                            : "border-gray-200 group-hover:border-gray-300"
+                        }`}
+                      >
+                        <img
+                          src={item.preview}
+                          alt={item.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-[0.2vw] right-[0.2vw] w-[0.75vw] h-[0.75vw] bg-[#ea543a] rounded-full flex items-center justify-center shadow-xs">
+                            <Icon icon="heroicons:check-20-solid" className="w-[0.5vw] h-[0.5vw] text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <span
+                        className={`text-[0.63vw] font-medium tracking-tight truncate w-full text-center transition-colors ${
+                          isSelected ? "text-[#ea543a] font-bold" : "text-gray-700 group-hover:text-gray-900"
+                        }`}
+                        title={item.name}
+                      >
+                        {item.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Close Helper Footer */}
+              <div className="flex items-center justify-between pt-[0.25vw] border-t border-gray-100">
+                <span className="text-[0.58vw] text-gray-500">
+                  {filteredEnvironments.length} environments
                 </span>
-              </button>
-            );
-          })}
+                <button
+                  type="button"
+                  onClick={() => setShowAllEnvironments(false)}
+                  className="text-[0.62vw] font-bold text-[#ea543a] hover:text-[#d43f26] px-[0.35vw] py-[0.08vw] rounded hover:bg-orange-50/60 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Environment Adjustment Sliders */}
@@ -555,15 +645,12 @@ export function LightingPanel({
         </div>
       </div>
 
-      {/* ── 2. SECTION: LIGHTS (MULTI-LIGHT CONTROLS) ── */}
+      {/* ── 2. SECTION: LIGHTS (STUDIO MULTI-LIGHT CONTROLS) ── */}
       <div className="flex flex-col gap-[0.6vw]">
         {/* Section Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-[0.5vw] flex-1">
             <span className="text-[0.82vw] font-bold text-gray-900">Lights & Shadows</span>
-            <span className="text-[0.65vw] font-bold px-[0.4vw] py-[0.08vw] rounded-full bg-orange-50 text-[#ea543a] border border-orange-200/60">
-              {lightsArray.filter((l) => l.enabled).length}/{lightsArray.length} Active
-            </span>
             <div className="h-[0.08vw] bg-gray-200 flex-1"></div>
           </div>
 
@@ -571,151 +658,97 @@ export function LightingPanel({
             <button
               type="button"
               onClick={handleAddLight}
-              className="flex items-center gap-[0.25vw] ml-[0.6vw] px-[0.55vw] py-[0.2vw] rounded-[0.4vw] bg-[#ea543a]/10 hover:bg-[#ea543a]/15 text-[#ea543a] border border-[#ea543a]/30 text-[0.7vw] font-bold transition-all cursor-pointer shadow-2xs shrink-0 hover:scale-[1.02] active:scale-[0.98]"
-              title="Add another light source (Max 3)"
+              className="flex items-center gap-[0.2vw] px-[0.45vw] py-[0.15vw] rounded-[0.35vw] text-gray-600 hover:text-[#ea543a] bg-gray-50 hover:bg-orange-50/50 border border-gray-200 hover:border-orange-200 text-[0.68vw] font-semibold transition-all cursor-pointer shadow-2xs ml-[0.6vw] shrink-0"
+              title="Add another light source (up to 3)"
             >
-              <Icon icon="heroicons:plus-20-solid" className="w-[0.8vw] h-[0.8vw]" />
+              <Icon icon="heroicons:plus-20-solid" className="w-[0.75vw] h-[0.75vw] text-[#ea543a]" />
               <span>Add Light</span>
             </button>
           )}
         </div>
 
-        {/* Clean Light Selector Dropdown & Active Action Bar */}
-        <div className="flex items-center gap-[0.35vw] w-full">
-          {/* Custom Dropdown */}
-          <div className="relative flex-1 min-w-0" ref={lightSelectRef}>
-            <button
-              type="button"
-              onClick={() => setIsLightSelectOpen((prev) => !prev)}
-              className="w-full h-[2.1vw] px-[0.5vw] rounded-[0.45vw] bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 shadow-2xs flex items-center justify-between transition-all cursor-pointer group"
-            >
-              <div className="flex items-center gap-[0.35vw] min-w-0">
-                <div
-                  className="w-[0.65vw] h-[0.65vw] rounded-full shrink-0 shadow-2xs border border-black/10"
-                  style={{ backgroundColor: activeLight.enabled ? (activeLight.color || "#EC5137") : "#9ca3af" }}
-                />
-                <span className="text-[0.74vw] font-bold text-gray-800 truncate">
-                  Light {activeLightIndex + 1}
-                  <span className="text-[0.65vw] font-medium text-gray-500 ml-[0.25vw]">
-                    ({activeLightIndex === 0 ? "Key" : activeLightIndex === 1 ? "Fill" : "Rim"})
-                  </span>
-                </span>
-              </div>
-
-              <div className="flex items-center gap-[0.2vw] shrink-0 ml-[0.2vw]">
-                {!activeLight.enabled && (
-                  <span className="text-[0.58vw] font-semibold px-[0.25vw] py-[0.02vw] rounded bg-gray-100 text-gray-500">
-                    Off
-                  </span>
-                )}
-                <Icon
-                  icon="heroicons:chevron-up-down-20-solid"
-                  className="w-[0.85vw] h-[0.85vw] text-gray-400 group-hover:text-gray-600 transition-transform"
-                />
-              </div>
-            </button>
-
-            {/* Dropdown Menu Popup */}
-            {isLightSelectOpen && (
-              <div className="absolute top-[108%] left-0 right-0 z-50 bg-white rounded-[0.55vw] border border-gray-200 shadow-xl py-[0.25vw] flex flex-col gap-[0.1vw] animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-[0.55vw] py-[0.15vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                  Select Light Source
-                </div>
-
-                {lightsArray.map((light, idx) => {
-                  const isCurrent = activeLightIndex === idx;
-                  const isEnabled = light.enabled !== false;
-                  return (
-                    <div
-                      key={light.id || idx}
-                      onClick={() => {
-                        setActiveLightIndex(idx);
-                        setIsLightSelectOpen(false);
-                      }}
-                      className={`flex items-center justify-between px-[0.55vw] py-[0.35vw] mx-[0.2vw] rounded-[0.35vw] cursor-pointer transition-colors ${
-                        isCurrent
-                          ? "bg-orange-50 text-[#ea543a] font-bold"
-                          : "hover:bg-gray-100/80 text-gray-700 font-medium"
-                      }`}
-                    >
-                      <div className="flex items-center gap-[0.4vw] min-w-0">
-                        <div
-                          className="w-[0.6vw] h-[0.6vw] rounded-full shrink-0 shadow-2xs border border-black/10"
-                          style={{ backgroundColor: isEnabled ? (light.color || "#EC5137") : "#9ca3af" }}
-                        />
-                        <span className="text-[0.72vw] truncate">
-                          Light {idx + 1}
-                          <span className="text-[0.65vw] opacity-70 ml-[0.25vw]">
-                            ({idx === 0 ? "Key" : idx === 1 ? "Fill" : "Rim"})
-                          </span>
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-[0.3vw] shrink-0">
-                        <span
-                          className={`text-[0.58vw] font-bold px-[0.3vw] py-[0.05vw] rounded ${
-                            isEnabled
-                              ? "bg-emerald-50 text-emerald-600 border border-emerald-200/50"
-                              : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          {isEnabled ? "ON" : "OFF"}
-                        </span>
-                        {isCurrent && (
-                          <Icon icon="heroicons:check-20-solid" className="w-[0.8vw] h-[0.8vw] text-[#ea543a]" />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Add Light button inside dropdown if < 3 */}
-                {lightsArray.length < 3 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleAddLight();
-                      setIsLightSelectOpen(false);
+        {/* Studio Light Switcher (Clean, spacious tabs + dedicated active light controls) */}
+        <div className="flex flex-col gap-[0.45vw]">
+          {/* Light Tabs Row */}
+          <div className="flex items-center gap-[0.3vw] p-[0.2vw] bg-gray-100/90 rounded-[0.55vw] border border-gray-200/70">
+            {lightsArray.map((light, idx) => {
+              const isSelected = activeLightIndex === idx;
+              const isEnabled = light.enabled !== false;
+              const roleName = idx === 0 ? "Key" : idx === 1 ? "Fill" : "Rim";
+              return (
+                <button
+                  key={light.id || idx}
+                  type="button"
+                  onClick={() => setActiveLightIndex(idx)}
+                  className={`flex-1 h-[2.1vw] px-[0.5vw] rounded-[0.42vw] flex items-center justify-center gap-[0.4vw] transition-all cursor-pointer select-none ${
+                    isSelected
+                      ? "bg-white text-gray-900 shadow-xs border border-gray-200/90 font-bold"
+                      : "text-gray-500 hover:text-gray-800 hover:bg-white/60 border border-transparent font-medium"
+                  }`}
+                >
+                  <span
+                    className="w-[0.55vw] h-[0.55vw] rounded-full shrink-0 shadow-2xs border border-black/10 transition-colors"
+                    style={{
+                      backgroundColor: isEnabled ? (light.color || "#EC5137") : "#9ca3af",
                     }}
-                    className="flex items-center justify-center gap-[0.25vw] mx-[0.2vw] mt-[0.15vw] pt-[0.25vw] pb-[0.2vw] border-t border-gray-100 text-[#ea543a] hover:bg-orange-50/70 rounded-[0.35vw] text-[0.7vw] font-bold transition-colors cursor-pointer"
-                  >
-                    <Icon icon="heroicons:plus-20-solid" className="w-[0.75vw] h-[0.75vw]" />
-                    <span>Add New Light ({lightsArray.length}/3)</span>
-                  </button>
-                )}
-              </div>
-            )}
+                  />
+                  <span className="text-[0.73vw] whitespace-nowrap">
+                    {roleName}
+                  </span>
+                  {!isEnabled && (
+                    <span className="text-[0.55vw] font-bold px-[0.25vw] py-[0.02vw] rounded bg-gray-200/80 text-gray-500">
+                      Off
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Active Light Toggle ON/OFF Button */}
-          <button
-            type="button"
-            onClick={(e) => handleToggleLightEnabled(activeLightIndex, e)}
-            className={`h-[2.1vw] px-[0.5vw] rounded-[0.45vw] flex items-center gap-[0.2vw] border text-[0.68vw] font-bold transition-all cursor-pointer shrink-0 shadow-2xs ${
-              activeLight.enabled
-                ? "bg-emerald-50 border-emerald-300/80 text-emerald-600 hover:bg-emerald-100"
-                : "bg-gray-100 border-gray-300/80 text-gray-500 hover:bg-gray-200"
-            }`}
-            title={activeLight.enabled ? "Turn Off Light" : "Turn On Light"}
-          >
-            <Icon
-              icon={activeLight.enabled ? "solar:sun-2-bold" : "solar:sun-dim-outline"}
-              className="w-[0.85vw] h-[0.85vw]"
-            />
-            <span>{activeLight.enabled ? "ON" : "OFF"}</span>
-          </button>
+          {/* Active Light Status & Actions Sub-bar */}
+          <div className="flex items-center justify-between px-[0.2vw]">
+            <div className="flex items-center gap-[0.35vw]">
+              <span className="text-[0.68vw] font-bold text-gray-700">
+                Light {activeLightIndex + 1}:
+              </span>
+              <span className="text-[0.68vw] font-semibold text-gray-500">
+                {activeLightIndex === 0 ? "Key Light" : activeLightIndex === 1 ? "Fill Light" : "Rim Light"}
+              </span>
+            </div>
 
-          {/* Delete Active Light (only if > 1 light) */}
-          {lightsArray.length > 1 && (
-            <button
-              type="button"
-              onClick={(e) => handleRemoveLight(activeLightIndex, e)}
-              className="h-[2.1vw] w-[2.1vw] rounded-[0.45vw] bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 text-gray-400 hover:text-red-500 flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-2xs"
-              title="Delete this light"
-            >
-              <Icon icon="heroicons:trash-20-solid" className="w-[0.85vw] h-[0.85vw]" />
-            </button>
-          )}
+            <div className="flex items-center gap-[0.3vw]">
+              {/* Toggle Current Light ON/OFF Button */}
+              <button
+                type="button"
+                onClick={(e) => handleToggleLightEnabled(activeLightIndex, e)}
+                className={`h-[1.55vw] px-[0.45vw] rounded-[0.35vw] flex items-center gap-[0.2vw] border text-[0.63vw] font-bold transition-all cursor-pointer shadow-2xs ${
+                  activeLight.enabled
+                    ? "bg-emerald-50 border-emerald-300/80 text-emerald-700 hover:bg-emerald-100"
+                    : "bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200"
+                }`}
+                title={activeLight.enabled ? "Turn Off this light" : "Turn On this light"}
+              >
+                <Icon
+                  icon={activeLight.enabled ? "solar:sun-2-bold" : "solar:sun-dim-outline"}
+                  className="w-[0.75vw] h-[0.75vw]"
+                />
+                <span>{activeLight.enabled ? "Enabled" : "Disabled"}</span>
+              </button>
+
+              {/* Delete Active Light (only if > 1 light) */}
+              {lightsArray.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveLight(activeLightIndex, e)}
+                  className="h-[1.55vw] px-[0.35vw] rounded-[0.35vw] bg-white hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 flex items-center gap-[0.15vw] text-[0.63vw] font-semibold transition-all cursor-pointer shadow-2xs"
+                  title="Remove this light source"
+                >
+                  <Icon icon="heroicons:trash-20-solid" className="w-[0.75vw] h-[0.75vw]" />
+                  <span>Delete</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Quick Position Presets (Equal 4-column Grid) */}

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { TransformControls } from "@react-three/drei";
@@ -44,6 +44,7 @@ const GenericModel = React.memo(React.forwardRef(({
     onTextureIdentified,
     onUpdateMaterialSetting,
     resetKey,
+    transformResetKey,
     sceneResetTrigger,
     uvUnwrapTrigger,
     isSelectionDisabled,
@@ -65,6 +66,8 @@ const GenericModel = React.memo(React.forwardRef(({
     activeTextureRef.current = selectedTexture;
     const customizedMaterialsRef = React.useRef(customizedMaterials);
     customizedMaterialsRef.current = customizedMaterials;
+    const lastAppliedTextureTsRef = React.useRef(0);
+    const lastSyncedSigRef = React.useRef('');
 
     // Expose live Three.js scene and model group to parent ref for clean GLB exports and live sync
     React.useImperativeHandle(ref, () => scene || modelGroup, [scene, modelGroup]);
@@ -182,11 +185,77 @@ const GenericModel = React.memo(React.forwardRef(({
                 cloned.name = `${m.name || 'Material'}_${mesh.name || mesh.uuid.slice(0, 4)}`;
                 cloned.userData = { ...m.userData };
                 cloned.userData.baseMaterialName = m.userData.baseMaterialName || m.name;
-                if (m.userData.originalColor && typeof m.userData.originalColor.clone === 'function') {
-                    cloned.userData.originalColor = m.userData.originalColor.clone();
+                cloned.userData.initialName = m.userData.initialName || m.name;
+                cloned.userData.initialUuid = m.userData.initialUuid || m.uuid;
+
+                const pristine = m.userData.__pristineBaseline ||
+                    scene.userData?.__pristineMaterialRegistry?.get(m.uuid) ||
+                    scene.userData?.__pristineMaterialRegistry?.get(m.name) ||
+                    scene.userData?.__pristineMaterialRegistry?.get(mesh.uuid) ||
+                    scene.userData?.__pristineMaterialRegistry?.get(mesh.name);
+
+                if (pristine) {
+                    cloned.userData.__pristineBaseline = pristine;
                 }
+
+                // Ensure original textures and maps are preserved
+                cloned.userData.originalMap = pristine?.map || m.userData.originalMap || m.map;
+                cloned.userData.originalNormalMap = pristine?.normalMap || m.userData.originalNormalMap || m.normalMap;
+                cloned.userData.originalRoughnessMap = pristine?.roughnessMap || m.userData.originalRoughnessMap || m.roughnessMap;
+                cloned.userData.originalMetalnessMap = pristine?.metalnessMap || m.userData.originalMetalnessMap || m.metalnessMap;
+                cloned.userData.originalAoMap = pristine?.aoMap || m.userData.originalAoMap || m.aoMap;
+                cloned.userData.originalEmissiveMap = pristine?.emissiveMap || m.userData.originalEmissiveMap || m.emissiveMap;
+                cloned.userData.originalAlphaMap = pristine?.alphaMap || m.userData.originalAlphaMap || m.alphaMap;
+                cloned.userData.originalBumpMap = pristine?.bumpMap || m.userData.originalBumpMap || m.bumpMap;
+                cloned.userData.originalDisplacementMap = pristine?.displacementMap || m.userData.originalDisplacementMap || m.displacementMap;
+
+                // Ensure numeric and scalar baseline properties are preserved
+                cloned.userData.originalRoughness = pristine?.roughness !== undefined ? pristine.roughness : (m.userData.originalRoughness !== undefined ? m.userData.originalRoughness : m.roughness);
+                cloned.userData.originalMetalness = pristine?.metalness !== undefined ? pristine.metalness : (m.userData.originalMetalness !== undefined ? m.userData.originalMetalness : m.metalness);
+                cloned.userData.originalOpacity = pristine?.opacity !== undefined ? pristine.opacity : (m.userData.originalOpacity !== undefined ? m.userData.originalOpacity : m.opacity);
+                cloned.userData.originalAlphaTest = pristine?.alphaTest !== undefined ? pristine.alphaTest : (m.userData.originalAlphaTest !== undefined ? m.userData.originalAlphaTest : m.alphaTest);
+                cloned.userData.originalTransparent = pristine?.transparent !== undefined ? pristine.transparent : (m.userData.originalTransparent !== undefined ? m.userData.originalTransparent : m.transparent);
+                cloned.userData.originalDepthWrite = pristine?.depthWrite !== undefined ? pristine.depthWrite : (m.userData.originalDepthWrite !== undefined ? m.userData.originalDepthWrite : m.depthWrite);
+                cloned.userData.originalSide = pristine?.side !== undefined ? pristine.side : (m.userData.originalSide !== undefined ? m.userData.originalSide : m.side);
+
+                if (pristine?.normalScale && typeof pristine.normalScale.clone === 'function') {
+                    cloned.userData.originalNormalScale = pristine.normalScale.clone();
+                } else if (m.userData.originalNormalScale && typeof m.userData.originalNormalScale.clone === 'function') {
+                    cloned.userData.originalNormalScale = m.userData.originalNormalScale.clone();
+                } else if (m.normalScale && typeof m.normalScale.clone === 'function') {
+                    cloned.userData.originalNormalScale = m.normalScale.clone();
+                }
+
+                if (pristine?.emissive && typeof pristine.emissive.clone === 'function') {
+                    cloned.userData.originalEmissiveColor = pristine.emissive.clone();
+                } else if (m.userData.originalEmissiveColor && typeof m.userData.originalEmissiveColor.clone === 'function') {
+                    cloned.userData.originalEmissiveColor = m.userData.originalEmissiveColor.clone();
+                } else if (m.emissive && typeof m.emissive.clone === 'function') {
+                    cloned.userData.originalEmissiveColor = m.emissive.clone();
+                }
+
+                if (pristine?.color && typeof pristine.color.clone === 'function') {
+                    cloned.userData.originalColor = pristine.color.clone();
+                    cloned.userData.originalHex = pristine.hex;
+                } else if (m.userData.originalColor && typeof m.userData.originalColor.clone === 'function') {
+                    cloned.userData.originalColor = m.userData.originalColor.clone();
+                    cloned.userData.originalHex = m.userData.originalHex || (cloned.userData.originalColor.isColor ? ('#' + cloned.userData.originalColor.getHexString()) : null);
+                } else if (m.userData.originalColor) {
+                    cloned.userData.originalColor = m.userData.originalColor;
+                    cloned.userData.originalHex = m.userData.originalHex;
+                } else if (m.color && typeof m.color.clone === 'function') {
+                    cloned.userData.originalColor = m.color.clone();
+                    cloned.userData.originalHex = '#' + m.color.getHexString();
+                }
+
+                if (scene.userData?.__pristineMaterialRegistry && pristine) {
+                    scene.userData.__pristineMaterialRegistry.set(cloned.uuid, pristine);
+                    scene.userData.__pristineMaterialRegistry.set(cloned.name, pristine);
+                    scene.userData.__pristineMaterialRegistry.set(mesh.uuid, pristine);
+                }
+
                 if (m.userData.originalTexTransforms) {
-                    cloned.userData.originalTexTransforms = { ...m.userData.originalTexTransforms };
+                    cloned.userData.originalTexTransforms = JSON.parse(JSON.stringify(m.userData.originalTexTransforms));
                 }
                 didClone = true;
                 if (meshIndexRef.current) {
@@ -205,6 +274,177 @@ const GenericModel = React.memo(React.forwardRef(({
                 mesh.material.needsUpdate = true;
             }
         }
+    }, [scene]);
+
+     // Snapshot and preserve all original default textures and material properties on load
+    const pristineCapturedRef = React.useRef(false);
+    const lastSceneRef = React.useRef(null);
+    if (lastSceneRef.current !== scene) {
+        lastSceneRef.current = scene;
+        pristineCapturedRef.current = false;
+    }
+
+    useEffect(() => {
+        if (!scene) return;
+        if (pristineCapturedRef.current) return;
+        pristineCapturedRef.current = true;
+
+        if (!scene.userData.__pristineMaterialRegistry) {
+            scene.userData.__pristineMaterialRegistry = new Map();
+        }
+        const registry = scene.userData.__pristineMaterialRegistry;
+        const TEX_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap'];
+        scene.traverse((child) => {
+            if (child.isMesh && child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material = child.material.map(ensurePhysicalMaterial);
+                } else {
+                    child.material = ensurePhysicalMaterial(child.material);
+                }
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach((mat) => {
+                    if (mat && typeof mat.customProgramCacheKey !== 'function' && mat.customProgramCacheKey !== undefined) {
+                        delete mat.customProgramCacheKey;
+                    }
+                    if (mat && typeof mat.onBeforeCompile !== 'function' && mat.onBeforeCompile !== undefined) {
+                        delete mat.onBeforeCompile;
+                    }
+                    if (!mat.userData.origTexturesSnap) {
+                        const snap = {};
+                        TEX_KEYS.forEach(k => { if (mat[k]) snap[k] = mat[k]; });
+                        mat.userData.origTexturesSnap = snap;
+                        mat.userData.originalMap = mat.map;
+                        mat.userData.originalNormalMap = mat.normalMap;
+                        mat.userData.originalRoughnessMap = mat.roughnessMap;
+                        mat.userData.originalMetalnessMap = mat.metalnessMap;
+                        mat.userData.originalAoMap = mat.aoMap;
+                        mat.userData.originalEmissiveMap = mat.emissiveMap;
+                        mat.userData.originalAlphaMap = mat.alphaMap;
+                        mat.userData.originalBumpMap = mat.bumpMap;
+                        mat.userData.originalDisplacementMap = mat.displacementMap;
+                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((child.name || '') + '_' + (mat.name || ''));
+                        const hasAlphaMap = Boolean(mat.alphaMap);
+                        const hasCutout = (mat.alphaTest !== undefined && mat.alphaTest > 0) || isLikelyCutout;
+                        const isExplicitlyPartialOpacity = (mat.opacity !== undefined && mat.opacity < 0.999);
+                        const isGLTFTransparent = Boolean(mat.transparent);
+
+                        const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap || (isGLTFTransparent && !hasCutout) || (isLikelyCutout && Boolean(mat.map));
+                        mat.transparent = isTrulyTransparent;
+                        mat.depthWrite = !isTrulyTransparent;
+
+                        if (hasCutout) {
+                            mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.05;
+                            mat.transparent = true;
+                            mat.depthWrite = true;
+                        }
+
+                        if (mat.color) {
+                            if ((mat.map || mat.alphaMap || (mat.alphaTest > 0) || isLikelyCutout) && mat.color.r < 0.05 && mat.color.g < 0.05 && mat.color.b < 0.05) {
+                                mat.color.setRGB(1, 1, 1);
+                            }
+                            mat.userData.originalColor = mat.color.clone();
+                        }
+                        mat.userData.originalRoughness = mat.roughness;
+                        mat.userData.originalMetalness = mat.metalness;
+                        mat.userData.originalOpacity = mat.opacity;
+                        if (mat.emissive && typeof mat.emissive.clone === 'function') {
+                            mat.userData.originalEmissiveColor = mat.emissive.clone();
+                        }
+                        mat.userData.originalEmissiveIntensity = mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0;
+                        mat.userData.originalNormalScale = mat.normalScale ? mat.normalScale.clone() : new THREE.Vector2(1, 1);
+                        mat.userData.originalClearcoat = mat.clearcoat !== undefined ? mat.clearcoat : 0;
+                        mat.userData.originalSpecularIntensity = mat.specularIntensity !== undefined ? mat.specularIntensity : 1.0;
+                        mat.userData.originalEnvMapIntensity = mat.envMapIntensity !== undefined ? mat.envMapIntensity : 1.0;
+                        mat.userData.originalAlphaTest = mat.alphaTest !== undefined ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
+                        mat.userData.originalTransparent = isTrulyTransparent;
+                        mat.userData.originalDepthWrite = true;
+                        mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
+                        mat.userData.baseMaterialName = mat.name;
+
+                        const texProps = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap'];
+                        const texTransforms = {};
+                        texProps.forEach(prop => {
+                            const t = mat[prop];
+                            if (t && t.isTexture) {
+                                texTransforms[prop] = {
+                                    repeat: t.repeat ? t.repeat.clone() : new THREE.Vector2(1, 1),
+                                    offset: t.offset ? t.offset.clone() : new THREE.Vector2(0, 0),
+                                    rotation: t.rotation || 0,
+                                    center: t.center ? t.center.clone() : new THREE.Vector2(0, 0),
+                                    wrapS: t.wrapS,
+                                    wrapT: t.wrapT
+                                };
+                            }
+                        });
+                        mat.userData.originalTexTransforms = texTransforms;
+
+                        const pristineData = {
+                            color: mat.color ? mat.color.clone() : new THREE.Color(1, 1, 1),
+                            hex: '#' + (mat.color ? mat.color.getHexString() : 'ffffff'),
+                            roughness: mat.roughness !== undefined ? mat.roughness : 0.5,
+                            metalness: mat.metalness !== undefined ? mat.metalness : 0,
+                            opacity: mat.opacity !== undefined ? mat.opacity : 1,
+                            transparent: isTrulyTransparent,
+                            alphaTest: mat.userData.originalAlphaTest,
+                            depthWrite: true,
+                            side: mat.userData.originalSide,
+                            emissive: mat.emissive && typeof mat.emissive.clone === 'function' ? mat.emissive.clone() : new THREE.Color(0, 0, 0),
+                            emissiveIntensity: mat.userData.originalEmissiveIntensity,
+                            normalScale: mat.normalScale ? mat.normalScale.clone() : new THREE.Vector2(1, 1),
+                            clearcoat: mat.userData.originalClearcoat,
+                            specularIntensity: mat.userData.originalSpecularIntensity,
+                            envMapIntensity: mat.userData.originalEnvMapIntensity,
+                            map: mat.map,
+                            normalMap: mat.normalMap,
+                            roughnessMap: mat.roughnessMap,
+                            metalnessMap: mat.metalnessMap,
+                            aoMap: mat.aoMap,
+                            emissiveMap: mat.emissiveMap,
+                            alphaMap: mat.alphaMap,
+                            bumpMap: mat.bumpMap,
+                            displacementMap: mat.displacementMap,
+                            texTransforms: JSON.parse(JSON.stringify(texTransforms))
+                        };
+
+                        mat.userData.__pristineBaseline = pristineData;
+                        mat.userData.originalHex = pristineData.hex;
+                        child.userData.__pristineBaseline = pristineData;
+
+                        const regKeys = [
+                            child.uuid,
+                            child.name,
+                            mat.uuid,
+                            mat.name,
+                            mat.userData?.baseMaterialName,
+                            mat.userData?.initialName
+                        ].filter(Boolean);
+
+                        regKeys.forEach(k => {
+                            if (!registry.has(k)) registry.set(k, pristineData);
+                        });
+                    }
+
+                    if (mat.userData.originalAlphaTest === undefined) {
+                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
+                        mat.userData.originalAlphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
+                        if (isLikelyCutout && (!mat.alphaTest || mat.alphaTest === 0)) mat.alphaTest = 0.5;
+                    }
+                    if (mat.userData.originalTransparent === undefined) {
+                        mat.userData.originalTransparent = (mat.opacity !== undefined && mat.opacity < 0.999) || Boolean(mat.alphaMap);
+                    }
+                    if (mat.userData.originalDepthWrite === undefined) mat.userData.originalDepthWrite = true;
+                    if (mat.userData.originalSide === undefined) mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
+
+                    if (includeTextures === false) {
+                        TEX_KEYS.forEach(k => { mat[k] = null; });
+                    } else if (includeTextures === true && mat.userData.origTexturesSnap) {
+                        TEX_KEYS.forEach(k => { mat[k] = mat.userData.origTexturesSnap[k]; });
+                    }
+                    mat.needsUpdate = true;
+                });
+            }
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scene]);
 
     // Material Applier Hook
@@ -265,683 +505,44 @@ const GenericModel = React.memo(React.forwardRef(({
         return scene;
     }, [scene]);
 
-    // Snapshot and preserve all original default textures and material properties on load
+   
+
     useEffect(() => {
         if (!scene) return;
-        const TEX_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap'];
         scene.traverse((child) => {
-            if (child.isMesh && child.material) {
-                if (Array.isArray(child.material)) {
-                    child.material = child.material.map(ensurePhysicalMaterial);
-                } else {
-                    child.material = ensurePhysicalMaterial(child.material);
+            if (!child.isMesh || !child.material) return;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((mat) => {
+                if (!mat) return;
+                if (!mat.userData.originalMap && mat.map && mat.map.isTexture) {
+                    mat.userData.originalMap = mat.map;
                 }
-                const mats = Array.isArray(child.material) ? child.material : [child.material];
-                mats.forEach((mat) => {
-                    if (mat && typeof mat.customProgramCacheKey !== 'function' && mat.customProgramCacheKey !== undefined) {
-                        delete mat.customProgramCacheKey;
-                    }
-                    if (mat && typeof mat.onBeforeCompile !== 'function' && mat.onBeforeCompile !== undefined) {
-                        delete mat.onBeforeCompile;
-                    }
-                    if (!mat.userData.origTexturesSnap) {
-                        const snap = {};
-                        TEX_KEYS.forEach(k => { if (mat[k]) snap[k] = mat[k]; });
-                        mat.userData.origTexturesSnap = snap;
-                        mat.userData.originalMap = mat.map;
-                        mat.userData.originalNormalMap = mat.normalMap;
-                        mat.userData.originalRoughnessMap = mat.roughnessMap;
-                        mat.userData.originalMetalnessMap = mat.metalnessMap;
-                        mat.userData.originalAoMap = mat.aoMap;
-                        mat.userData.originalEmissiveMap = mat.emissiveMap;
-                        mat.userData.originalAlphaMap = mat.alphaMap;
-                        mat.userData.originalBumpMap = mat.bumpMap;
-                        mat.userData.originalDisplacementMap = mat.displacementMap;
-                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha|logo|sticker|label|decal/i.test((child.name || '') + '_' + (mat.name || ''));
-                        const hasAlphaMap = Boolean(mat.alphaMap);
-                        const hasCutout = (mat.alphaTest !== undefined && mat.alphaTest > 0) || isLikelyCutout;
-                        const isExplicitlyPartialOpacity = (mat.opacity !== undefined && mat.opacity < 0.999);
-                        const isGLTFTransparent = Boolean(mat.transparent);
-
-                        const isTrulyTransparent = isExplicitlyPartialOpacity || hasAlphaMap || (isGLTFTransparent && !hasCutout) || (isLikelyCutout && Boolean(mat.map));
-                        mat.transparent = isTrulyTransparent;
-                        mat.depthWrite = !isTrulyTransparent;
-
-                        if (hasCutout) {
-                            mat.alphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : 0.05;
-                            mat.transparent = true;
-                            mat.depthWrite = true;
-                        }
-
-                        if (mat.color) {
-                            if ((mat.map || mat.alphaMap || (mat.alphaTest > 0) || isLikelyCutout) && mat.color.r < 0.05 && mat.color.g < 0.05 && mat.color.b < 0.05) {
-                                mat.color.setRGB(1, 1, 1);
-                            }
-                            mat.userData.originalColor = mat.color.clone();
-                        }
-                        mat.userData.originalRoughness = mat.roughness;
-                        mat.userData.originalMetalness = mat.metalness;
-                        mat.userData.originalOpacity = mat.opacity;
-                        mat.userData.originalNormalScale = mat.normalScale ? mat.normalScale.clone() : new THREE.Vector2(1, 1);
-                        mat.userData.originalClearcoat = mat.clearcoat !== undefined ? mat.clearcoat : 0;
-                        mat.userData.originalSpecularIntensity = mat.specularIntensity !== undefined ? mat.specularIntensity : 1.0;
-                        mat.userData.originalEnvMapIntensity = mat.envMapIntensity !== undefined ? mat.envMapIntensity : 1.0;
-                        mat.userData.originalAlphaTest = mat.alphaTest !== undefined ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
-                        mat.userData.originalTransparent = isTrulyTransparent;
-                        mat.userData.originalDepthWrite = true;
-                        mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
-                        mat.userData.baseMaterialName = mat.name;
-
-                        const texProps = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap'];
-                        const texTransforms = {};
-                        texProps.forEach(prop => {
-                            const t = mat[prop];
-                            if (t && t.isTexture) {
-                                texTransforms[prop] = {
-                                    repeat: t.repeat ? t.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: t.offset ? t.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: t.rotation || 0,
-                                    center: t.center ? t.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: t.wrapS,
-                                    wrapT: t.wrapT
-                                };
-                            }
-                        });
-                        mat.userData.originalTexTransforms = texTransforms;
-                    }
-
-                    if (mat.userData.originalAlphaTest === undefined) {
-                        const isLikelyCutout = /fringe|tassel|cutout|thread|strand|leaf|foliage|hair|fur|trans|alpha/i.test(`${child.name || ''}_${mat.name || ''}`);
-                        mat.userData.originalAlphaTest = (mat.alphaTest !== undefined && mat.alphaTest > 0) ? mat.alphaTest : (isLikelyCutout ? 0.5 : 0);
-                        if (isLikelyCutout && (!mat.alphaTest || mat.alphaTest === 0)) mat.alphaTest = 0.5;
-                    }
-                    if (mat.userData.originalTransparent === undefined) {
-                        mat.userData.originalTransparent = (mat.opacity !== undefined && mat.opacity < 0.999) || Boolean(mat.alphaMap);
-                    }
-                    if (mat.userData.originalDepthWrite === undefined) mat.userData.originalDepthWrite = true;
-                    if (mat.userData.originalSide === undefined) mat.userData.originalSide = mat.side !== undefined ? mat.side : THREE.DoubleSide;
-
-                    if (includeTextures === false) {
-                        TEX_KEYS.forEach(k => { mat[k] = null; });
-                    } else if (includeTextures === true && mat.userData.origTexturesSnap) {
-                        TEX_KEYS.forEach(k => { mat[k] = mat.userData.origTexturesSnap[k]; });
-                    }
-                    mat.needsUpdate = true;
-                });
-            }
+                if (!mat.userData.originalNormalMap && mat.normalMap && mat.normalMap.isTexture) {
+                    mat.userData.originalNormalMap = mat.normalMap;
+                }
+                if (!mat.userData.originalRoughnessMap && mat.roughnessMap && mat.roughnessMap.isTexture) {
+                    mat.userData.originalRoughnessMap = mat.roughnessMap;
+                }
+                if (!mat.userData.originalMetalnessMap && mat.metalnessMap && mat.metalnessMap.isTexture) {
+                    mat.userData.originalMetalnessMap = mat.metalnessMap;
+                }
+                if (!mat.userData.originalAoMap && mat.aoMap && mat.aoMap.isTexture) {
+                    mat.userData.originalAoMap = mat.aoMap;
+                }
+                if (!mat.userData.originalAlphaMap && mat.alphaMap && mat.alphaMap.isTexture) {
+                    mat.userData.originalAlphaMap = mat.alphaMap;
+                }
+                if (!mat.userData.originalBumpMap && mat.bumpMap && mat.bumpMap.isTexture) {
+                    mat.userData.originalBumpMap = mat.bumpMap;
+                }
+                if (!mat.userData.originalEmissiveMap && mat.emissiveMap && mat.emissiveMap.isTexture) {
+                    mat.userData.originalEmissiveMap = mat.emissiveMap;
+                }
+            });
         });
-    }, [scene, includeTextures]);
+    }, [scene]);
 
-    // 0. Apply Texture to Selected Material
-    useEffect(() => {
-        if (!selectedTexture || !scene || xrayMode || selectedTexture.isXray) return;
-
-        const resolveUrl = (url) => {
-            if (!url) return null;
-            if (typeof url !== 'string') return url;
-            return resolveUploadsPath(url);
-        };
-
-        const loadMap = (url, isColor = false) => {
-            const resolved = resolveUrl(url);
-            if (!resolved || resolved === "existing") return null;
-
-            const cacheKey = `${resolved}_${isColor}`;
-            if (globalTextureCache.has(cacheKey)) {
-                return globalTextureCache.get(cacheKey);
-            }
-
-            const tex = sharedTextureLoader.load(resolved, (t) => {
-                t.wrapS = t.wrapT = THREE.RepeatWrapping;
-                t.flipY = false;
-                t.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-                t.anisotropy = 8;
-                t.userData = { url: resolved };
-                t.needsUpdate = true;
-            });
-            tex.userData = { url: resolved };
-
-            globalTextureCache.set(cacheKey, tex);
-            return tex;
-        };
-
-        const newMaps = {};
-        const m = selectedTexture?.maps || {};
-        const baseImg = m.map || m.base;
-        const normalImg = m.normalMap || m.normal;
-        const roughnessImg = m.roughnessMap || m.roughness;
-        const metallicImg = m.metalnessMap || m.metallic || m.metalness;
-        const aoImg = m.aoMap || m.ao;
-        const alphaImg = m.alphaMap || m.opacity;
-
-        if (baseImg) newMaps.map = loadMap(baseImg, true);
-        if (normalImg) newMaps.normalMap = loadMap(normalImg, false);
-        if (roughnessImg) newMaps.roughnessMap = loadMap(roughnessImg, false);
-        if (metallicImg) newMaps.metalnessMap = loadMap(metallicImg, false);
-        if (aoImg) newMaps.aoMap = loadMap(aoImg, false);
-        if (alphaImg) newMaps.alphaMap = loadMap(alphaImg, false);
-
-        const selMat = selectedMaterial;
-        const targetMatName = selMat ? selMat.name : null;
-
-        const isFullModelSelect = !targetMatName || (modelName && targetMatName === modelName) || targetMatName === "Scene";
-        const targetedMeshes = isFullModelSelect ? [] : resolveTargetMeshes(selMat);
-        const targetMeshSet = new Set(targetedMeshes);
-
-        const processedMaterials = new Set();
-
-        const applyToMesh = (child) => {
-            if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
-                if (!isFullModelSelect) {
-                    ensureMeshUniqueMaterial(child, targetMeshSet);
-                }
-                const apply = (mat) => {
-                    if (!mat.isMeshStandardMaterial && !mat.isMeshPhysicalMaterial && !mat.isMeshPhongMaterial) return;
-                    if (processedMaterials.has(mat.uuid)) return;
-                    processedMaterials.add(mat.uuid);
-
-                    const restoreTexTransform = (mTarget, propName) => {
-                        const tex = mTarget[propName];
-                        if (!tex || !tex.isTexture) return;
-                        const orig = mTarget.userData.originalTexTransforms?.[propName];
-                        if (orig) {
-                            if (orig.repeat && tex.repeat) tex.repeat.copy(orig.repeat);
-                            if (orig.offset && tex.offset) tex.offset.copy(orig.offset);
-                            if (orig.rotation !== undefined) tex.rotation = orig.rotation;
-                            if (orig.center && tex.center) tex.center.copy(orig.center);
-                            if (orig.wrapS !== undefined) tex.wrapS = orig.wrapS;
-                            if (orig.wrapT !== undefined) tex.wrapT = orig.wrapT;
-                        } else {
-                            if (tex.repeat && typeof tex.repeat.set === 'function') tex.repeat.set(1, 1);
-                            if (tex.offset && typeof tex.offset.set === 'function') tex.offset.set(0, 0);
-                            if (tex.rotation !== undefined) tex.rotation = 0;
-                            if (tex.center && typeof tex.center.set === 'function') tex.center.set(0, 0);
-                        }
-                        tex.matrixAutoUpdate = true;
-                        if (typeof tex.updateMatrix === 'function') tex.updateMatrix();
-                    };
-
-                    // 1. Base Map
-                    if (newMaps.map) {
-                        if (!mat.userData.originalMap && mat.map && mat.map.isTexture && mat.map !== newMaps.map) {
-                            mat.userData.originalMap = mat.map;
-                        }
-                        if (mat.map && mat.map.isTexture && mat.map !== newMaps.map) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.map) {
-                                mat.userData.originalTexTransforms.map = {
-                                    repeat: mat.map.repeat ? mat.map.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.map.offset ? mat.map.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.map.rotation || 0,
-                                    center: mat.map.center ? mat.map.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.map.wrapS,
-                                    wrapT: mat.map.wrapT
-                                };
-                            }
-                        }
-                        mat.map = newMaps.map;
-                        mat.userData.appliedMap = newMaps.map;
-                        mat.transparent = true;
-                        mat.alphaTest = 0.05;
-                    } else {
-                        mat.map = (mat.userData.originalMap && mat.userData.originalMap.isTexture) ? mat.userData.originalMap : null;
-                        mat.userData.appliedMap = null;
-                        if (mat.userData.originalColor && mat.color && typeof mat.color.set === 'function') {
-                            try {
-                                if (mat.userData.originalColor.isColor) mat.color.copy(mat.userData.originalColor);
-                                else if (typeof mat.userData.originalColor === 'string') mat.color.set(mat.userData.originalColor);
-                            } catch (_) { }
-                        }
-                        restoreTexTransform(mat, 'map');
-                    }
-
-                    // 2. Normal Map
-                    if (newMaps.normalMap) {
-                        if (!mat.userData.originalNormalMap && mat.normalMap && mat.normalMap.isTexture && mat.normalMap !== newMaps.normalMap) {
-                            mat.userData.originalNormalMap = mat.normalMap;
-                        }
-                        if (mat.normalMap && mat.normalMap.isTexture && mat.normalMap !== newMaps.normalMap) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.normalMap) {
-                                mat.userData.originalTexTransforms.normalMap = {
-                                    repeat: mat.normalMap.repeat ? mat.normalMap.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.normalMap.offset ? mat.normalMap.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.normalMap.rotation || 0,
-                                    center: mat.normalMap.center ? mat.normalMap.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.normalMap.wrapS,
-                                    wrapT: mat.normalMap.wrapT
-                                };
-                            }
-                        }
-                        mat.normalMap = newMaps.normalMap;
-                        if (mat.normalScale) mat.normalScale.set(1, 1);
-                    } else {
-                        mat.normalMap = (mat.userData.originalNormalMap && mat.userData.originalNormalMap.isTexture) ? mat.userData.originalNormalMap : null;
-                        if (mat.normalScale) {
-                            if (mat.userData.originalNormalScale) {
-                                mat.normalScale.copy(mat.userData.originalNormalScale);
-                            } else {
-                                mat.normalScale.set(1, 1);
-                            }
-                        }
-                        restoreTexTransform(mat, 'normalMap');
-                    }
-
-                    // 3. Roughness Map
-                    if (newMaps.roughnessMap) {
-                        if (!mat.userData.originalRoughnessMap && mat.roughnessMap && mat.roughnessMap.isTexture && mat.roughnessMap !== newMaps.roughnessMap) {
-                            mat.userData.originalRoughnessMap = mat.roughnessMap;
-                        }
-                        if (mat.roughnessMap && mat.roughnessMap.isTexture && mat.roughnessMap !== newMaps.roughnessMap) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.roughnessMap) {
-                                mat.userData.originalTexTransforms.roughnessMap = {
-                                    repeat: mat.roughnessMap.repeat ? mat.roughnessMap.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.roughnessMap.offset ? mat.roughnessMap.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.roughnessMap.rotation || 0,
-                                    center: mat.roughnessMap.center ? mat.roughnessMap.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.roughnessMap.wrapS,
-                                    wrapT: mat.roughnessMap.wrapT
-                                };
-                            }
-                        }
-                        mat.roughnessMap = newMaps.roughnessMap;
-                        mat.roughness = 1.0;
-                    } else {
-                        mat.roughnessMap = (mat.userData.originalRoughnessMap && mat.userData.originalRoughnessMap.isTexture) ? mat.userData.originalRoughnessMap : null;
-                        if (mat.userData.originalRoughness !== undefined) mat.roughness = mat.userData.originalRoughness;
-                        restoreTexTransform(mat, 'roughnessMap');
-                    }
-
-                    // 4. Metalness Map
-                    if (newMaps.metalnessMap) {
-                        if (!mat.userData.originalMetalnessMap && mat.metalnessMap && mat.metalnessMap.isTexture && mat.metalnessMap !== newMaps.metalnessMap) {
-                            mat.userData.originalMetalnessMap = mat.metalnessMap;
-                        }
-                        if (mat.metalnessMap && mat.metalnessMap.isTexture && mat.metalnessMap !== newMaps.metalnessMap) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.metalnessMap) {
-                                mat.userData.originalTexTransforms.metalnessMap = {
-                                    repeat: mat.metalnessMap.repeat ? mat.metalnessMap.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.metalnessMap.offset ? mat.metalnessMap.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.metalnessMap.rotation || 0,
-                                    center: mat.metalnessMap.center ? mat.metalnessMap.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.metalnessMap.wrapS,
-                                    wrapT: mat.metalnessMap.wrapT
-                                };
-                            }
-                        }
-                        mat.metalnessMap = newMaps.metalnessMap;
-                        if (mat.metalness !== undefined) mat.metalness = 1.0;
-                    } else {
-                        mat.metalnessMap = (mat.userData.originalMetalnessMap && mat.userData.originalMetalnessMap.isTexture) ? mat.userData.originalMetalnessMap : null;
-                        if (mat.userData.originalMetalness !== undefined) mat.metalness = mat.userData.originalMetalness;
-                        restoreTexTransform(mat, 'metalnessMap');
-                    }
-
-                    // 5. AO Map
-                    if (newMaps.aoMap) {
-                        if (!mat.userData.originalAoMap && mat.aoMap && mat.aoMap.isTexture && mat.aoMap !== newMaps.aoMap) {
-                            mat.userData.originalAoMap = mat.aoMap;
-                        }
-                        if (mat.aoMap && mat.aoMap.isTexture && mat.aoMap !== newMaps.aoMap) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.aoMap) {
-                                mat.userData.originalTexTransforms.aoMap = {
-                                    repeat: mat.aoMap.repeat ? mat.aoMap.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.aoMap.offset ? mat.aoMap.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.aoMap.rotation || 0,
-                                    center: mat.aoMap.center ? mat.aoMap.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.aoMap.wrapS,
-                                    wrapT: mat.aoMap.wrapT
-                                };
-                            }
-                        }
-                        mat.aoMap = newMaps.aoMap;
-                    } else {
-                        mat.aoMap = (mat.userData.originalAoMap && mat.userData.originalAoMap.isTexture) ? mat.userData.originalAoMap : null;
-                        restoreTexTransform(mat, 'aoMap');
-                    }
-
-                    // 6. Displacement Map
-                    mat.displacementMap = null;
-                    mat.displacementScale = 0;
-
-                    // 7. Bump Map
-                    if (newMaps.bumpMap) {
-                        if (!mat.userData.originalBumpMap && mat.bumpMap && mat.bumpMap.isTexture && mat.bumpMap !== newMaps.bumpMap) {
-                            mat.userData.originalBumpMap = mat.bumpMap;
-                        }
-                        if (mat.bumpMap && mat.bumpMap.isTexture && mat.bumpMap !== newMaps.bumpMap) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.bumpMap) {
-                                mat.userData.originalTexTransforms.bumpMap = {
-                                    repeat: mat.bumpMap.repeat ? mat.bumpMap.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.bumpMap.offset ? mat.bumpMap.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.bumpMap.rotation || 0,
-                                    center: mat.bumpMap.center ? mat.bumpMap.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.bumpMap.wrapS,
-                                    wrapT: mat.bumpMap.wrapT
-                                };
-                            }
-                        }
-                        mat.bumpMap = newMaps.bumpMap;
-                        if (!mat.bumpScale) mat.bumpScale = 0.05;
-                    } else {
-                        mat.bumpMap = (mat.userData.originalBumpMap && mat.userData.originalBumpMap.isTexture) ? mat.userData.originalBumpMap : null;
-                        restoreTexTransform(mat, 'bumpMap');
-                    }
-
-                    // 8. Alpha Map
-                    if (newMaps.alphaMap) {
-                        if (!mat.userData.originalAlphaMap && mat.alphaMap && mat.alphaMap.isTexture && mat.alphaMap !== newMaps.alphaMap) {
-                            mat.userData.originalAlphaMap = mat.alphaMap;
-                        }
-                        if (mat.alphaMap && mat.alphaMap.isTexture && mat.alphaMap !== newMaps.alphaMap) {
-                            if (!mat.userData.originalTexTransforms) mat.userData.originalTexTransforms = {};
-                            if (!mat.userData.originalTexTransforms.alphaMap) {
-                                mat.userData.originalTexTransforms.alphaMap = {
-                                    repeat: mat.alphaMap.repeat ? mat.alphaMap.repeat.clone() : new THREE.Vector2(1, 1),
-                                    offset: mat.alphaMap.offset ? mat.alphaMap.offset.clone() : new THREE.Vector2(0, 0),
-                                    rotation: mat.alphaMap.rotation || 0,
-                                    center: mat.alphaMap.center ? mat.alphaMap.center.clone() : new THREE.Vector2(0, 0),
-                                    wrapS: mat.alphaMap.wrapS,
-                                    wrapT: mat.alphaMap.wrapT
-                                };
-                            }
-                        }
-                        mat.alphaMap = newMaps.alphaMap;
-                        mat.transparent = true;
-                    } else {
-                        mat.alphaMap = (mat.userData.originalAlphaMap && mat.userData.originalAlphaMap.isTexture) ? mat.userData.originalAlphaMap : null;
-                        if (mat.userData.originalTransparent !== undefined) mat.transparent = mat.userData.originalTransparent;
-                        restoreTexTransform(mat, 'alphaMap');
-                    }
-
-                    mat.userData.isFlashing = false;
-                    if (mat.emissive && typeof mat.emissive.set === 'function') {
-                        mat.emissive.set(0, 0, 0);
-                        mat.emissiveIntensity = 0;
-                    }
-
-                    if (mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial || mat.isMeshPhongMaterial) {
-                        if (newMaps.map && mat.color && typeof mat.color.set === 'function') {
-                            mat.color.set(0xffffff);
-                        }
-                    }
-
-                    if (selectedTexture.id) {
-                        mat.userData.appliedTexture = selectedTexture;
-                        mat.userData.appliedTextureId = selectedTexture.id;
-                    } else {
-                        delete mat.userData.appliedTexture;
-                        delete mat.userData.appliedTextureId;
-                    }
-
-                    mat.needsUpdate = true;
-                };
-
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(apply);
-                } else {
-                    apply(child.material);
-                }
-            }
-        };
-
-        if (isFullModelSelect) {
-            meshIndexRef.current.forEach(meshes => {
-                meshes.forEach(applyToMesh);
-            });
-        } else {
-            const targetMeshes = resolveTargetMeshes(selMat);
-            targetMeshes.forEach(applyToMesh);
-        }
-
-        onTextureIdentifiedRef.current?.(selectedTexture.id || null);
-
-        if (typeof onTextureApplied === 'function') {
-            onTextureApplied();
-        }
-    }, [selectedTexture, scene, selectedMaterial, modelName, onTextureApplied, resolveTargetMeshes, ensureMeshUniqueMaterial]);
-
-    // 0.2. Apply Manual Map Uploads
-    useEffect(() => {
-        if (!materialSettings?.maps || !scene || xrayMode) return;
-
-        const selMat = selectedMaterial;
-        const targetMatName = selMat ? selMat.name : null;
-
-        const isFullModel = !selMat || targetMatName === modelName || targetMatName === "Scene";
-        if (isFullModel || !targetMatName) return;
-
-        const changedProp = materialSettings.lastChangedProp;
-        if (changedProp !== 'maps' && changedProp !== 'appliedTexture') return;
-
-        const resolveUrlLocal = (url) => {
-            if (!url) return null;
-            if (typeof url !== 'string') return url;
-            return resolveUploadsPath(url);
-        };
-
-        const loadMapManual = (url, isColor = false) => {
-            const resolved = resolveUrlLocal(url);
-            if (!resolved || resolved === "existing") return null;
-
-            const cacheKey = `${resolved}_${isColor}`;
-            if (globalTextureCache.has(cacheKey)) {
-                return globalTextureCache.get(cacheKey);
-            }
-
-            const tex = sharedTextureLoader.load(resolved, (t) => {
-                t.wrapS = t.wrapT = THREE.RepeatWrapping;
-                t.flipY = false;
-                t.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-                t.anisotropy = 8;
-                t.userData = { url: resolved };
-                t.needsUpdate = true;
-            });
-            tex.userData = { url: resolved };
-
-            globalTextureCache.set(cacheKey, tex);
-            return tex;
-        };
-
-        const newMapsList = materialSettings.maps;
-        const loadedMaps = {};
-
-        const baseImg = newMapsList.map || newMapsList.base;
-        const normalImg = newMapsList.normalMap || newMapsList.normal;
-        const roughnessImg = newMapsList.roughnessMap || newMapsList.roughness;
-        const metalnessImg = newMapsList.metalnessMap || newMapsList.metallic || newMapsList.metalness;
-        const displacementImg = newMapsList.displacementMap || newMapsList.displacement;
-        const bumpImg = newMapsList.bumpMap || newMapsList.bump;
-        const aoImg = newMapsList.aoMap || newMapsList.ao;
-        const alphaImg = newMapsList.alphaMap || newMapsList.opacity;
-        const emissiveImg = newMapsList.emissiveMap || newMapsList.emissive;
-
-        const texScaleX = 100 / (materialSettings.scale || 100);
-        const texScaleY = 100 / (materialSettings.scale || 100);
-
-        const applyScaleToTex = (tex) => {
-            if (tex && tex.repeat && typeof tex.repeat.set === 'function') {
-                tex.repeat.set(texScaleX, texScaleY);
-            }
-        };
-
-        if (baseImg) { loadedMaps.map = loadMapManual(baseImg, true); applyScaleToTex(loadedMaps.map); }
-        if (normalImg) { loadedMaps.normalMap = loadMapManual(normalImg, false); applyScaleToTex(loadedMaps.normalMap); }
-        if (roughnessImg) { loadedMaps.roughnessMap = loadMapManual(roughnessImg, false); applyScaleToTex(loadedMaps.roughnessMap); }
-        if (metalnessImg) { loadedMaps.metalnessMap = loadMapManual(metalnessImg, false); applyScaleToTex(loadedMaps.metalnessMap); }
-        if (displacementImg) { loadedMaps.displacementMap = loadMapManual(displacementImg, false); applyScaleToTex(loadedMaps.displacementMap); }
-        if (bumpImg) { loadedMaps.bumpMap = loadMapManual(bumpImg, false); applyScaleToTex(loadedMaps.bumpMap); }
-        if (aoImg) { loadedMaps.aoMap = loadMapManual(aoImg, false); applyScaleToTex(loadedMaps.aoMap); }
-        if (alphaImg) { loadedMaps.alphaMap = loadMapManual(alphaImg, false); applyScaleToTex(loadedMaps.alphaMap); }
-        if (emissiveImg) { loadedMaps.emissiveMap = loadMapManual(emissiveImg, true); applyScaleToTex(loadedMaps.emissiveMap); }
-
-        const targetedMeshes = isFullModel ? [] : resolveTargetMeshes(selMat);
-        const sharedLoadedMaps = loadedMaps;
-        const targetMeshSet = new Set(targetedMeshes);
-
-        const applyToMeshLocal = (child) => {
-            if (child.isMesh && (child.material || child.userData?.__preXrayMaterial)) {
-                if (!isFullModel) {
-                    ensureMeshUniqueMaterial(child, targetMeshSet);
-                }
-                const apply = (mat) => {
-                    // Drop entries that are just preview thumbnails of the texture already on the material
-                    const loadedMaps = { ...sharedLoadedMaps };
-                    for (const slot of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'bumpMap', 'aoMap', 'alphaMap', 'emissiveMap']) {
-                        const v = newMapsList[slot];
-                        const cur = mat[slot];
-                        if (typeof v === 'string' && cur && (cur.userData?.__thumbnailUrl === v || cur.userData?.url === v)) {
-                            loadedMaps[slot] = cur;
-                        }
-                    }
-                    const hasMapUpdate = Object.prototype.hasOwnProperty.call(newMapsList, 'map') && newMapsList.map !== "existing";
-                    const hasNormalUpdate = Object.prototype.hasOwnProperty.call(newMapsList, 'normalMap') && newMapsList.normalMap !== "existing";
-                    const hasRoughnessUpdate = Object.prototype.hasOwnProperty.call(newMapsList, 'roughnessMap') && newMapsList.roughnessMap !== "existing";
-                    const hasMetalnessUpdate = Object.prototype.hasOwnProperty.call(newMapsList, 'metalnessMap') && newMapsList.metalnessMap !== "existing";
-                    const hasBumpUpdate = (Object.prototype.hasOwnProperty.call(newMapsList, 'bumpMap') && newMapsList.bumpMap !== "existing") || (Object.prototype.hasOwnProperty.call(newMapsList, 'bump') && newMapsList.bump !== "existing");
-                    const hasAoUpdate = Object.prototype.hasOwnProperty.call(newMapsList, 'aoMap') && newMapsList.aoMap !== "existing";
-                    const hasDispUpdate = (Object.prototype.hasOwnProperty.call(newMapsList, 'displacementMap') && newMapsList.displacementMap !== "existing") || (Object.prototype.hasOwnProperty.call(newMapsList, 'displacement') && newMapsList.displacement !== "existing");
-
-                    if (hasMapUpdate) {
-                        if (loadedMaps.map) {
-                            if (mat.map !== loadedMaps.map) mat.map = loadedMaps.map;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.map = newMapsList.map;
-                            mat.transparent = true;
-                            mat.alphaTest = Math.max(0.05, mat.alphaTest || 0);
-                            mat.depthWrite = true;
-                        } else if (newMapsList.map === null) {
-                            mat.map = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.map = null;
-                        }
-                    }
-
-                    if (hasNormalUpdate) {
-                        if (loadedMaps.normalMap) {
-                            if (mat.normalMap !== loadedMaps.normalMap) mat.normalMap = loadedMaps.normalMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.normalMap = newMapsList.normalMap;
-                            if (mat.normalMap && !mat.normalScale) mat.normalScale = new THREE.Vector2(1, 1);
-                        } else if (newMapsList.normalMap === null) {
-                            mat.normalMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.normalMap = null;
-                        }
-                    }
-
-                    if (hasRoughnessUpdate) {
-                        if (loadedMaps.roughnessMap) {
-                            if (mat.roughnessMap !== loadedMaps.roughnessMap) mat.roughnessMap = loadedMaps.roughnessMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.roughnessMap = newMapsList.roughnessMap;
-                            if (mat.roughnessMap) mat.roughness = 1.0;
-                        } else if (newMapsList.roughnessMap === null) {
-                            mat.roughnessMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.roughnessMap = null;
-                        }
-                    }
-
-                    if (hasMetalnessUpdate) {
-                        if (loadedMaps.metalnessMap) {
-                            if (mat.metalnessMap !== loadedMaps.metalnessMap) mat.metalnessMap = loadedMaps.metalnessMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.metalnessMap = newMapsList.metalnessMap;
-                            if (mat.metalnessMap) mat.metalness = 1.0;
-                        } else if (newMapsList.metalnessMap === null) {
-                            mat.metalnessMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.metalnessMap = null;
-                        }
-                    }
-
-                    if (hasDispUpdate) {
-                        mat.displacementMap = null;
-                        mat.displacementScale = 0;
-                        if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                        mat.userData.manualMaps.displacementMap = null;
-                    }
-
-                    if (hasBumpUpdate) {
-                        const bumpVal = newMapsList.bumpMap || newMapsList.bump;
-                        if (loadedMaps.bumpMap) {
-                            if (mat.bumpMap !== loadedMaps.bumpMap) mat.bumpMap = loadedMaps.bumpMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.bumpMap = bumpVal;
-                            if (mat.bumpMap && mat.bumpScale === undefined) mat.bumpScale = 0.05;
-                        } else if (bumpVal === null) {
-                            mat.bumpMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.bumpMap = null;
-                        }
-                    }
-
-                    if (hasAoUpdate) {
-                        if (loadedMaps.aoMap) {
-                            if (mat.aoMap !== loadedMaps.aoMap) mat.aoMap = loadedMaps.aoMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.aoMap = newMapsList.aoMap;
-                            if (mat.aoMap && mat.aoMapIntensity === undefined) mat.aoMapIntensity = 1;
-                        } else if (newMapsList.aoMap === null) {
-                            mat.aoMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.aoMap = null;
-                        }
-                    }
-
-                    if (Object.prototype.hasOwnProperty.call(newMapsList, 'alphaMap') && newMapsList.alphaMap !== "existing") {
-                        if (loadedMaps.alphaMap) {
-                            if (mat.alphaMap !== loadedMaps.alphaMap) mat.alphaMap = loadedMaps.alphaMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.alphaMap = newMapsList.alphaMap;
-                        } else if (newMapsList.alphaMap === null) {
-                            mat.alphaMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.alphaMap = null;
-                        }
-                    }
-
-                    if (Object.prototype.hasOwnProperty.call(newMapsList, 'emissiveMap') && newMapsList.emissiveMap !== "existing") {
-                        if (loadedMaps.emissiveMap) {
-                            if (mat.emissiveMap !== loadedMaps.emissiveMap) mat.emissiveMap = loadedMaps.emissiveMap;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.emissiveMap = newMapsList.emissiveMap;
-                        } else if (newMapsList.emissiveMap === null) {
-                            mat.emissiveMap = null;
-                            if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
-                            mat.userData.manualMaps.emissiveMap = null;
-                        }
-                    }
-
-                    mat.needsUpdate = true;
-                };
-
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(apply);
-                } else {
-                    apply(child.material);
-                }
-            }
-        };
-
-        const applyToTarget = (meshes) => {
-            meshes.forEach(applyToMeshLocal);
-        };
-
-        if (isFullModel) {
-            meshIndexRef.current.forEach(applyToTarget);
-        } else {
-            const targetMeshes = resolveTargetMeshes(selMat);
-            applyToTarget(targetMeshes);
-        }
-
-    }, [materialSettings?.maps, materialSettings?.useFactorColor, materialSettings?.scale, materialSettings?.lastChangedProp, scene, selectedMaterial, modelName, resolveTargetMeshes, ensureMeshUniqueMaterial]);
-
+  
     // 0.5 Detect Current Texture on Selection Change
     const lastTextureDetectResetKeyRef = useRef(resetKey);
     useEffect(() => {
@@ -982,7 +583,7 @@ const GenericModel = React.memo(React.forwardRef(({
 
         if (foundMat) {
             if (foundMat.userData && foundMat.userData.manualMaps) {
-                onUpdateMaterialSettingRef.current?.('maps', foundMat.userData.manualMaps);
+                onUpdateMaterialSettingRef.current?.('maps', foundMat.userData.manualMaps, true);
             } else {
                 const nativeMaps = {};
 
@@ -996,10 +597,13 @@ const GenericModel = React.memo(React.forwardRef(({
                 if (foundMat.alphaMap) nativeMaps.alphaMap = getTexUrl(foundMat.alphaMap);
                 if (foundMat.emissiveMap) nativeMaps.emissiveMap = getTexUrl(foundMat.emissiveMap);
 
-                onUpdateMaterialSettingRef.current?.('maps', nativeMaps);
+                const hasAny = Object.keys(nativeMaps).some(k => k !== 'envMap' && nativeMaps[k]);
+                if (hasAny) {
+                    onUpdateMaterialSettingRef.current?.('maps', nativeMaps, true);
+                }
             }
         } else {
-            onUpdateMaterialSettingRef.current?.('maps', {});
+            onUpdateMaterialSettingRef.current?.('maps', {}, true);
         }
 
     }, [selectedMaterial, scene, modelName, resolveTargetMaterial, resetKey]);
@@ -1009,14 +613,14 @@ const GenericModel = React.memo(React.forwardRef(({
         if (!scene) return;
         if (xrayMode) return;
 
-        if (resetKey !== lastMaterialResetKeyRef.current) {
-            lastMaterialResetKeyRef.current = resetKey;
-            const sig = `${modelName || ''}_${selectedMaterial ? (selectedMaterial.uuid || selectedMaterial.name) : 'FULL'}`;
-            setSyncedSelectionSignature(sig);
-            return;
-        }
-
         const selMat = selectedMaterial;
+        const selKey = selMat ? (selMat.uuid || selMat.meshUuid || selMat.name || '__mesh__') : '__FULL__';
+        const syncSig = `${modelName || ''}_${selKey}_reset_${resetKey}_tx_${transformMode}`;
+        if (syncSig === lastSyncedSigRef.current) return;
+        lastSyncedSigRef.current = syncSig;
+
+        lastMaterialResetKeyRef.current = resetKey;
+
         let foundMat = resolveTargetMaterial(selMat);
 
         if (foundMat) {
@@ -1032,75 +636,104 @@ const GenericModel = React.memo(React.forwardRef(({
                 userData: foundMat.userData
             };
 
-            const safeUpdate = (key, val) => {
-                if (foundMat.userData?.isFlashing && (key === 'emissiveColor' || key === 'emissiveIntensity')) return;
-                if (onUpdateMaterialSettingRef.current) {
-                    onUpdateMaterialSettingRef.current(key, val, true);
-                }
-            };
+            const batch = {};
 
             if (m.color && typeof m.color.getHexString === 'function') {
-                safeUpdate('color', '#' + m.color.getHexString());
+                batch.color = '#' + m.color.getHexString();
             }
 
             if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
-                safeUpdate('metallic', Math.round((m.metalness || 0) * 100));
-                safeUpdate('roughness', Math.round((m.roughness || 0) * 100));
+                batch.metallic = Math.round((m.metalness || 0) * 100);
+                batch.roughness = Math.round((m.roughness || 0) * 100);
             } else if (m.isMeshPhongMaterial) {
-                safeUpdate('metallic', Math.round((m.shininess || 0) / 100 * 100));
-                safeUpdate('roughness', 0);
+                batch.metallic = Math.round((m.shininess || 0) / 100 * 100);
+                batch.roughness = 0;
             }
 
             if (m.opacity !== undefined) {
-                safeUpdate('alpha', Math.round(m.opacity * 100));
+                batch.alpha = Math.round(m.opacity * 100);
             }
 
-            safeUpdate('colorIntensity', 100);
+            batch.colorIntensity = 100;
             if (m.emissiveIntensity !== undefined) {
-                safeUpdate('emissiveIntensity', Math.round(m.emissiveIntensity * 100));
+                batch.emissiveIntensity = Math.round(m.emissiveIntensity * 100);
             }
             if (m.emissive && typeof m.emissive.getHexString === 'function') {
-                safeUpdate('emissiveColor', '#' + m.emissive.getHexString());
+                batch.emissiveColor = '#' + m.emissive.getHexString();
             }
 
             if (m.normalMap && m.normalScale) {
-                safeUpdate('normal', Math.round(m.normalScale.x * 100));
+                batch.normal = Math.round(m.normalScale.x * 100);
             }
 
             if (m.displacementMap && m.displacementScale !== undefined) {
-                safeUpdate('bump', Math.round(m.displacementScale * 100));
+                batch.bump = Math.round(m.displacementScale * 100);
             } else if (m.bumpMap && m.bumpScale !== undefined) {
-                safeUpdate('bump', Math.round(m.bumpScale / 10 * 100));
+                batch.bump = Math.round(m.bumpScale / 10 * 100);
             }
 
             if (!transformMode) {
                 const tex = m.map || m.normalMap || m.roughnessMap;
                 if (tex) {
                     if (m.userData.__textureScale !== undefined) {
-                        safeUpdate('scale', m.userData.__textureScale);
+                        batch.scale = m.userData.__textureScale;
                     } else if (tex.repeat && (tex.repeat.x !== 1 || tex.repeat.y !== 1)) {
-                        safeUpdate('scale', Math.round(100 / (tex.repeat.x || 1)));
+                        batch.scale = Math.round(100 / (tex.repeat.x || 1));
                     }
                     if (tex.rotation !== undefined && tex.rotation !== 0) {
-                        safeUpdate('rotation', Math.round(tex.rotation * (180 / Math.PI)));
+                        batch.rotation = Math.round(tex.rotation * (180 / Math.PI));
                     }
                     if (tex.offset && (tex.offset.x !== 0 || tex.offset.y !== 0)) {
-                        safeUpdate('offset', { x: tex.offset.x * 100, y: tex.offset.y * 100 });
+                        batch.offset = { x: tex.offset.x * 100, y: tex.offset.y * 100 };
                     }
                 }
             }
 
             if (m.userData.appliedTexture) {
-                safeUpdate('appliedTexture', m.userData.appliedTexture);
-            } else {
-                safeUpdate('appliedTexture', null);
+                batch.appliedTexture = m.userData.appliedTexture;
+            }
+
+            // If customizedMaterials has an entry for this selection, ensure batch matches customized state
+            const curCM = customizedMaterialsRef.current;
+            if (curCM) {
+                const lookupKeys = [
+                    selMat?.uuid, selMat?.meshUuid, selMat?.name,
+                    foundMat.uuid, foundMat.name, foundMat.userData?.baseMaterialName
+                ].filter(Boolean);
+                let customEntry = null;
+                for (const k of lookupKeys) {
+                    if (curCM[k]) {
+                        customEntry = curCM[k];
+                        break;
+                    }
+                }
+                if (!customEntry && curCM['__ALL__']) {
+                    customEntry = curCM['__ALL__'];
+                }
+                if (customEntry) {
+                    if (customEntry.color) batch.color = customEntry.color;
+                    if (customEntry.colorIntensity !== undefined) batch.colorIntensity = customEntry.colorIntensity;
+                    if (customEntry.metallic !== undefined) batch.metallic = customEntry.metallic;
+                    if (customEntry.roughness !== undefined) batch.roughness = customEntry.roughness;
+                    if (customEntry.alpha !== undefined) batch.alpha = customEntry.alpha;
+                    if (customEntry.normal !== undefined) batch.normal = customEntry.normal;
+                    if (customEntry.bump !== undefined) batch.bump = customEntry.bump;
+                    if (customEntry.scale !== undefined) batch.scale = customEntry.scale;
+                    if (customEntry.rotation !== undefined) batch.rotation = customEntry.rotation;
+                    if (customEntry.offset !== undefined) batch.offset = customEntry.offset;
+                    if (customEntry.appliedTexture) batch.appliedTexture = customEntry.appliedTexture;
+                }
+            }
+
+            if (onUpdateMaterialSettingRef.current && Object.keys(batch).length > 0) {
+                onUpdateMaterialSettingRef.current(batch, true);
             }
         }
 
         const sig = `${modelName || ''}_${selMat ? (selMat.uuid || selMat.name) : 'FULL'}`;
         setSyncedSelectionSignature(sig);
 
-    }, [selectedMaterial, scene, modelName, resolveTargetMaterial, transformMode]);
+    }, [selectedMaterial, scene, modelName, resolveTargetMaterial, transformMode, resetKey]);
 
     // 1. Initial Setup: Centering, Scaling, Stats, Material Naming
     useLayoutEffect(() => {
@@ -1536,44 +1169,54 @@ const GenericModel = React.memo(React.forwardRef(({
                     if (!m.userData.originalNormalMap && m.normalMap) m.userData.originalNormalMap = m.normalMap;
                     if (!m.userData.originalAlphaMap && m.alphaMap) m.userData.originalAlphaMap = m.alphaMap;
 
-                    if (!materialDataMap[m.name]) {
-                        const extractTexture = (tex) => getTextureSource(tex);
-                        const nativeMaps = {};
-                        const baseSrc = extractTexture(m.map);
-                        if (baseSrc) nativeMaps.map = baseSrc;
-                        const normSrc = extractTexture(m.normalMap);
-                        if (normSrc) nativeMaps.normalMap = normSrc;
-                        const roughSrc = extractTexture(m.roughnessMap);
-                        if (roughSrc) nativeMaps.roughnessMap = roughSrc;
-                        const metalSrc = extractTexture(m.metalnessMap);
-                        if (metalSrc) nativeMaps.metalnessMap = metalSrc;
-                        const emissiveSrc = extractTexture(m.emissiveMap);
-                        if (emissiveSrc) nativeMaps.emissiveMap = emissiveSrc;
-                        const aoSrc = extractTexture(m.aoMap);
-                        if (aoSrc) nativeMaps.aoMap = aoSrc;
-                        const bumpSrc = extractTexture(m.bumpMap);
-                        if (bumpSrc) nativeMaps.bumpMap = bumpSrc;
-                        const dispSrc = extractTexture(m.displacementMap);
-                        if (dispSrc) nativeMaps.displacementMap = dispSrc;
-                        const alphaSrc = extractTexture(m.alphaMap);
-                        if (alphaSrc) nativeMaps.alphaMap = alphaSrc;
+                    const extractTexture = (tex) => getTextureSource(tex);
+                    const nativeMaps = {};
+                    const baseSrc = extractTexture(m.map);
+                    if (baseSrc) nativeMaps.map = baseSrc;
+                    const normSrc = extractTexture(m.normalMap);
+                    if (normSrc) nativeMaps.normalMap = normSrc;
+                    const roughSrc = extractTexture(m.roughnessMap);
+                    if (roughSrc) nativeMaps.roughnessMap = roughSrc;
+                    const metalSrc = extractTexture(m.metalnessMap);
+                    if (metalSrc) nativeMaps.metalnessMap = metalSrc;
+                    const emissiveSrc = extractTexture(m.emissiveMap);
+                    if (emissiveSrc) nativeMaps.emissiveMap = emissiveSrc;
+                    const aoSrc = extractTexture(m.aoMap);
+                    if (aoSrc) nativeMaps.aoMap = aoSrc;
+                    const bumpSrc = extractTexture(m.bumpMap);
+                    if (bumpSrc) nativeMaps.bumpMap = bumpSrc;
+                    const dispSrc = extractTexture(m.displacementMap);
+                    if (dispSrc) nativeMaps.displacementMap = dispSrc;
+                    const alphaSrc = extractTexture(m.alphaMap);
+                    if (alphaSrc) nativeMaps.alphaMap = alphaSrc;
 
-                        const data = {
-                            color: '#' + (m.color ? m.color.getHexString() : 'ffffff'),
-                            metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
-                            roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
-                            opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
-                            scale: m.map && m.map.repeat ? Math.round(100 / (m.map.repeat.x || 1)) : 100,
-                            maps: nativeMaps
-                        };
-                        materialDataMap[m.name] = data;
-                        if (child.name && !materialDataMap[child.name]) {
-                            materialDataMap[child.name] = data;
+                    const data = {
+                        color: '#' + (m.color ? m.color.getHexString() : 'ffffff'),
+                        metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
+                        roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
+                        opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
+                        alpha: m.opacity !== undefined ? m.opacity * 100 : 100,
+                        scale: m.map && m.map.repeat ? Math.round(100 / (m.map.repeat.x || 1)) : 100,
+                        maps: nativeMaps
+                    };
+
+                    const targetKeys = [
+                        m.name,
+                        m.uuid,
+                        m.userData?.baseMaterialName,
+                        m.userData?.initialName,
+                        child.name,
+                        child.uuid,
+                        child.userData?.meshUuid,
+                        child.userData?.initialUuid,
+                        child.userData?.initialName
+                    ].filter(Boolean);
+
+                    targetKeys.forEach(k => {
+                        if (!materialDataMap[k]) {
+                            materialDataMap[k] = data;
                         }
-                        if (child.uuid && !materialDataMap[child.uuid]) {
-                            materialDataMap[child.uuid] = data;
-                        }
-                    }
+                    });
                 });
             }
         });
@@ -1857,7 +1500,7 @@ const GenericModel = React.memo(React.forwardRef(({
     }, [scene, xrayMode, xrayMaterials, materialSettings?.appliedTexture, customizedMaterials, selectedMaterial, modelName]);
 
     const prevTransformTargetRef = React.useRef(null);
-    const lastTransformResetKeyRef = React.useRef(resetKey);
+    const lastTransformResetKeyRef = React.useRef(transformResetKey || resetKey);
 
     // Initial Transforms Capture
     useEffect(() => {
@@ -1919,7 +1562,7 @@ const GenericModel = React.memo(React.forwardRef(({
         if (transformTarget && transformTarget !== modelGroup) {
             updatePivotToTarget(transformTarget, relatedMeshesRef.current);
         }
-    }, [meshTransforms, resetKey, scene, transformTarget, modelGroup, updatePivotToTarget, selectedMaterial]);
+    }, [meshTransforms, transformResetKey, resetKey, scene, transformTarget, modelGroup, updatePivotToTarget, selectedMaterial]);
 
     // Determine Transform Target & Pivot
     useEffect(() => {
@@ -2001,8 +1644,9 @@ const GenericModel = React.memo(React.forwardRef(({
 
     // Sync transformValues to active target
     useEffect(() => {
-        const isResetOrUndo = resetKey !== lastTransformResetKeyRef.current;
-        lastTransformResetKeyRef.current = resetKey;
+        const activeKey = transformResetKey || resetKey;
+        const isResetOrUndo = activeKey !== lastTransformResetKeyRef.current;
+        lastTransformResetKeyRef.current = activeKey;
 
         if (!transformTarget) {
             prevTransformTargetRef.current = null;
@@ -2044,7 +1688,7 @@ const GenericModel = React.memo(React.forwardRef(({
         transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z,
         transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
         transformValues?.scale?.x, transformValues?.scale?.y, transformValues?.scale?.z,
-        selectedMaterial, modelName, resetKey, modelGroup, scene, updatePivotToTarget]);
+        selectedMaterial, modelName, transformResetKey, resetKey, modelGroup, scene, updatePivotToTarget]);
 
     // Scene-Wide Reset Effect
     useEffect(() => {
