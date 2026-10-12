@@ -166,25 +166,11 @@ const Navbar = ({ onExport, onSave, onSaveAs, onPreview, onPublish, onClearFlipb
                 My Flipbook
               </Link>
               <Link 
-                to="/features" 
-                onClick={(e) => handleLinkClick(e, '/features')}
-                className={`hidden 2xl:block ${isActive('/features') ? activeLinkStyle : baseLinkStyle}`}
-              >
-                Features
-              </Link>
-              <Link 
                 to="/support" 
                 onClick={(e) => handleLinkClick(e, '/support')}
                 className={`hidden 2xl:block ${isActive('/support') ? activeLinkStyle : baseLinkStyle}`}
               >
                 Support
-              </Link>
-              <Link 
-                to="/help" 
-                onClick={(e) => handleLinkClick(e, '/help')}
-                className={`hidden 2xl:block ${isActive('/help') ? activeLinkStyle : baseLinkStyle}`}
-              >
-                Help
               </Link>
             </div>
           )}
