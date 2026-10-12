@@ -61,10 +61,10 @@ export default function DashboardNavbar() {
     { name: 'Templates', path: '/templates' },
     { name: '3D Editor', path: '/3d-editor' },
     { name: 'Explore', path: '/explore' },
-    { name: 'Features', path: '#' },
+    { name: 'Forum', path: '/forum' },
+    { name: 'Tickets', path: '/tickets' },
     { name: 'About Us', path: '/about' },
     { name: 'Contact Us', path: '/contact' },
-    { name: 'Help', path: '#' },
     // { name: 'Settings', path: '/settings' },
   ];
 

@@ -19,6 +19,7 @@ import exploreRoutes from "./routes/Explore/explore.js";
 import profileRoutes from "./routes/User_Details/profile.js";
 import activityRoutes from "./routes/User_Details/activity.js";
 import presetsRoutes from "./routes/Presets/presets.js";
+import { analyticsRoutes } from "./analytics_tracking/index.js";
 import { seedPresets } from "./utils/seedPresets.js";
 import compression from "compression";
 import fs from "fs";
@@ -249,6 +250,7 @@ app.use("/api/explore", exploreRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/presets", presetsRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 import { startBackgroundTempCleaner } from "./utils/tempCleaner.js";
 

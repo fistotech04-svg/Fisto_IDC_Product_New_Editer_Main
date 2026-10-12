@@ -7,11 +7,13 @@ export default function MainLayout() {
   const isHomePage = location.pathname === '/home' || location.pathname === '/';
   const isTemplatesPage = location.pathname.startsWith('/templates');
   const is3dDashboard = location.pathname.includes('3d-editor') || location.pathname.includes('threed-dashboard');
+  const isForumPage = location.pathname.startsWith('/forum');
+  const isTicketsPage = location.pathname.startsWith('/tickets');
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <DashboardNavbar />
-      <div className={`flex-1 overflow-x-hidden scroll-smooth ${isHomePage ? 'snap-y snap-proximity' : ''} ${isTemplatesPage || is3dDashboard ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
+      <div className={`flex-1 overflow-x-hidden scroll-smooth ${isHomePage ? 'snap-y snap-proximity' : ''} ${isTemplatesPage || is3dDashboard || isForumPage || isTicketsPage ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
         <Outlet />
       </div>
     </div>

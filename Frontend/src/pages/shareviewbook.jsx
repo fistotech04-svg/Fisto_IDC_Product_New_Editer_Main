@@ -390,32 +390,110 @@ const ShareViewBook = () => {
         return 'http://localhost:5000';
     };
 
-    // Auto-record page view count once per flipbook load for unique viewers
+    // Analytics Session & View Tracking
     const hasRecordedViewRef = useRef(false);
-    useEffect(() => {
-        if (bookData && shareId && !hasRecordedViewRef.current) {
-            hasRecordedViewRef.current = true;
-            const backendUrl = getBackendUrl();
-            let viewerId = '';
-            try {
-                viewerId = localStorage.getItem('flipbook_viewer_id') || '';
-                if (!viewerId) {
-                    viewerId = 'v_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
-                    localStorage.setItem('flipbook_viewer_id', viewerId);
-                }
-            } catch (e) {}
+    const sessionStartTimeRef = useRef(Date.now());
+    const sessionIdRef = useRef('sess_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36));
+    const sessionEndedRef = useRef(false);
 
-            axios.post(`${backendUrl}/api/flipbook/public/view/${shareId}`, {
-                userEmail: currentUserEmail || '',
-                viewerId: viewerId
-            })
-                .then(res => {
-                    if (res.data?.viewsCount !== undefined) {
-                        setViewsCount(res.data.viewsCount);
-                    }
-                })
-                .catch(() => {});
+    useEffect(() => {
+        if (!bookData || !shareId || hasRecordedViewRef.current) return;
+        hasRecordedViewRef.current = true;
+        sessionStartTimeRef.current = Date.now();
+
+        const backendUrl = getBackendUrl();
+        const bookVid = bookData?.v_id || shareId;
+        const totalPages = bookData?.pages?.length || 1;
+
+        // 1. Record Session Start (Captures IP, Location, Device, Referrer)
+        axios.post(`${backendUrl}/api/analytics/session-start`, {
+            v_id: bookVid,
+            shareId: shareId,
+            sessionId: sessionIdRef.current,
+            totalPages: totalPages,
+            referrer: document.referrer || 'Direct'
+        }).then(res => {
+            if (res.data?.success) {
+                // Also optionally refresh viewsCount
+                setViewsCount(prev => prev + 1);
+            }
+        }).catch(err => {
+            console.warn("[Analytics Start Warning]:", err?.message);
+        });
+
+        // Also ping legacy endpoint to ensure viewsCount field stays synchronized
+        let viewerId = '';
+        try {
+            viewerId = localStorage.getItem('flipbook_viewer_id') || '';
+            if (!viewerId) {
+                viewerId = 'v_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+                localStorage.setItem('flipbook_viewer_id', viewerId);
+            }
+        } catch {
+            // ignore localStorage error
         }
+
+        axios.post(`${backendUrl}/api/flipbook/public/view/${shareId}`, {
+            userEmail: currentUserEmail || '',
+            viewerId: viewerId
+        }).then(res => {
+            if (res.data?.viewsCount !== undefined) {
+                setViewsCount(res.data.viewsCount);
+            }
+        }).catch(() => {});
+
+        // 2. Periodic Duration Heartbeat every 15 seconds
+        const heartbeatInterval = setInterval(() => {
+            if (sessionEndedRef.current) return;
+            const elapsed = Math.round((Date.now() - sessionStartTimeRef.current) / 1000);
+            axios.post(`${backendUrl}/api/analytics/heartbeat`, {
+                sessionId: sessionIdRef.current,
+                durationSeconds: elapsed,
+                currentPage: 1
+            }).catch(() => {});
+        }, 15000);
+
+        // 3. Exit Beacon on tab close, hide, or navigate away
+        const sendExitAnalytics = () => {
+            if (sessionEndedRef.current) return;
+            sessionEndedRef.current = true;
+            const elapsed = Math.round((Date.now() - sessionStartTimeRef.current) / 1000);
+            const beaconPayload = JSON.stringify({
+                sessionId: sessionIdRef.current,
+                durationSeconds: elapsed
+            });
+
+            const endUrl = `${backendUrl}/api/analytics/session-end`;
+            if (navigator.sendBeacon) {
+                const blob = new Blob([beaconPayload], { type: 'application/json' });
+                navigator.sendBeacon(endUrl, blob);
+            } else {
+                fetch(endUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: beaconPayload,
+                    keepalive: true
+                }).catch(() => {});
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                sendExitAnalytics();
+            }
+        };
+
+        window.addEventListener('beforeunload', sendExitAnalytics);
+        window.addEventListener('pagehide', sendExitAnalytics);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(heartbeatInterval);
+            sendExitAnalytics();
+            window.removeEventListener('beforeunload', sendExitAnalytics);
+            window.removeEventListener('pagehide', sendExitAnalytics);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [bookData, shareId, currentUserEmail]);
 
     // Helper to render dynamic star ratings
