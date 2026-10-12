@@ -8,12 +8,23 @@ import {
   RotateCw, 
   ChevronDown,
   ArrowRight,
-  Minus
+  Minus,
+  Receipt
 } from 'lucide-react';
+import InvoiceModal from '../components/InvoiceModal';
 
 const Pricing = () => {
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'annual'
   const isAnnual = billingCycle === 'annual';
+
+  // Invoice modal state
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [invoicePlan, setInvoicePlan] = useState('standard');
+
+  const openInvoiceForPlan = (planKey) => {
+    setInvoicePlan(planKey);
+    setIsInvoiceOpen(true);
+  };
 
   // State for exclusive FAQ accordion
   const [openFaqIndex, setOpenFaqIndex] = useState(0); // default first item open
@@ -72,7 +83,7 @@ const Pricing = () => {
             </div>
           </div>
 
-          {/* Trust Badges */}
+          {/* Trust Badges & Quick Invoice Trigger */}
           <div className="pt-2 sm:pt-3 lg:pt-[0.8vw] flex flex-wrap items-center justify-center gap-4 sm:gap-8 lg:gap-[2.2vw] text-xs sm:text-sm lg:text-[0.88vw] font-medium text-slate-600">
             <div className="flex items-center gap-2 lg:gap-[0.5vw]">
               <div className="w-6 sm:w-7 lg:w-[1.8vw] h-6 sm:h-7 lg:h-[1.8vw] rounded-full bg-[#ea7233] text-white flex items-center justify-center shadow-sm shrink-0">
@@ -94,6 +105,16 @@ const Pricing = () => {
               </div>
               <span>Secure &amp; reliable</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => openInvoiceForPlan('standard')}
+              className="flex items-center gap-1.5 lg:gap-[0.4vw] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-orange-50 border border-[#ea7233]/40 text-[#ea7233] hover:bg-[#ea7233] hover:text-white transition-all font-semibold shadow-xs cursor-pointer group"
+              title="Preview official Flipibook invoice for your business"
+            >
+              <Receipt className="w-3.5 sm:w-4 h-3.5 sm:h-4 transition-transform group-hover:scale-110" />
+              <span>Preview Invoice</span>
+            </button>
           </div>
         </div>
       </section>
@@ -127,12 +148,22 @@ const Pricing = () => {
               </div>
 
               {/* Action Button */}
-              <Link
-                to="/signup"
-                className="w-full py-2.5 sm:py-3 lg:py-[0.7vw] px-4 sm:px-6 lg:px-[1.5vw] rounded-xl lg:rounded-[0.8vw] border-2 border-[#ea7233] text-[#ea7233] font-bold text-xs sm:text-sm lg:text-[0.9vw] text-center block hover:bg-orange-50 transition-colors mb-6 sm:mb-8 lg:mb-[1.8vw]"
-              >
-                Get Started
-              </Link>
+              <div className="space-y-2 mb-6 sm:mb-8 lg:mb-[1.8vw]">
+                <Link
+                  to="/signup"
+                  className="w-full py-2.5 sm:py-3 lg:py-[0.7vw] px-4 sm:px-6 lg:px-[1.5vw] rounded-xl lg:rounded-[0.8vw] border-2 border-[#ea7233] text-[#ea7233] font-bold text-xs sm:text-sm lg:text-[0.9vw] text-center block hover:bg-orange-50 transition-colors"
+                >
+                  Get Started
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => openInvoiceForPlan('free')}
+                  className="w-full py-1.5 sm:py-2 px-3 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-semibold text-xs lg:text-[0.8vw] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-[#ea7233]" />
+                  <span>View Sample Invoice</span>
+                </button>
+              </div>
 
               {/* Features List */}
               <div className="space-y-3 lg:space-y-[0.8vw]">
@@ -196,12 +227,22 @@ const Pricing = () => {
               </div>
 
               {/* Action Button */}
-              <Link
-                to="/signup"
-                className="w-full py-2.5 sm:py-3 lg:py-[0.7vw] px-4 sm:px-6 lg:px-[1.5vw] rounded-xl lg:rounded-[0.8vw] bg-[#ea7233] hover:bg-[#d65a1c] text-white font-bold text-xs sm:text-sm lg:text-[0.9vw] text-center block shadow-md shadow-orange-500/20 transition-all mb-6 sm:mb-8 lg:mb-[1.8vw]"
-              >
-                Upgrade Now
-              </Link>
+              <div className="space-y-2 mb-6 sm:mb-8 lg:mb-[1.8vw]">
+                <Link
+                  to="/signup"
+                  className="w-full py-2.5 sm:py-3 lg:py-[0.7vw] px-4 sm:px-6 lg:px-[1.5vw] rounded-xl lg:rounded-[0.8vw] bg-[#ea7233] hover:bg-[#d65a1c] text-white font-bold text-xs sm:text-sm lg:text-[0.9vw] text-center block shadow-md shadow-orange-500/20 transition-all"
+                >
+                  Upgrade Now
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => openInvoiceForPlan('standard')}
+                  className="w-full py-1.5 sm:py-2 px-3 rounded-lg text-[#ea7233] hover:bg-orange-100/60 font-semibold text-xs lg:text-[0.8vw] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-[#ea7233]" />
+                  <span>View Sample Invoice</span>
+                </button>
+              </div>
 
               {/* Features List */}
               <div className="space-y-3 lg:space-y-[0.8vw]">
@@ -263,12 +304,22 @@ const Pricing = () => {
               </div>
 
               {/* Action Button */}
-              <Link
-                to="/signup"
-                className="w-full py-2.5 sm:py-3 lg:py-[0.7vw] px-4 sm:px-6 lg:px-[1.5vw] rounded-xl lg:rounded-[0.8vw] border-2 border-[#ea7233] text-[#ea7233] font-bold text-xs sm:text-sm lg:text-[0.9vw] text-center block hover:bg-orange-50 transition-colors mb-6 sm:mb-8 lg:mb-[1.8vw]"
-              >
-                Go Premium
-              </Link>
+              <div className="space-y-2 mb-6 sm:mb-8 lg:mb-[1.8vw]">
+                <Link
+                  to="/signup"
+                  className="w-full py-2.5 sm:py-3 lg:py-[0.7vw] px-4 sm:px-6 lg:px-[1.5vw] rounded-xl lg:rounded-[0.8vw] border-2 border-[#ea7233] text-[#ea7233] font-bold text-xs sm:text-sm lg:text-[0.9vw] text-center block hover:bg-orange-50 transition-colors"
+                >
+                  Go Premium
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => openInvoiceForPlan('premium')}
+                  className="w-full py-1.5 sm:py-2 px-3 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-semibold text-xs lg:text-[0.8vw] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-[#ea7233]" />
+                  <span>View Sample Invoice</span>
+                </button>
+              </div>
 
               {/* Features List */}
               <div className="space-y-3 lg:space-y-[0.8vw]">
@@ -648,6 +699,16 @@ const Pricing = () => {
       {/* 6. FOOTER */}
       {/* ------------------------------------------------------------- */}
       <Footer />
+
+      {/* ------------------------------------------------------------- */}
+      {/* INVOICE MODAL POPUP */}
+      {/* ------------------------------------------------------------- */}
+      <InvoiceModal
+        isOpen={isInvoiceOpen}
+        onClose={() => setIsInvoiceOpen(false)}
+        defaultPlan={invoicePlan}
+        isAnnual={isAnnual}
+      />
 
     </div>
   );

@@ -39,6 +39,7 @@
     "framer-motion": "^12.31.0",
     "gifuct-js": "^2.1.2",
     "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.5.2",
     "install": "^0.13.0",
     "interactjs": "^1.10.27",
     "jquery": "^3.7.1",
