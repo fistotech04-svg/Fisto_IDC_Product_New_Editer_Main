@@ -374,20 +374,7 @@ const ShareViewBook = () => {
     }, [bookData, error]);
 
     const getBackendUrl = () => {
-        if (import.meta.env.VITE_BACKEND_URL) {
-            return import.meta.env.VITE_BACKEND_URL;
-        }
-        const origin = window.location.origin;
-        if (origin.includes('devtunnels.ms')) {
-            return origin.replace('-5173', '-5000');
-        }
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-            const portMatch = origin.match(/:(\d+)/);
-            if (portMatch) {
-                return origin.replace(portMatch[0], ':5000');
-            }
-        }
-        return 'http://localhost:5000';
+        return (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
     };
 
     // Analytics Session & View Tracking
