@@ -161,6 +161,8 @@ router.post('/google-login', async (req, res) => {
       user: {
         emailId: user.emailId,
         userFolder: user.userFolder,
+        role: user.role || 'user',
+        isAdmin: (user.role === 'admin'),
         createdAt: user.createdAt,
         picture: profile?.picture || finalPictureUrl || picture || null,
         name: profile?.name || name || user.emailId.split('@')[0],
@@ -336,6 +338,8 @@ router.post('/signup', async (req, res) => {
         name: profile?.name || newUser.emailId.split('@')[0],
         picture: profile?.picture || null,
         avatarBgColor: profile?.avatarBgColor || '#E8D4C8',
+        role: newUser.role || 'user',
+        isAdmin: (newUser.role === 'admin'),
         userFolder: sanitizedEmail,
         createdAt: newUser.createdAt
       }
@@ -378,6 +382,8 @@ router.post('/login', async (req, res) => {
       user: {
         emailId: user.emailId,
         userFolder: user.userFolder,
+        role: user.role || 'user',
+        isAdmin: (user.role === 'admin'),
         createdAt: user.createdAt,
         picture: profile?.picture || null,
         name: profile?.name || user.emailId.split('@')[0],
@@ -538,6 +544,52 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   PUT /api/auth/set-role
+// @desc    Update role of a user (e.g. promote to admin)
+// @access  Public / Admin
+router.put('/set-role', async (req, res) => {
+  try {
+    const { emailId, role } = req.body;
+    if (!emailId || !role) {
+      return res.status(400).json({ success: false, message: 'emailId and role are required' });
+    }
+
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'role must be either "user" or "admin"' });
+    }
+
+    const normalizedEmail = emailId.trim().toLowerCase();
+    const user = await User.findOneAndUpdate(
+      { emailId: normalizedEmail },
+      { role },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Also sync to Profile model if exists
+    await Profile.findOneAndUpdate(
+      { emailId: normalizedEmail },
+      { role }
+    );
+
+    res.json({
+      success: true,
+      message: `User ${normalizedEmail} role updated to ${role}`,
+      user: {
+        emailId: user.emailId,
+        role: user.role,
+        isAdmin: user.role === 'admin'
+      }
+    });
+  } catch (error) {
+    console.error('Update Role Error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 

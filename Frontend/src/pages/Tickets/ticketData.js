@@ -55,12 +55,101 @@ export const TICKET_PRIORITIES = [
 export const TICKET_STATUSES = [
   { id: 'all', label: 'All Status' },
   { id: 'open', label: 'Open', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+  { id: 'answered', label: 'Answered', color: 'bg-black text-white border-black', dot: 'bg-emerald-400' },
   { id: 'in_progress', label: 'In Progress', color: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
   { id: 'resolved', label: 'Resolved', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
   { id: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-400' }
 ];
 
 export const INITIAL_TICKETS = [
+  {
+    id: '8924',
+    subject: 'Fist-o IDC Hotspot Not Triggering WebAR',
+    moduleId: '3d-editor',
+    moduleName: 'IDC Support',
+    department: 'IDC Support',
+    priority: 'medium',
+    status: 'answered',
+    requester: {
+      name: 'Atchaya Rajendran',
+      role: 'Project Coordinator',
+      company: 'Fist-o',
+      location: 'Coimbatore, Tamil Nadu, India',
+      email: 'atchaya@fist-o.com',
+      badge: 'Authorized User',
+      avatarColor: '#1e293b'
+    },
+    ccRecipients: [
+      'atchaya@fist-o.com',
+      'project.manager@fist-o.com',
+      'dev.team@flipibook.com'
+    ],
+    submittedAt: 'Monday, October 12th, 2026 (10:15)',
+    lastUpdated: '2 hours ago',
+    description: `Hi Support Team,
+
+We are facing a critical issue with the Sri Mathurams Medical Engineering interactive catalogue.
+
+On page 4, when clicking the hotspot for the 'Surgical Equipment' model, it fails to trigger the 8th Wall WebAR experience on mobile devices (tested on both iOS Safari and Android Chrome). It briefly shows a loading spinner and then the screen remains blank or crashes.
+
+The desktop preview seems fine, but the AR camera module is completely broken on mobile. Please look into this urgently as the client is waiting to review the AR module.
+
+Best Regards,
+
+Atchaya Rajendran
+Project Coordinator
+Fist-o
+Coimbatore, Tamil Nadu, India`,
+    attachments: [],
+    messages: [
+      {
+        id: 'msg-staff-1',
+        sender: 'agent',
+        authorName: 'Flipibook Tech Support',
+        badge: 'Operator',
+        subRole: 'Staff',
+        timestamp: 'Monday, October 12th, 2026 (12:30)',
+        content: `Hello Atchaya,
+
+The 3D model asset has been optimized and the WebAR hotspot is now functional.
+
+We have investigated the issue on page 4 of the Sri Mathurams Medical Engineering catalogue. The 3D model asset (GLB file) assigned to the 'Surgical Equipment' hotspot was exceeding our 15MB recommended file size limit for mobile browsers. This caused the 8th Wall WebAR engine to time out on mobile devices.
+
+Our team has successfully compressed the 3D asset down to 4.2MB without losing visual fidelity and updated the catalogue environment.
+
+Kindly clear your mobile browser cache and test the hotspot again. Let us know if you face any further issues.
+
+Thank you.
+
+~ R e g a r d s ~
+AR/VR Development Team
+Flipibook Interactive
+www.flipibook.com`
+      },
+      {
+        id: 'msg-user-1',
+        sender: 'user',
+        authorName: 'Atchaya Rajendran',
+        badge: 'Authorized User',
+        email: 'atchaya@fist-o.com',
+        timestamp: 'Monday, October 12th, 2026 (10:15)',
+        content: `Hi Support Team,
+
+We are facing a critical issue with the Sri Mathurams Medical Engineering interactive catalogue.
+
+On page 4, when clicking the hotspot for the 'Surgical Equipment' model, it fails to trigger the 8th Wall WebAR experience on mobile devices (tested on both iOS Safari and Android Chrome). It briefly shows a loading spinner and then the screen remains blank or crashes.
+
+The desktop preview seems fine, but the AR camera module is completely broken on mobile. Please look into this urgently as the client is waiting to review the AR module.
+
+Best Regards,
+
+Atchaya Rajendran
+Project Coordinator
+Fist-o
+Coimbatore, Tamil Nadu, India`
+      }
+    ]
+  },
   {
     id: 'TICK-1082',
     subject: 'PDF conversion timeout error on large catalog file (75MB)',
@@ -208,7 +297,7 @@ export const INITIAL_TICKETS = [
   }
 ];
 
-const LOCAL_STORAGE_KEY = 'flipibook_support_tickets_v1';
+const LOCAL_STORAGE_KEY = 'flipibook_support_tickets_v2';
 
 export const getStoredTickets = () => {
   try {

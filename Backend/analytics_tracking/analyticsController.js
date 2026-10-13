@@ -345,8 +345,8 @@ export const getFlipbookAnalytics = async (req, res) => {
     // 9. Recent Visitor Sessions
     const recentSessions = await FlipbookSessionAnalytics.find(baseFilter)
       .sort({ startedAt: -1 })
-      .limit(10)
-      .select("sessionId location device durationSeconds maxPageReached startedAt")
+      .limit(200)
+      .select("sessionId v_id flipbookName location device durationSeconds maxPageReached totalPages startedAt endedAt")
       .lean();
 
     return res.status(200).json({
@@ -379,12 +379,18 @@ export const getFlipbookAnalytics = async (req, res) => {
 export const getUserAnalytics = async (req, res) => {
   try {
     const { userEmail } = req.params;
+    const { days = 30 } = req.query;
 
     if (!userEmail) {
       return res.status(400).json({ success: false, message: "userEmail is required" });
     }
 
+    const daysNum = Math.min(365, Math.max(1, parseInt(days, 10) || 30));
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - daysNum);
+
     const filter = { userEmail };
+    const dateFilter = { userEmail, startedAt: { $gte: sinceDate } };
 
     const totalViews = await FlipbookSessionAnalytics.countDocuments(filter);
     const uniqueIps = await FlipbookSessionAnalytics.distinct("location.ip", filter);
@@ -454,6 +460,26 @@ export const getUserAnalytics = async (req, res) => {
       }
     ]);
 
+    // Daily views across all books
+    const dailyViews = await FlipbookSessionAnalytics.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$startedAt" } },
+          views: { $sum: 1 },
+          avgDuration: { $avg: "$durationSeconds" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Recent visitor sessions across all books
+    const recentSessions = await FlipbookSessionAnalytics.find(filter)
+      .sort({ startedAt: -1 })
+      .limit(200)
+      .select("sessionId v_id flipbookName location device durationSeconds maxPageReached totalPages startedAt endedAt")
+      .lean();
+
     return res.status(200).json({
       success: true,
       userEmail,
@@ -480,7 +506,9 @@ export const getUserAnalytics = async (req, res) => {
       devices: devices.map(d => ({
         type: d._id || "Desktop",
         views: d.views
-      }))
+      })),
+      dailyViews,
+      recentSessions
     });
   } catch (err) {
     console.error("[Analytics getUserAnalytics Error]:", err);

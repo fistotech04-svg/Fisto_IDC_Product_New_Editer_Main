@@ -102,10 +102,21 @@ router.get('/', async (req, res) => {
       });
       await profile.save();
     }
+    // Check role in User auth model
+    const userAuth = await User.findOne({ emailId: normalizedEmail });
+    const userRole = userAuth?.role || profile.role || 'user';
+    const isAdmin = (userRole === 'admin');
+
     res.json({
       success: true,
-      profile: profile,
-      ...profile.toObject()
+      profile: {
+        ...profile.toObject(),
+        role: userRole,
+        isAdmin
+      },
+      ...profile.toObject(),
+      role: userRole,
+      isAdmin
     });
   } catch (error) {
     console.error('Error fetching profile:', error);

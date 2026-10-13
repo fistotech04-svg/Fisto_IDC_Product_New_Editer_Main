@@ -4,12 +4,20 @@ import {
   X, 
   Send, 
   Paperclip, 
-  Clock, 
-  CheckCircle2, 
-  ShieldCheck, 
+  ChevronUp, 
+  ChevronDown, 
+  Reply, 
+  Plus, 
+  Star, 
   User, 
-  MessageSquare,
-  AlertCircle
+  HelpCircle, 
+  FileText, 
+  Download, 
+  Activity, 
+  Radio, 
+  Tag,
+  CheckCircle2,
+  Trash2
 } from 'lucide-react';
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './ticketData';
 
@@ -21,13 +29,41 @@ export default function TicketDetailModal({
   onUpdateStatus, 
   currentUser 
 }) {
+  const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // CC Recipients input state
+  const [ccList, setCcList] = useState(() => {
+    return ticket?.ccRecipients || [
+      'atchaya@fist-o.com',
+      'project.manager@fist-o.com',
+      'dev.team@flipibook.com'
+    ];
+  });
+  const [newCcEmail, setNewCcEmail] = useState('');
+
+  // Accordion collapsibles
+  const [infoOpen, setInfoOpen] = useState(true);
+  const [ccOpen, setCcOpen] = useState(true);
+  const [supportOpen, setSupportOpen] = useState(true);
+
   if (!isOpen || !ticket) return null;
 
-  const priorityObj = TICKET_PRIORITIES.find(p => p.id === ticket.priority) || TICKET_PRIORITIES[1];
-  const statusObj = TICKET_STATUSES.find(s => s.id === ticket.status) || TICKET_STATUSES[1];
+  const priorityObj = TICKET_PRIORITIES.find(p => p.id === ticket.priority) || { label: 'Medium' };
+  const statusLabel = ticket.status === 'answered' ? 'Answered' : (ticket.status || 'Open');
+
+  const handleAddCc = (e) => {
+    e.preventDefault();
+    if (newCcEmail.trim() && !ccList.includes(newCcEmail.trim())) {
+      setCcList([...ccList, newCcEmail.trim()]);
+      setNewCcEmail('');
+    }
+  };
+
+  const handleRemoveCc = (emailToRemove) => {
+    setCcList(ccList.filter(e => e !== emailToRemove));
+  };
 
   const handleReplySubmit = (e) => {
     e.preventDefault();
@@ -37,7 +73,9 @@ export default function TicketDetailModal({
     const newMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
-      authorName: currentUser?.name || currentUser?.email?.split('@')[0] || 'You',
+      authorName: currentUser?.name || ticket.requester?.name || 'Authorized User',
+      badge: 'Authorized User',
+      email: currentUser?.email || ticket.requester?.email || 'atchaya@fist-o.com',
       timestamp: 'Just now',
       content: replyText.trim()
     };
@@ -46,151 +84,355 @@ export default function TicketDetailModal({
       onAddMessage(ticket.id, newMessage);
       setReplyText('');
       setIsSubmitting(false);
+      setShowReplyForm(false);
     }, 200);
   };
 
+  const allMessages = ticket.messages && ticket.messages.length > 0
+    ? ticket.messages
+    : [
+        {
+          id: 'initial',
+          sender: 'user',
+          authorName: ticket.requester?.name || 'Requester',
+          badge: 'Authorized User',
+          email: ticket.requester?.email || '',
+          timestamp: ticket.submittedAt || 'Earlier',
+          content: ticket.description
+        }
+      ];
+
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-[2px] animate-in fade-in duration-150 overflow-y-auto">
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-200"
+        className="bg-white rounded-lg shadow-2xl w-full max-w-6xl my-auto flex flex-col border border-slate-200 overflow-hidden text-slate-800"
         role="dialog"
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/70">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-800">
-              #{ticket.id}
-            </span>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${priorityObj.color}`}>
-              {priorityObj.label} Priority
-            </span>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${statusObj.color}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`}></span>
-              {statusObj.label}
-            </span>
+        {/* Top Title & Close Bar */}
+        <div className="bg-[#f8fafc] px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex flex-col">
+            <h1 className="text-xl sm:text-2xl font-normal text-[#2563eb] tracking-tight">
+              Ticket #{ticket.id} - Sub : {ticket.subject}
+            </h1>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 font-sans">
+              <span className="hover:text-slate-600 cursor-pointer">Portal Home</span>
+              <span>/</span>
+              <span className="hover:text-slate-600 cursor-pointer">Client Area</span>
+              <span>/</span>
+              <span className="hover:text-slate-600 cursor-pointer">Support Tickets</span>
+              <span>/</span>
+              <span className="text-slate-600 font-medium">View Ticket</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {ticket.status !== 'resolved' && (
-              <button
-                onClick={() => onUpdateStatus(ticket.id, 'resolved')}
-                className="px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <CheckCircle2 size={13} />
-                <span>Mark Resolved</span>
-              </button>
-            )}
-
-            <button 
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-200/50 transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-200/50 transition-colors cursor-pointer"
+            title="Close dialog"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Scrollable Conversation Content */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
-          {/* Ticket Subject & Department */}
-          <div className="border-b border-gray-200 pb-5">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-950 leading-snug">
-              {ticket.subject}
-            </h1>
+        {/* Action Top Bar */}
+        <div className="px-6 py-3 bg-[#e2f1fa]/40 border-b border-sky-100 flex items-center justify-between">
+          <button 
+            onClick={() => setShowReplyForm(!showReplyForm)}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded bg-sky-50 hover:bg-sky-100 text-[#0284c7] font-medium text-sm transition-all border border-sky-200 cursor-pointer shadow-xs"
+          >
+            <Reply size={15} />
+            <span>Reply</span>
+          </button>
 
-            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mt-2.5">
-              <span>Department: <strong className="text-gray-700">{ticket.moduleName}</strong></span>
-              <span>•</span>
-              <span>Opened by: <strong className="text-gray-700">{ticket.requester?.name}</strong> ({ticket.requester?.email})</span>
-              <span>•</span>
-              <span>Assigned to: <strong className="text-gray-700">{ticket.assignedTo?.name}</strong></span>
-            </div>
-          </div>
+          <button 
+            onClick={() => setShowReplyForm(true)}
+            className="text-sky-700 hover:text-sky-900 p-1 rounded transition-colors cursor-pointer"
+            title="Add response"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
 
-          {/* Attachments if any */}
-          {ticket.attachments && ticket.attachments.length > 0 && (
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-2 text-xs">
-              <Paperclip size={14} className="text-gray-400" />
-              <span className="font-semibold text-gray-700">Attachments:</span>
-              {ticket.attachments.map((att, idx) => (
-                <span key={idx} className="bg-white px-2.5 py-1 rounded border border-gray-200 font-mono text-gray-800">
-                  {att}
-                </span>
-              ))}
-            </div>
-          )}
+        {/* Main Content 2-Column Layout */}
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-[#fcfcfc] overflow-y-auto max-h-[calc(88vh-130px)]">
+          {/* Left Column (Ticket Info Sidebar) */}
+          <div className="lg:col-span-4 space-y-4">
+            {/* Box 1: Ticket Information */}
+            <div className="bg-white rounded border border-slate-200 overflow-hidden shadow-xs">
+              <div 
+                onClick={() => setInfoOpen(!infoOpen)}
+                className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between cursor-pointer select-none text-slate-700 font-medium text-xs tracking-wide"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-slate-500" />
+                  <span>Ticket Information</span>
+                </div>
+                {infoOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
 
-          {/* Conversation Timeline */}
-          <div className="space-y-4 pt-2">
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
-              Activity & Response Thread
-            </div>
-
-            {ticket.messages && ticket.messages.map((msg) => {
-              const isAgent = msg.sender === 'agent';
-              return (
-                <div 
-                  key={msg.id}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-                    isAgent 
-                      ? 'bg-blue-50/40 border-blue-200/70' 
-                      : 'bg-white border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-bold ${
-                          isAgent ? 'bg-blue-600' : 'bg-[#ec5137]'
-                        }`}
-                      >
-                        {isAgent ? 'S' : (msg.authorName ? msg.authorName.charAt(0).toUpperCase() : 'U')}
-                      </div>
-                      <span className="text-sm font-bold text-gray-900">
-                        {msg.authorName}
+              {infoOpen && (
+                <div className="p-4 space-y-3.5 text-xs text-slate-600">
+                  <div>
+                    <div className="text-[11px] text-slate-400">Requestor</div>
+                    <div className="mt-0.5 flex items-center gap-2 font-medium text-slate-900">
+                      <span>{ticket.requester?.name || 'Atchaya Rajendran'}</span>
+                      <span className="text-[10px] bg-slate-600 text-white px-1.5 py-0.5 rounded font-normal">
+                        {ticket.requester?.badge || 'Authorized User'}
                       </span>
-                      {isAgent && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
-                          <ShieldCheck size={11} /> Support Staff
-                        </span>
-                      )}
                     </div>
-
-                    <span className="text-xs text-gray-400">
-                      {msg.timestamp}
-                    </span>
                   </div>
 
-                  <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line pl-8">
-                    {msg.content}
-                  </p>
+                  <div>
+                    <div className="text-[11px] text-slate-400">Department</div>
+                    <div className="mt-0.5 font-medium text-slate-800">
+                      {ticket.department || ticket.moduleName || 'IDC Support'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] text-slate-400">Submitted</div>
+                    <div className="mt-0.5 text-slate-700 font-sans">
+                      {ticket.submittedAt || 'Monday, October 12th, 2026 (10:15)'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] text-slate-400">Last Updated</div>
+                    <div className="mt-0.5 text-slate-700 font-sans">
+                      {ticket.lastUpdated || '2 hours ago'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] text-slate-400">Status/Priority</div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="bg-black text-white px-2 py-0.5 rounded text-[11px] font-bold tracking-tight">
+                        {statusLabel}
+                      </span>
+                      <span className="text-slate-700 font-medium">
+                        {priorityObj.label || 'Medium'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowReplyForm(true)}
+                      className="flex-1 py-1.5 px-3 rounded bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Reply size={13} />
+                      <span>Reply</span>
+                    </button>
+
+                    <button 
+                      onClick={() => onUpdateStatus(ticket.id, 'closed')}
+                      className="flex-1 py-1.5 px-3 rounded bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <X size={13} />
+                      <span>Close</span>
+                    </button>
+                  </div>
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            {/* Box 2: CC Recipients */}
+            <div className="bg-white rounded border border-slate-200 overflow-hidden shadow-xs">
+              <div 
+                onClick={() => setCcOpen(!ccOpen)}
+                className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between cursor-pointer select-none text-slate-700 font-medium text-xs tracking-wide"
+              >
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-slate-500" />
+                  <span>CC Recipients</span>
+                </div>
+                {ccOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
+
+              {ccOpen && (
+                <div className="p-4 space-y-2.5 text-xs">
+                  <div className="space-y-1.5">
+                    {ccList.map((email, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-slate-700 group hover:text-slate-900 py-0.5">
+                        <span className="truncate pr-2 font-mono text-[11px]">{email}</span>
+                        <button 
+                          onClick={() => handleRemoveCc(email)}
+                          className="text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                          title="Remove email"
+                        >
+                          <X size={12} className="border border-red-300 rounded-sm p-[1px]" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleAddCc} className="pt-2 flex items-center gap-1">
+                    <input 
+                      type="email"
+                      value={newCcEmail}
+                      onChange={(e) => setNewCcEmail(e.target.value)}
+                      placeholder="Enter Email Address"
+                      className="flex-1 border border-slate-300 rounded px-2.5 py-1 text-xs focus:outline-none focus:border-sky-500"
+                    />
+                    <button 
+                      type="submit"
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded text-xs font-medium text-slate-700 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+
+            {/* Box 3: Support Navigation */}
+            <div className="bg-white rounded border border-slate-200 overflow-hidden shadow-xs">
+              <div 
+                onClick={() => setSupportOpen(!supportOpen)}
+                className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between cursor-pointer select-none text-slate-700 font-medium text-xs tracking-wide"
+              >
+                <div className="flex items-center gap-2">
+                  <HelpCircle size={14} className="text-slate-500" />
+                  <span>Support</span>
+                </div>
+                {supportOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
+
+              {supportOpen && (
+                <div className="divide-y divide-slate-100 text-xs">
+                  <div className="px-4 py-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-50 cursor-pointer">
+                    <span>My Support Tickets</span>
+                    <FileText size={13} className="text-slate-400" />
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-50 cursor-pointer">
+                    <span>Announcements</span>
+                    <Radio size={13} className="text-slate-400" />
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-50 cursor-pointer">
+                    <span>Knowledgebase</span>
+                    <HelpCircle size={13} className="text-slate-400" />
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-between font-semibold text-slate-900 border-l-2 border-[#ef4444] bg-slate-50/50">
+                    <span>Downloads</span>
+                    <Download size={13} className="text-slate-500" />
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-50 cursor-pointer">
+                    <span>Network Status</span>
+                    <Activity size={13} className="text-slate-400" />
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-50 cursor-pointer">
+                    <span>Open Ticket</span>
+                    <Send size={13} className="text-slate-400" />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Reply Form */}
-          <form onSubmit={handleReplySubmit} className="pt-4 border-t border-gray-200 space-y-3">
-            <h3 className="text-sm font-bold text-gray-900">
-              Send a Reply or Additional Details
-            </h3>
-            <textarea
-              rows={3}
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Type your response to the support team..."
-              className="w-full p-3.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ec5137]/30 focus:border-[#ec5137] transition-all resize-none"
-            />
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={!replyText.trim() || isSubmitting}
-                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-[#ec5137] hover:bg-[#d9442b] transition-all shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {isSubmitting ? 'Sending...' : 'Send Message'}
-              </button>
+          {/* Right Column (Ticket Messages & Replies) */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* Conditional Inline Reply Box */}
+            {showReplyForm && (
+              <form onSubmit={handleReplySubmit} className="bg-white rounded-lg border border-sky-300 p-4 shadow-sm space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-sky-900 uppercase tracking-wide">
+                    Post Reply to Staff
+                  </span>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowReplyForm(false)}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Provide your feedback or further issue details..."
+                  className="w-full p-3 text-xs sm:text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 font-sans leading-relaxed"
+                />
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[11px] text-slate-400">
+                    Replying as: <strong className="text-slate-700">{ticket.requester?.name || 'Authorized User'}</strong>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!replyText.trim() || isSubmitting}
+                    className="px-4 py-1.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Post Reply'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Conversation Messages Thread */}
+            <div className="space-y-6">
+              {allMessages.map((msg) => {
+                const isAgent = msg.sender === 'agent';
+
+                return (
+                  <div 
+                    key={msg.id}
+                    className="bg-white rounded border border-slate-200 overflow-hidden shadow-xs"
+                  >
+                    {/* Header */}
+                    <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${
+                          isAgent ? 'bg-slate-700' : 'bg-slate-800'
+                        }`}>
+                          <User size={16} />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900">
+                              {msg.authorName}
+                            </span>
+                            {msg.badge && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${
+                                isAgent ? 'bg-sky-500 text-white' : 'bg-slate-600 text-white'
+                              }`}>
+                                {msg.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {msg.subRole || msg.email || ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-slate-400 font-sans">
+                        {msg.timestamp}
+                      </div>
+                    </div>
+
+                    {/* Message Body */}
+                    <div className="p-5 text-xs sm:text-sm text-slate-700 font-normal leading-relaxed whitespace-pre-line">
+                      {msg.content}
+                    </div>
+
+                    {/* Rating stars placeholder on bottom right of staff reply like in screenshot */}
+                    {isAgent && (
+                      <div className="px-5 pb-3 flex justify-end items-center gap-1 text-slate-300">
+                        <Star size={14} className="hover:text-amber-400 cursor-pointer" />
+                        <Star size={14} className="hover:text-amber-400 cursor-pointer" />
+                        <Star size={14} className="hover:text-amber-400 cursor-pointer" />
+                        <Star size={14} className="hover:text-amber-400 cursor-pointer" />
+                        <Star size={14} className="hover:text-amber-400 cursor-pointer" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
