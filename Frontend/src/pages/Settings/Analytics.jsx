@@ -225,11 +225,100 @@ const Analytics = () => {
     };
   }, [analyticsData]);
 
+  // Metric Cards Data
+  const metricCards = useMemo(() => [
+    {
+      key: 'views',
+      title: 'Total Read Views',
+      value: summary.totalViews.toLocaleString(),
+      icon: 'solar:eye-bold',
+      badgeBg: 'bg-orange-50 border-orange-200 text-[#ea543a]',
+      border: 'border-orange-200/80',
+      glow: 'from-orange-100/60',
+      titleColor: 'text-orange-950 font-bold',
+      subIcon: 'solar:graph-up-bold',
+      subIconColor: 'text-[#ea543a]',
+      subText: `Across selected ${selectedDays} days`
+    },
+    {
+      key: 'visitors',
+      title: 'Unique Visitors',
+      value: summary.uniqueVisitors.toLocaleString(),
+      icon: 'solar:users-group-rounded-bold',
+      badgeBg: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+      border: 'border-emerald-200/80',
+      glow: 'from-emerald-100/60',
+      titleColor: 'text-emerald-950 font-bold',
+      subIcon: 'solar:shield-check-bold',
+      subIconColor: 'text-emerald-600',
+      subText: 'Unique IP readers'
+    },
+    {
+      key: 'duration',
+      title: 'Avg. Session Time',
+      value: formatDuration(summary.avgDuration),
+      icon: 'solar:clock-circle-bold',
+      badgeBg: 'bg-indigo-50 border-indigo-200 text-indigo-600',
+      border: 'border-indigo-200/80',
+      glow: 'from-indigo-100/60',
+      titleColor: 'text-indigo-950 font-bold',
+      subIcon: 'solar:hourglass-line-bold',
+      subIconColor: 'text-indigo-600',
+      subText: 'Average dwell time'
+    },
+    {
+      key: 'totalDuration',
+      title: 'Cumulative Read Time',
+      value: formatDuration(summary.totalDuration),
+      icon: 'solar:chart-square-bold',
+      badgeBg: 'bg-amber-50 border-amber-200 text-amber-600',
+      border: 'border-amber-200/80',
+      glow: 'from-amber-100/60',
+      titleColor: 'text-amber-950 font-bold',
+      subIcon: 'solar:fire-bold',
+      subIconColor: 'text-amber-600',
+      subText: 'Combined engagement'
+    }
+  ], [summary, selectedDays]);
+
   const devices = useMemo(() => analyticsData?.devices || [], [analyticsData]);
   const countries = useMemo(() => analyticsData?.countries || analyticsData?.topCountries || [], [analyticsData]);
   const states = useMemo(() => analyticsData?.states || analyticsData?.topStates || [], [analyticsData]);
   const cities = useMemo(() => analyticsData?.cities || [], [analyticsData]);
-  const dailyViews = useMemo(() => analyticsData?.dailyViews || [], [analyticsData]);
+  const rawDailyViews = useMemo(() => analyticsData?.dailyViews || [], [analyticsData]);
+
+  // Generates continuous timeline with 0s for missing dates across selectedDays
+  const dailyViews = useMemo(() => {
+    const map = new Map();
+    rawDailyViews.forEach(d => {
+      if (d._id) {
+        map.set(d._id, { views: Number(d.views) || 0, avgDuration: Number(d.avgDuration) || 0 });
+      }
+    });
+
+    const list = [];
+    const now = new Date();
+    const count = Math.max(7, selectedDays);
+
+    for (let i = count - 1; i >= 0; i--) {
+      const dayDate = new Date();
+      dayDate.setDate(now.getDate() - i);
+      const yyyy = dayDate.getFullYear();
+      const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(dayDate.getDate()).padStart(2, '0');
+      const key = `${yyyy}-${mm}-${dd}`;
+
+      const found = map.get(key);
+      list.push({
+        _id: key,
+        views: found ? found.views : 0,
+        avgDuration: found ? found.avgDuration : 0
+      });
+    }
+
+    return list;
+  }, [rawDailyViews, selectedDays]);
+
   const topBooks = useMemo(() => analyticsData?.topBooks || [], [analyticsData]);
   const recentSessions = useMemo(() => analyticsData?.recentSessions || [], [analyticsData]);
 
@@ -352,140 +441,41 @@ const Analytics = () => {
     <div className="w-full flex flex-col gap-[1.2vw] font-sans text-gray-800 pb-[3vw]">
       
       {/* 1. Header Toolbar with Brand Theme */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[1vw] pb-[1vw] border-b border-gray-100">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[1vw] pb-[0.6vw] border-b border-gray-100">
+        <div className="flex items-center gap-[0.8vw] flex-wrap">
           <div className="flex items-center gap-[0.6vw]">
             <div className="w-[2vw] h-[2vw] rounded-[0.5vw] bg-[#ea543a]/10 border border-[#ea543a]/25 flex items-center justify-center text-[#ea543a] shadow-xs">
-              <Icon icon="solar:chart-2-bold" className="w-[1.2vw] h-[1.2vw]" />
+              <Icon icon="solar:graph-up-bold" className="w-[1.2vw] h-[1.2vw]" />
             </div>
-            <div>
-              <h1 className="text-[1.25vw] font-bold text-gray-900 tracking-tight flex items-center gap-[0.4vw]">
-                <span>Flipbook Analytics</span>
-                {selectedFlipbookObj ? (
-                  <span className="text-[0.72vw] font-semibold px-[0.6vw] py-[0.15vw] rounded-full bg-[#ea543a]/10 text-[#ea543a] border border-[#ea543a]/25 flex items-center gap-[0.3vw]">
-                    <Icon icon="solar:book-2-bold" className="w-[0.8vw] h-[0.8vw]" />
-                    <span className="max-w-[15vw] truncate">{selectedFlipbookObj.flipbookName || 'Selected Flipbook'}</span>
-                  </span>
-                ) : (
-                  <span className="text-[0.72vw] font-semibold px-[0.6vw] py-[0.15vw] rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                    All Books Combined
-                  </span>
-                )}
-              </h1>
-              <div className="flex items-center gap-[0.5vw] mt-[0.15vw] text-[0.72vw] text-gray-500">
-                <span className="flex items-center gap-[0.25vw]">
-                  <Icon icon="solar:calendar-linear" className="w-[0.85vw] h-[0.85vw] text-[#ea543a]" />
-                  <span>Timeframe: <strong className="text-gray-700 font-semibold">{dateRangeLabel}</strong></span>
-                </span>
-                <span className="text-gray-300">•</span>
-                <span>Updated {formatRelativeTime(lastUpdated)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-[0.5vw]">
-          {/* Days Filter Pills */}
-          <div className="flex bg-[#F4F4F5] p-[0.15vw] rounded-[0.5vw] border border-gray-200/80">
-            {[7, 30, 90].map(days => (
-              <button
-                key={days}
-                onClick={() => setSelectedDays(days)}
-                className={`text-[0.75vw] font-semibold px-[0.7vw] py-[0.35vw] rounded-[0.4vw] transition-all cursor-pointer ${
-                  selectedDays === days
-                    ? 'bg-[#ea543a] text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
-                }`}
-              >
-                {days}D
-              </button>
-            ))}
+            <h1 className="text-[1.25vw] font-bold text-gray-900 tracking-tight">
+              Flipbook Analytics
+            </h1>
           </div>
 
-          {/* Refresh Button */}
-          <button
-            onClick={() => loadAnalytics(true)}
-            disabled={refreshing || loading}
-            title="Refresh analytics data"
-            className="flex items-center gap-[0.3vw] px-[0.75vw] py-[0.42vw] bg-white border border-gray-200 hover:border-[#ea543a]/40 hover:text-[#ea543a] text-gray-700 rounded-[0.5vw] text-[0.75vw] font-semibold transition cursor-pointer disabled:opacity-50 shadow-2xs"
-          >
-            <Icon icon="solar:restart-linear" className={`w-[0.85vw] h-[0.85vw] ${refreshing ? 'animate-spin text-[#ea543a]' : 'text-gray-500'}`} />
-            <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
-          </button>
-
-          {/* Export CSV Button */}
-          <button
-            onClick={handleExportCSV}
-            disabled={filteredSessions.length === 0}
-            title="Export filtered records to CSV"
-            className="flex items-center gap-[0.35vw] px-[0.85vw] py-[0.42vw] bg-[#ea543a] hover:bg-[#d9482f] text-white rounded-[0.5vw] text-[0.75vw] font-semibold transition cursor-pointer disabled:opacity-40 shadow-xs hover:shadow-orange-500/20 active:scale-98"
-          >
-            <Icon icon="solar:download-minimalistic-bold" className="w-[0.85vw] h-[0.85vw]" />
-            <span>Export CSV</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Interactive Flipbook Selector Bar */}
-      <div className="bg-white rounded-[0.75vw] border border-gray-200 p-[0.7vw] shadow-2xs">
-        <div className="flex items-center justify-between mb-[0.4vw] px-[0.2vw]">
-          <span className="text-[0.7vw] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-[0.3vw]">
-            <Icon icon="solar:folder-with-files-bold" className="w-[0.85vw] h-[0.85vw] text-[#ea543a]" />
-            <span>Select Flipbook to Inspect Alone</span>
-          </span>
           {selectedBookId && (
-            <button
-              onClick={() => setSelectedBookId(null)}
-              className="text-[0.7vw] font-semibold text-[#ea543a] hover:underline flex items-center gap-[0.2vw] cursor-pointer"
-            >
-              <Icon icon="solar:close-circle-linear" className="w-[0.8vw] h-[0.8vw]" />
-              <span>Reset to All Flipbooks</span>
-            </button>
+            <div className="flex items-center gap-[0.5vw] bg-orange-50/80 border border-orange-200/90 px-[0.7vw] py-[0.25vw] rounded-[0.45vw] text-[0.75vw]">
+              <Icon icon="solar:book-2-bold" className="w-[0.9vw] h-[0.9vw] text-[#ea543a]" />
+              <span className="text-gray-600 font-medium">Inspecting:</span>
+              <strong className="text-gray-900 font-bold max-w-[15vw] truncate">
+                {selectedFlipbookObj?.flipbookName || selectedBookId}
+              </strong>
+              <button
+                onClick={() => {
+                  setSelectedBookId(null);
+                  setActiveTab('overview');
+                }}
+                className="ml-[0.3vw] flex items-center gap-[0.2vw] text-[#ea543a] hover:text-[#c43b24] font-semibold hover:underline cursor-pointer"
+                title="Return to overall analytics"
+              >
+                <Icon icon="solar:close-circle-bold" className="w-[0.85vw] h-[0.85vw]" />
+                <span>All Books</span>
+              </button>
+            </div>
           )}
         </div>
-
-        {/* Horizontal Scrollable Flipbook Pills */}
-        <div className="flex items-center gap-[0.45vw] overflow-x-auto pb-[0.2vw] [&::-webkit-scrollbar]:h-[3px] [&::-webkit-scrollbar-thumb]:bg-gray-300">
-          {/* "All Flipbooks" Pill */}
-          <button
-            onClick={() => setSelectedBookId(null)}
-            className={`flex-shrink-0 flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] text-[0.75vw] font-semibold transition cursor-pointer border ${
-              selectedBookId === null
-                ? 'bg-gradient-to-r from-orange-50 to-orange-100/70 border-[#ea543a] text-[#ea543a] shadow-xs'
-                : 'bg-[#F9F9F9] border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-100/70'
-            }`}
-          >
-            <Icon icon="solar:layers-bold" className={`w-[0.85vw] h-[0.85vw] ${selectedBookId === null ? 'text-[#ea543a]' : 'text-gray-500'}`} />
-            <span>All Books Overview</span>
-          </button>
-
-          {/* Individual Flipbook Pills */}
-          {flipbooks.map((b) => {
-            const isSelected = selectedBookId === b.v_id;
-            return (
-              <button
-                key={b.v_id}
-                onClick={() => setSelectedBookId(b.v_id)}
-                className={`flex-shrink-0 flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] text-[0.75vw] font-semibold transition cursor-pointer border max-w-[17vw] ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-orange-50 to-orange-100/70 border-[#ea543a] text-[#ea543a] shadow-xs'
-                    : 'bg-[#F9F9F9] border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-100/70'
-                }`}
-                title={b.flipbookName}
-              >
-                <Icon icon="solar:book-2-bold" className={`w-[0.85vw] h-[0.85vw] flex-shrink-0 ${isSelected ? 'text-[#ea543a]' : 'text-gray-400'}`} />
-                <span className="truncate">{b.flipbookName || 'Untitled Flipbook'}</span>
-                {b.pages && (
-                  <span className={`text-[0.65vw] px-[0.35vw] py-[0.05vw] rounded-full ${isSelected ? 'bg-orange-200/60 text-[#ea543a]' : 'bg-gray-200/70 text-gray-600'}`}>
-                    {b.pages.length}p
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
       </div>
+
+
 
       {/* Error Notice */}
       {error && (
@@ -498,92 +488,39 @@ const Analytics = () => {
         </div>
       )}
 
-      {/* 3. Primary Metric Cards (Distinct brand-themed color accents) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[0.8vw]">
-        {/* Card 1: Total Views (Warm Orange Brand) */}
-        <div className="bg-white rounded-[0.75vw] p-[1vw] border border-orange-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between hover:shadow-xs transition-shadow">
-          <div className="absolute top-0 right-0 w-[4vw] h-[4vw] bg-gradient-to-bl from-orange-100/60 to-transparent rounded-bl-full pointer-events-none"></div>
-          <div className="flex items-center justify-between relative z-10">
-            <span className="text-[0.72vw] font-bold text-orange-900/80 uppercase tracking-wide">Total Read Views</span>
-            <div className="w-[1.9vw] h-[1.9vw] rounded-[0.45vw] bg-orange-50 border border-orange-200 text-[#ea543a] flex items-center justify-center">
-              <Icon icon="solar:eye-bold" className="w-[1.05vw] h-[1.05vw]" />
+      {/* 3. Primary Metric Cards (Compact) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[0.6vw] mt-[0.3vw]">
+        {metricCards.map((item) => (
+          <div
+            key={item.key}
+            className={`bg-white rounded-[0.6vw] p-[0.78vw] px-[0.8vw] min-h-[4.4vw] border ${item.border} shadow-2xs relative overflow-hidden flex flex-col justify-between hover:shadow-xs transition-shadow`}
+          >
+            <div className={`absolute top-0 right-0 w-[2.8vw] h-[2.8vw] bg-gradient-to-bl ${item.glow} to-transparent rounded-bl-full pointer-events-none`}></div>
+            <div className="flex items-center justify-between relative z-10">
+              <span className={`text-[0.78vw] font-bold ${item.titleColor} uppercase tracking-wide`}>
+                {item.title}
+              </span>
+              <div className={`w-[1.4vw] h-[1.4vw] rounded-[0.35vw] border flex items-center justify-center ${item.badgeBg}`}>
+                <Icon icon={item.icon} className="w-[0.85vw] h-[0.85vw]" />
+              </div>
+            </div>
+            <div className="mt-[0.4vw] relative z-10 flex items-baseline gap-[0.4vw]">
+              <div className="text-[1.3vw] font-semibold text-gray-800 tracking-tight leading-none">
+                {item.value}
+              </div>
+              <div className="text-[0.62vw] text-gray-500 font-normal flex items-center gap-[0.2vw]">
+                <Icon icon={item.subIcon} className={`w-[0.65vw] h-[0.65vw] ${item.subIconColor}`} />
+                <span>{item.subText}</span>
+              </div>
             </div>
           </div>
-          <div className="mt-[0.6vw] relative z-10">
-            <div className="text-[1.8vw] font-extrabold text-gray-900 tracking-tight leading-none">
-              {summary.totalViews.toLocaleString()}
-            </div>
-            <div className="text-[0.7vw] text-orange-700/80 font-medium mt-[0.35vw] flex items-center gap-[0.25vw]">
-              <Icon icon="solar:graph-up-bold" className="w-[0.75vw] h-[0.75vw] text-[#ea543a]" />
-              <span>Across selected {selectedDays} days</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Unique Visitors (Emerald / Mint) */}
-        <div className="bg-white rounded-[0.75vw] p-[1vw] border border-emerald-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between hover:shadow-xs transition-shadow">
-          <div className="absolute top-0 right-0 w-[4vw] h-[4vw] bg-gradient-to-bl from-emerald-100/60 to-transparent rounded-bl-full pointer-events-none"></div>
-          <div className="flex items-center justify-between relative z-10">
-            <span className="text-[0.72vw] font-bold text-emerald-900/80 uppercase tracking-wide">Unique Visitors</span>
-            <div className="w-[1.9vw] h-[1.9vw] rounded-[0.45vw] bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
-              <Icon icon="solar:users-group-rounded-bold" className="w-[1.05vw] h-[1.05vw]" />
-            </div>
-          </div>
-          <div className="mt-[0.6vw] relative z-10">
-            <div className="text-[1.8vw] font-extrabold text-gray-900 tracking-tight leading-none">
-              {summary.uniqueVisitors.toLocaleString()}
-            </div>
-            <div className="text-[0.7vw] text-emerald-700/80 font-medium mt-[0.35vw] flex items-center gap-[0.25vw]">
-              <Icon icon="solar:shield-check-bold" className="w-[0.75vw] h-[0.75vw] text-emerald-600" />
-              <span>Unique IP readers</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Avg Duration (Indigo / Slate) */}
-        <div className="bg-white rounded-[0.75vw] p-[1vw] border border-indigo-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between hover:shadow-xs transition-shadow">
-          <div className="absolute top-0 right-0 w-[4vw] h-[4vw] bg-gradient-to-bl from-indigo-100/60 to-transparent rounded-bl-full pointer-events-none"></div>
-          <div className="flex items-center justify-between relative z-10">
-            <span className="text-[0.72vw] font-bold text-indigo-900/80 uppercase tracking-wide">Avg. Session Time</span>
-            <div className="w-[1.9vw] h-[1.9vw] rounded-[0.45vw] bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
-              <Icon icon="solar:clock-circle-bold" className="w-[1.05vw] h-[1.05vw]" />
-            </div>
-          </div>
-          <div className="mt-[0.6vw] relative z-10">
-            <div className="text-[1.8vw] font-extrabold text-gray-900 tracking-tight leading-none">
-              {formatDuration(summary.avgDuration)}
-            </div>
-            <div className="text-[0.7vw] text-indigo-700/80 font-medium mt-[0.35vw] flex items-center gap-[0.25vw]">
-              <Icon icon="solar:hourglass-line-bold" className="w-[0.75vw] h-[0.75vw] text-indigo-600" />
-              <span>Average reading dwell time</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Cumulative Read Time (Amber / Sun) */}
-        <div className="bg-white rounded-[0.75vw] p-[1vw] border border-amber-200/80 shadow-2xs relative overflow-hidden flex flex-col justify-between hover:shadow-xs transition-shadow">
-          <div className="absolute top-0 right-0 w-[4vw] h-[4vw] bg-gradient-to-bl from-amber-100/60 to-transparent rounded-bl-full pointer-events-none"></div>
-          <div className="flex items-center justify-between relative z-10">
-            <span className="text-[0.72vw] font-bold text-amber-900/80 uppercase tracking-wide">Cumulative Read Time</span>
-            <div className="w-[1.9vw] h-[1.9vw] rounded-[0.45vw] bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
-              <Icon icon="solar:chart-square-bold" className="w-[1.05vw] h-[1.05vw]" />
-            </div>
-          </div>
-          <div className="mt-[0.6vw] relative z-10">
-            <div className="text-[1.8vw] font-extrabold text-gray-900 tracking-tight leading-none">
-              {formatDuration(summary.totalDuration)}
-            </div>
-            <div className="text-[0.7vw] text-amber-700/80 font-medium mt-[0.35vw] flex items-center gap-[0.25vw]">
-              <Icon icon="solar:fire-bold" className="w-[0.75vw] h-[0.75vw] text-amber-600" />
-              <span>Combined engagement</span>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* 4. Section Tabs Navigation */}
-      <div className="flex items-center justify-between border-b border-gray-200 text-[0.78vw]">
+      <div className="flex items-center justify-between border-b border-gray-200 text-[0.78vw] mt-[0.4vw]">
         <div className="flex items-center gap-[0.2vw]">
+          {/* 1st Tab: Overview & Activity */}
           <button
             onClick={() => setActiveTab('overview')}
             className={`flex items-center gap-[0.4vw] pb-[0.65vw] px-[0.75vw] font-semibold border-b-2 transition-all cursor-pointer ${
@@ -596,36 +533,7 @@ const Analytics = () => {
             <span>Overview & Activity</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('sessions')}
-            className={`flex items-center gap-[0.4vw] pb-[0.65vw] px-[0.75vw] font-semibold border-b-2 transition-all cursor-pointer ${
-              activeTab === 'sessions'
-                ? 'border-[#ea543a] text-[#ea543a]'
-                : 'border-transparent text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            <Icon icon="solar:user-check-rounded-linear" className="w-[0.9vw] h-[0.9vw]" />
-            <span>Visitor Sessions</span>
-            <span className="ml-[0.2vw] px-[0.45vw] py-[0.05vw] rounded-full bg-orange-100 text-[#ea543a] text-[0.65vw] font-bold">
-              {recentSessions.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={`flex items-center gap-[0.4vw] pb-[0.65vw] px-[0.75vw] font-semibold border-b-2 transition-all cursor-pointer ${
-              activeTab === 'daily'
-                ? 'border-[#ea543a] text-[#ea543a]'
-                : 'border-transparent text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            <Icon icon="solar:calendar-date-linear" className="w-[0.9vw] h-[0.9vw]" />
-            <span>Daily Breakdown</span>
-            <span className="ml-[0.2vw] px-[0.45vw] py-[0.05vw] rounded-full bg-gray-100 text-gray-700 text-[0.65vw] font-bold">
-              {dailyViews.length}
-            </span>
-          </button>
-
+          {/* 2nd Tab: Flipbooks Ranking (available when looking at all books) */}
           {!selectedBookId && (
             <button
               onClick={() => setActiveTab('books')}
@@ -642,33 +550,109 @@ const Analytics = () => {
               </span>
             </button>
           )}
+
+          {/* 3rd Tab: Daily Flipbook Counts (Date wise activity log) */}
+          <button
+            onClick={() => setActiveTab('daily')}
+            className={`flex items-center gap-[0.4vw] pb-[0.65vw] px-[0.75vw] font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === 'daily'
+                ? 'border-[#ea543a] text-[#ea543a]'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <Icon icon="solar:calendar-date-linear" className="w-[0.9vw] h-[0.9vw]" />
+            <span>Daily Flipbook Counts</span>
+            <span className="ml-[0.2vw] px-[0.45vw] py-[0.05vw] rounded-full bg-gray-100 text-gray-700 text-[0.65vw] font-bold">
+              {dailyViews.filter(d => d.views > 0).length || dailyViews.length}
+            </span>
+          </button>
+
+          {/* Visitor Sessions: visible when inspect alone is clicked for a flipbook */}
+          {selectedBookId && (
+            <button
+              onClick={() => setActiveTab('sessions')}
+              className={`flex items-center gap-[0.4vw] pb-[0.65vw] px-[0.75vw] font-semibold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'sessions'
+                  ? 'border-[#ea543a] text-[#ea543a]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <Icon icon="solar:user-check-rounded-linear" className="w-[0.9vw] h-[0.9vw]" />
+              <span>Visitor Sessions</span>
+              <span className="ml-[0.2vw] px-[0.45vw] py-[0.05vw] rounded-full bg-orange-100 text-[#ea543a] text-[0.65vw] font-bold">
+                {recentSessions.length}
+              </span>
+            </button>
+          )}
         </div>
 
-        {/* View Mode Switcher in Sessions Tab */}
-        {activeTab === 'sessions' && (
-          <div className="flex items-center bg-[#F2F2F2] p-[0.15vw] rounded-[0.45vw] mb-[0.4vw] border border-gray-200">
-            <button
-              onClick={() => setViewMode('table')}
-              title="Table View"
-              className={`flex items-center gap-[0.25vw] px-[0.6vw] py-[0.25vw] rounded-[0.35vw] text-[0.7vw] font-semibold transition cursor-pointer ${
-                viewMode === 'table' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <Icon icon="solar:list-bold" className="w-[0.75vw] h-[0.75vw]" />
-              <span>Table</span>
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              title="Cards View"
-              className={`flex items-center gap-[0.25vw] px-[0.6vw] py-[0.25vw] rounded-[0.35vw] text-[0.7vw] font-semibold transition cursor-pointer ${
-                viewMode === 'cards' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <Icon icon="solar:widget-2-linear" className="w-[0.75vw] h-[0.75vw]" />
-              <span>Cards</span>
-            </button>
+        {/* Action Controls & View Mode on the right */}
+        <div className="flex items-center gap-[0.5vw] pb-[0.35vw]">
+          {/* View Mode Switcher in Sessions Tab */}
+          {activeTab === 'sessions' && (
+            <div className="flex items-center bg-[#F2F2F2] p-[0.15vw] rounded-[0.45vw] border border-gray-200 mr-[0.2vw]">
+              <button
+                onClick={() => setViewMode('table')}
+                title="Table View"
+                className={`flex items-center gap-[0.25vw] px-[0.6vw] py-[0.25vw] rounded-[0.35vw] text-[0.7vw] font-semibold transition cursor-pointer ${
+                  viewMode === 'table' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <Icon icon="solar:list-bold" className="w-[0.75vw] h-[0.75vw]" />
+                <span>Table</span>
+              </button>
+              <button
+                onClick={() => setViewMode('cards')}
+                title="Cards View"
+                className={`flex items-center gap-[0.25vw] px-[0.6vw] py-[0.25vw] rounded-[0.35vw] text-[0.7vw] font-semibold transition cursor-pointer ${
+                  viewMode === 'cards' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <Icon icon="solar:widget-2-linear" className="w-[0.75vw] h-[0.75vw]" />
+                <span>Cards</span>
+              </button>
+            </div>
+          )}
+
+          {/* Days Filter Pills */}
+          <div className="flex bg-[#F4F4F5] p-[0.15vw] rounded-[0.5vw] border border-gray-200/80">
+            {[7, 30, 90].map(days => (
+              <button
+                key={days}
+                onClick={() => setSelectedDays(days)}
+                className={`text-[0.72vw] font-semibold px-[0.65vw] py-[0.3vw] rounded-[0.4vw] transition-all cursor-pointer ${
+                  selectedDays === days
+                    ? 'bg-[#ea543a] text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                }`}
+              >
+                {days}D
+              </button>
+            ))}
           </div>
-        )}
+
+          {/* Refresh Button */}
+          <button
+            onClick={() => loadAnalytics(true)}
+            disabled={refreshing || loading}
+            title="Refresh analytics data"
+            className="flex items-center gap-[0.3vw] px-[0.7vw] py-[0.35vw] bg-white border border-gray-200 hover:border-[#ea543a]/40 hover:text-[#ea543a] text-gray-700 rounded-[0.5vw] text-[0.72vw] font-semibold transition cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <Icon icon="solar:restart-linear" className={`w-[0.8vw] h-[0.8vw] ${refreshing ? 'animate-spin text-[#ea543a]' : 'text-gray-500'}`} />
+            <span>{refreshing ? 'Refreshing' : 'Refresh'}</span>
+          </button>
+
+          {/* Export CSV Button */}
+          <button
+            onClick={handleExportCSV}
+            disabled={filteredSessions.length === 0}
+            title="Export filtered records to CSV"
+            className="flex items-center gap-[0.3vw] px-[0.8vw] py-[0.35vw] bg-[#ea543a] hover:bg-[#d9482f] text-white rounded-[0.5vw] text-[0.72vw] font-semibold transition cursor-pointer disabled:opacity-40 shadow-xs hover:shadow-orange-500/20 active:scale-98"
+          >
+            <Icon icon="solar:download-minimalistic-bold" className="w-[0.8vw] h-[0.8vw]" />
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* 5. Tab Content Panels */}
@@ -682,210 +666,467 @@ const Analytics = () => {
           {/* TAB 1: OVERVIEW & TRENDS */}
           {activeTab === 'overview' && (
             <div className="flex flex-col gap-[1vw]">
-              {/* Daily Trend Chart Card with Brand Orange Bars */}
-              <div className="bg-white rounded-[0.75vw] border border-gray-200 p-[1.2vw] shadow-2xs">
-                <div className="flex items-center justify-between mb-[1vw]">
-                  <div>
-                    <h2 className="text-[0.9vw] font-bold text-gray-900 flex items-center gap-[0.3vw]">
-                      <Icon icon="solar:chart-2-bold" className="w-[1vw] h-[1vw] text-[#ea543a]" />
-                      <span>Daily Readership Activity Trend</span>
-                    </h2>
-                    <p className="text-[0.7vw] text-gray-500">
-                      Day-by-day reader visits recorded over the past {selectedDays} days
-                    </p>
+              {/* Dual Overview Charts: Left (Smooth Curved Area Chart) & Right (Donut Ring Chart) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-[1vw]">
+                {/* LEFT (8 cols): Smooth Area / Curved Line Chart for Readership Trend */}
+                <div className="lg:col-span-7 xl:col-span-8 bg-white rounded-[0.75vw] border border-orange-200/70 p-[1.1vw] shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-[0.8vw]">
+                    <div>
+                      <h2 className="text-[0.98vw] font-bold text-gray-900 flex items-center gap-[0.4vw]">
+                        <Icon icon="solar:graph-up-bold" className="w-[1.1vw] h-[1.1vw] text-[#ea543a]" />
+                        <span>Views & Readership Trend</span>
+                      </h2>
+                      <p className="text-[0.68vw] text-gray-700 mt-[0.1vw]">
+                        Day-by-day viewer traffic recorded over past {selectedDays} days
+                      </p>
+                    </div>
+                    <div className="text-[0.72vw] text-gray-900 font-medium bg-orange-50 border border-orange-300 px-[0.6vw] py-[0.2vw] rounded-[0.4vw]">
+                      Total: <span className="text-[#ea543a] font-bold">{summary.totalViews}</span> sessions
+                    </div>
                   </div>
-                  <div className="text-[0.75vw] text-gray-700 font-semibold bg-orange-50/60 border border-orange-200/70 px-[0.65vw] py-[0.25vw] rounded-[0.4vw]">
-                    Total: <span className="text-[#ea543a] font-bold">{summary.totalViews}</span> sessions
-                  </div>
-                </div>
 
-                {dailyViews.length === 0 ? (
-                  <div className="h-[12vw] flex flex-col items-center justify-center text-gray-400 text-[0.75vw]">
-                    <Icon icon="solar:calendar-minimalistic-linear" className="w-[2vw] h-[2vw] text-gray-300 mb-[0.4vw]" />
-                    <span>No viewer activity recorded in this period yet.</span>
-                    <span className="text-gray-400 text-[0.7vw] mt-[0.2vw]">Share your flipbook link with readers to start recording analytics.</span>
-                  </div>
-                ) : (
-                  <div className="space-y-[0.5vw]">
-                    <div className="h-[13vw] flex items-end gap-[0.35vw] pt-[2vw] px-[0.5vw] border-b border-gray-100 relative">
-                      {(() => {
-                        const maxViews = Math.max(...dailyViews.map(d => d.views), 1);
-                        return dailyViews.map((day, idx) => {
-                          const barHeight = Math.max(8, Math.round((day.views / maxViews) * 100));
-                          const isHovered = hoveredDayIdx === idx;
-                          return (
+                  {dailyViews.length === 0 ? (
+                    <div className="h-[13vw] flex flex-col items-center justify-center text-gray-700 text-[0.75vw]">
+                      <Icon icon="solar:calendar-minimalistic-linear" className="w-[2vw] h-[2vw] text-[#ea543a]/50 mb-[0.4vw]" />
+                      <span className="font-medium text-gray-800">No viewer activity recorded in this period yet.</span>
+                      <span className="text-gray-650 text-[0.68vw] mt-[0.2vw]">Share your flipbook link with readers to start recording analytics.</span>
+                    </div>
+                  ) : (
+                    (() => {
+                      const svgWidth = 700;
+                      const svgHeight = 220;
+                      const padTop = 24;
+                      const padBottom = 32;
+                      const padX = 28;
+                      const chartW = svgWidth - padX * 2;
+                      const chartH = svgHeight - padTop - padBottom;
+
+                      const maxViews = Math.max(...dailyViews.map(d => Number(d.views) || 0), 1);
+                      const points = dailyViews.map((d, i) => {
+                        const x = dailyViews.length > 1
+                          ? padX + (i / (dailyViews.length - 1)) * chartW
+                          : padX + chartW / 2;
+                        const y = padTop + chartH - ((Number(d.views) || 0) / maxViews) * chartH;
+                        return { x, y, day: d, idx: i };
+                      });
+
+                      // Build smooth cubic bezier curve
+                      let pathD = '';
+                      if (points.length === 1) {
+                        pathD = `M ${padX} ${points[0].y} L ${svgWidth - padX} ${points[0].y}`;
+                      } else {
+                        pathD = `M ${points[0].x} ${points[0].y}`;
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[i];
+                          const p1 = points[i + 1];
+                          const cpX1 = p0.x + (p1.x - p0.x) * 0.45;
+                          const cpY1 = p0.y;
+                          const cpX2 = p0.x + (p1.x - p0.x) * 0.55;
+                          const cpY2 = p1.y;
+                          pathD += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${p1.x} ${p1.y}`;
+                        }
+                      }
+
+                      const lastPt = points[points.length - 1];
+                      const firstPt = points[0];
+                      const areaD = `${pathD} L ${lastPt.x} ${svgHeight - padBottom} L ${firstPt.x} ${svgHeight - padBottom} Z`;
+
+                      return (
+                        <div className="relative w-full">
+                          <svg
+                            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                            className="w-full h-[13.5vw] overflow-visible"
+                            preserveAspectRatio="none"
+                            onMouseLeave={() => setHoveredDayIdx(null)}
+                          >
+                            <defs>
+                              <linearGradient id="areaGradientOrange" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#ea543a" stopOpacity="0.25" />
+                                <stop offset="60%" stopColor="#ea543a" stopOpacity="0.05" />
+                                <stop offset="100%" stopColor="#ea543a" stopOpacity="0.00" />
+                              </linearGradient>
+                            </defs>
+
+                            {/* Crisp guide lines (no light grey) */}
+                            {[0, 0.5, 1].map((pct, k) => {
+                              const y = padTop + chartH * (1 - pct);
+                              return (
+                                <g key={k}>
+                                  <line
+                                    x1={padX}
+                                    y1={y}
+                                    x2={svgWidth - padX}
+                                    y2={y}
+                                    stroke="#fed7aa"
+                                    strokeWidth="1"
+                                    strokeDasharray={pct === 0 ? 'none' : '3 3'}
+                                  />
+                                  <text
+                                    x={padX - 8}
+                                    y={y + 3.5}
+                                    textAnchor="end"
+                                    fill="#4b5563"
+                                    fontSize="10"
+                                    fontWeight="600"
+                                    fontFamily="sans-serif"
+                                  >
+                                    {Math.round(maxViews * pct)}
+                                  </text>
+                                </g>
+                              );
+                            })}
+
+                            {/* Smooth Filled Gradient Area */}
+                            <path d={areaD} fill="url(#areaGradientOrange)" />
+
+                            {/* Clean Smooth Curve Stroke Line */}
+                            <path
+                              d={pathD}
+                              fill="none"
+                              stroke="#ea543a"
+                              strokeWidth="2.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            {/* Hover Vertical Guide Cursor Line */}
+                            {hoveredDayIdx !== null && points[hoveredDayIdx] && (
+                              <line
+                                x1={points[hoveredDayIdx].x}
+                                y1={padTop}
+                                x2={points[hoveredDayIdx].x}
+                                y2={svgHeight - padBottom}
+                                stroke="#ea543a"
+                                strokeWidth="1.4"
+                                strokeDasharray="3 3"
+                                opacity="0.8"
+                              />
+                            )}
+
+                            {/* Peak & Hover Interactive Points Only */}
+                            {points.map((pt) => {
+                              const isHover = hoveredDayIdx === pt.idx;
+                              const isPeak = Number(pt.day.views) === maxViews && maxViews > 0;
+                              const showDot = isHover || isPeak;
+
+                              return (
+                                <g
+                                  key={pt.day._id}
+                                  className="cursor-pointer"
+                                  onMouseEnter={() => setHoveredDayIdx(pt.idx)}
+                                >
+                                  {/* Wide transparent hover slice */}
+                                  <rect
+                                    x={pt.x - (chartW / (dailyViews.length * 2))}
+                                    y={padTop}
+                                    width={chartW / dailyViews.length}
+                                    height={chartH}
+                                    fill="transparent"
+                                  />
+
+                                  {/* Sleek dot shown on hover or at peak */}
+                                  {showDot && (
+                                    <>
+                                      <circle
+                                        cx={pt.x}
+                                        cy={pt.y}
+                                        r={isHover ? '7' : '4'}
+                                        fill="#ea543a"
+                                        opacity={isHover ? '0.25' : '0'}
+                                      />
+                                      <circle
+                                        cx={pt.x}
+                                        cy={pt.y}
+                                        r={isHover ? '4.5' : '3'}
+                                        fill="#ffffff"
+                                        stroke="#ea543a"
+                                        strokeWidth={isHover ? '2.5' : '2'}
+                                      />
+                                    </>
+                                  )}
+                                </g>
+                              );
+                            })}
+                          </svg>
+
+                          {/* Clean Sleek Tooltip */}
+                          {hoveredDayIdx !== null && points[hoveredDayIdx] && (
                             <div
-                              key={day._id}
-                              className="flex-1 flex flex-col items-center justify-end h-full relative group cursor-pointer"
-                              onMouseEnter={() => setHoveredDayIdx(idx)}
-                              onMouseLeave={() => setHoveredDayIdx(null)}
+                              className="absolute bg-gray-900 text-white text-[0.65vw] py-[0.35vw] px-[0.6vw] rounded-[0.45vw] shadow-md whitespace-nowrap pointer-events-none z-20 border border-orange-500/40"
+                              style={{
+                                left: `${(points[hoveredDayIdx].x / svgWidth) * 100}%`,
+                                top: `${(points[hoveredDayIdx].y / svgHeight) * 100}%`,
+                                transform: 'translate(-50%, -130%)'
+                              }}
                             >
-                              {/* Hover Tooltip */}
-                              {isHovered && (
-                                <div className="absolute -top-[3.2vw] bg-gray-900 text-white text-[0.7vw] py-[0.3vw] px-[0.6vw] rounded-[0.4vw] shadow-lg whitespace-nowrap z-20 pointer-events-none">
-                                  <div className="font-semibold text-orange-300">{formatShortDate(day._id)}</div>
-                                  <div className="text-white">{day.views} {day.views === 1 ? 'view' : 'views'}</div>
-                                  <div className="text-gray-300 text-[0.65vw]">Avg: {formatDuration(day.avgDuration)}</div>
+                              <div className="font-semibold text-orange-200">{formatShortDate(points[hoveredDayIdx].day._id)}</div>
+                              <div className="text-[0.82vw] font-bold text-white mt-[0.05vw]">
+                                {points[hoveredDayIdx].day.views} <span className="text-[0.62vw] font-normal text-orange-100">views</span>
+                              </div>
+                              {Number(points[hoveredDayIdx].day.avgDuration) > 0 && (
+                                <div className="text-orange-300 text-[0.6vw] mt-[0.05vw] font-medium">
+                                  Avg read: {formatDuration(points[hoveredDayIdx].day.avgDuration)}
                                 </div>
                               )}
-                              <div
-                                className={`w-full max-w-[28px] rounded-t-[0.25vw] transition-all duration-150 ${
-                                  isHovered
-                                    ? 'bg-[#ea543a] shadow-xs'
-                                    : 'bg-orange-200 hover:bg-[#ea543a]'
-                                }`}
-                                style={{ height: `${barHeight}%` }}
-                              ></div>
                             </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                    <div className="flex justify-between text-[0.7vw] text-gray-400 px-[0.5vw]">
-                      <span>{formatShortDate(dailyViews[0]?._id)}</span>
-                      <span>{formatShortDate(dailyViews[dailyViews.length - 1]?._id)}</span>
+                          )}
+
+                          {/* Date Range Labels below X-Axis (Clear dark text) */}
+                          <div className="flex justify-between text-[0.7vw] font-semibold text-gray-700 px-[0.8vw] mt-[0.3vw]">
+                            <span>{formatShortDate(dailyViews[0]?._id)}</span>
+                            {dailyViews.length > 2 && (
+                              <span>{formatShortDate(dailyViews[Math.floor(dailyViews.length / 2)]?._id)}</span>
+                            )}
+                            <span>{formatShortDate(dailyViews[dailyViews.length - 1]?._id)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+
+                {/* RIGHT (4-5 cols): Donut / Ring Chart for Device & Reader Breakdown */}
+                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-[0.75vw] border border-orange-200/70 p-[1.1vw] shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-[0.6vw]">
+                    <div>
+                      <h2 className="text-[0.98vw] font-bold text-gray-900 flex items-center gap-[0.4vw]">
+                        <Icon icon="solar:pie-chart-2-bold" className="w-[1.1vw] h-[1.1vw] text-[#ea543a]" />
+                        <span>Device & Reader Share</span>
+                      </h2>
+                      <p className="text-[0.68vw] text-gray-700 mt-[0.1vw]">
+                        Reader distribution by device platform
+                      </p>
                     </div>
                   </div>
-                )}
+
+                  {(() => {
+                    const palette = [
+                      { type: 'Desktop', color: '#ea543a', bg: 'bg-[#ea543a]', icon: 'solar:laptop-minimalistic-linear' },
+                      { type: 'Mobile', color: '#059669', bg: 'bg-[#059669]', icon: 'solar:smartphone-linear' },
+                      { type: 'Tablet', color: '#d97706', bg: 'bg-[#d97706]', icon: 'solar:tablet-linear' }
+                    ];
+
+                    const totalDevViews = devices.reduce((acc, d) => acc + (Number(d.views) || 0), 0) || summary.totalViews || 0;
+
+                    // Compute segments for donut SVG
+                    const circumference = 2 * Math.PI * 40; // r = 40
+                    let cumulativeAngle = 0;
+
+                    const segments = palette.map((p) => {
+                      const match = devices.find(d => d.type?.toLowerCase() === p.type.toLowerCase());
+                      const views = match ? Number(match.views) || 0 : (p.type === 'Desktop' && totalDevViews === 0 ? summary.totalViews : 0);
+                      const pct = totalDevViews > 0 ? (views / totalDevViews) : (p.type === 'Desktop' ? 1 : 0);
+                      const dashLength = pct * circumference;
+                      const strokeDasharray = `${dashLength} ${circumference - dashLength}`;
+                      const strokeDashoffset = -cumulativeAngle;
+                      cumulativeAngle += dashLength;
+
+                      return {
+                        ...p,
+                        views,
+                        pct: Math.round(pct * 100),
+                        strokeDasharray,
+                        strokeDashoffset
+                      };
+                    });
+
+                    const primarySegment = segments.reduce((max, s) => s.pct > max.pct ? s : max, segments[0]);
+
+                    return (
+                      <div className="flex flex-col items-center justify-between h-full pt-[0.4vw]">
+                        {/* Interactive SVG Donut Ring */}
+                        <div className="relative w-[8.2vw] h-[8.2vw] flex items-center justify-center my-[0.4vw]">
+                          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                            {/* Background track circle - warm neutral tint */}
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="40"
+                              fill="none"
+                              stroke="#ffedd5"
+                              strokeWidth="11"
+                            />
+                            {/* Segment rings */}
+                            {totalDevViews > 0 ? (
+                              segments.map((seg) => (
+                                <circle
+                                  key={seg.type}
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  fill="none"
+                                  stroke={seg.color}
+                                  strokeWidth="11"
+                                  strokeDasharray={seg.strokeDasharray}
+                                  strokeDashoffset={seg.strokeDashoffset}
+                                  className="transition-all duration-500"
+                                  strokeLinecap={segments.filter(s => s.views > 0).length === 1 ? 'butt' : 'round'}
+                                />
+                              ))
+                            ) : (
+                              <circle
+                                cx="50"
+                                cy="50"
+                                r="40"
+                                fill="none"
+                                stroke="#ea543a"
+                                strokeWidth="11"
+                                strokeDasharray={`${circumference} 0`}
+                              />
+                            )}
+                          </svg>
+
+                          {/* Center Content in Donut Hole */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                            <span className="text-[1.25vw] font-bold text-gray-900 leading-none">
+                              {totalDevViews > 0 ? `${primarySegment.pct}%` : '100%'}
+                            </span>
+                            <span className="text-[0.65vw] text-gray-700 font-semibold uppercase tracking-wider mt-[0.2vw]">
+                              {totalDevViews > 0 ? primarySegment.type : 'Desktop'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Legend Pill Breakdown with clean airy visual hierarchy */}
+                        <div className="w-full grid grid-cols-3 gap-[0.5vw] pt-[0.7vw] border-t border-orange-100">
+                          {segments.map((seg) => (
+                            <div
+                              key={seg.type}
+                              className="bg-orange-50/30 border border-orange-200/70 rounded-[0.45vw] p-[0.45vw] px-[0.4vw] flex flex-col items-center justify-center text-center hover:bg-orange-50/60 transition-colors"
+                            >
+                              <div className="flex items-center gap-[0.3vw] text-[0.68vw] font-medium text-slate-700">
+                                <span className={`w-[0.4vw] h-[0.4vw] rounded-full ${seg.bg} flex-shrink-0`}></span>
+                                <span className="tracking-tight">{seg.type}</span>
+                              </div>
+                              <div className="text-[1vw] font-semibold text-slate-900 mt-[0.25vw] leading-none">
+                                {seg.pct}%
+                              </div>
+                              <div className="text-[0.62vw] text-slate-500 font-normal mt-[0.25vw]">
+                                {seg.views} {seg.views === 1 ? 'view' : 'views'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
-              {/* Geographic & Device Telemetry Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-[1vw]">
-                {/* Geographic Breakdown */}
-                <div className="bg-white rounded-[0.75vw] border border-gray-200 p-[1.2vw] shadow-2xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-[0.8vw]">
-                      <div className="flex items-center gap-[0.4vw]">
-                        <Icon icon="solar:global-bold" className="w-[1.1vw] h-[1.1vw] text-[#ea543a]" />
-                        <h2 className="text-[0.9vw] font-bold text-gray-900">Geographic Distribution</h2>
-                      </div>
-                      <span className="text-[0.7vw] text-gray-400">By Visitor IP</span>
+              {/* Geographic Distribution Full Width Card (Minimal & Understandable) */}
+              <div className="bg-white rounded-[0.75vw] border border-orange-200/70 p-[1.1vw] shadow-2xs">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-[0.6vw] mb-[0.8vw] border-b border-orange-100">
+                  <div className="flex items-center gap-[0.4vw]">
+                    <div className="w-[1.6vw] h-[1.6vw] rounded-[0.4vw] bg-orange-50 border border-orange-200 text-[#ea543a] flex items-center justify-center">
+                      <Icon icon="solar:global-bold" className="w-[1vw] h-[1vw]" />
                     </div>
+                    <div>
+                      <h2 className="text-[0.98vw] font-bold text-slate-900 leading-tight">Geographic Reach</h2>
+                      <p className="text-[0.65vw] text-slate-600 mt-[0.1vw]">Reader traffic by country and region</p>
+                    </div>
+                  </div>
+                  <span className="text-[0.65vw] font-medium text-slate-700 bg-orange-50/70 px-[0.5vw] py-[0.15vw] rounded-[0.35vw] border border-orange-200/80">
+                    By Visitor IP
+                  </span>
+                </div>
 
-                    {countries.length === 0 ? (
-                      <div className="py-[3vw] text-center text-[0.75vw] text-gray-400">
-                        No geographic visitor data recorded yet.
+                {countries.length === 0 ? (
+                  <div className="py-[3vw] text-center text-[0.75vw] text-slate-600">
+                    No geographic visitor data recorded yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-[1.6vw]">
+                    {/* Left Side (7 cols): Clean Country Breakdown Table */}
+                    <div className="lg:col-span-7">
+                      <div className="text-[0.68vw] font-semibold text-slate-800 uppercase tracking-wider mb-[0.5vw] flex items-center justify-between px-[0.2vw]">
+                        <span>Country</span>
+                        <span>Share / Views</span>
                       </div>
-                    ) : (
-                      <div className="space-y-[0.7vw] mt-[0.5vw]">
-                        {countries.slice(0, 6).map((c) => {
+                      
+                      <div className="divide-y divide-orange-100/70">
+                        {countries.map((c) => {
                           const pct = summary.totalViews > 0 ? Math.round((c.views / summary.totalViews) * 100) : 0;
                           return (
-                            <div key={c.country} className="space-y-[0.2vw]">
-                              <div className="flex items-center justify-between text-[0.75vw] font-medium">
-                                <span className="flex items-center gap-[0.4vw] text-gray-800">
-                                  <span>{getCountryFlag(c.code)}</span>
-                                  <span className="font-semibold">{c.country}</span>
-                                </span>
-                                <span className="text-gray-600">
-                                  <strong className="text-gray-900">{c.views}</strong> views <span className="text-gray-400">({pct}%)</span>
-                                </span>
+                            <div key={c.country} className="py-[0.5vw] px-[0.2vw] flex items-center justify-between gap-[1vw] hover:bg-orange-50/20 rounded-[0.3vw] transition-colors">
+                              {/* Country Name & Flag */}
+                              <div className="flex items-center gap-[0.45vw] min-w-[9vw]">
+                                <span className="text-[0.95vw]">{getCountryFlag(c.code)}</span>
+                                <span className="text-[0.75vw] font-medium text-slate-800">{c.country}</span>
                               </div>
-                              <div className="w-full bg-gray-100 rounded-full h-[0.35vw] overflow-hidden">
-                                <div
-                                  className="bg-[#ea543a] h-full rounded-full transition-all duration-300"
-                                  style={{ width: `${Math.min(100, Math.max(5, pct))}%` }}
-                                ></div>
+
+                              {/* Minimal Slim Progress Bar */}
+                              <div className="flex-1 max-w-[14vw] hidden sm:block">
+                                <div className="w-full bg-orange-100/60 rounded-full h-[0.32vw] overflow-hidden">
+                                  <div
+                                    className="bg-[#ea543a] h-full rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.min(100, Math.max(6, pct))}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+
+                              {/* Numbers */}
+                              <div className="text-right text-[0.75vw] flex items-center gap-[0.4vw] min-w-[5vw] justify-end">
+                                <span className="font-semibold text-slate-900">{pct}%</span>
+                                <span className="text-[0.65vw] text-slate-600">({c.views} {c.views === 1 ? 'view' : 'views'})</span>
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Top States & Provinces */}
-                  {((states && states.length > 0) || (cities && cities.length > 0)) && (
-                    <div className="pt-[1vw] mt-[1vw] border-t border-gray-100 space-y-[0.6vw]">
-                      {states && states.length > 0 && (
-                        <div>
-                          <span className="text-[0.68vw] font-semibold text-gray-400 uppercase tracking-wider block mb-[0.3vw]">
-                            Top Regions & States
-                          </span>
-                          <div className="flex flex-wrap gap-[0.35vw]">
-                            {states.slice(0, 8).map(st => (
-                              <span
+                    {/* Right Side (5 cols): Clean State / Region Badges */}
+                    <div className="lg:col-span-5 lg:border-l lg:border-orange-100 lg:pl-[1.5vw] flex flex-col justify-between">
+                      <div>
+                        <div className="text-[0.68vw] font-semibold text-slate-800 uppercase tracking-wider mb-[0.5vw]">
+                          Top Regions & Cities
+                        </div>
+
+                        {states && states.length > 0 ? (
+                          <div className="flex flex-wrap gap-[0.35vw] pt-[0.1vw]">
+                            {states.map(st => (
+                              <div
                                 key={st.state}
-                                className="text-[0.7vw] bg-orange-50/50 border border-orange-200/60 text-gray-700 px-[0.5vw] py-[0.15vw] rounded-[0.35vw] flex items-center gap-[0.25vw]"
+                                className="inline-flex items-center gap-[0.3vw] bg-orange-50/40 hover:bg-orange-50/70 border border-orange-200/70 px-[0.55vw] py-[0.22vw] rounded-[0.35vw] text-[0.72vw] text-slate-800 transition-colors"
                               >
                                 <Icon icon="solar:map-point-linear" className="w-[0.75vw] h-[0.75vw] text-[#ea543a]" />
-                                {st.state} ({st.views})
-                              </span>
+                                <span className="font-medium">{st.state}</span>
+                                <span className="text-slate-600 text-[0.62vw]">({st.views})</span>
+                              </div>
                             ))}
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Device & Platform Breakdown */}
-                <div className="bg-white rounded-[0.75vw] border border-gray-200 p-[1.2vw] shadow-2xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-[0.8vw]">
-                      <div className="flex items-center gap-[0.4vw]">
-                        <Icon icon="solar:devices-bold" className="w-[1.1vw] h-[1.1vw] text-[#ea543a]" />
-                        <h2 className="text-[0.9vw] font-bold text-gray-900">Devices & Browsers</h2>
-                      </div>
-                      <span className="text-[0.7vw] text-gray-400">Client Telemetry</span>
-                    </div>
-
-                    {devices.length === 0 ? (
-                      <div className="py-[3vw] text-center text-[0.75vw] text-gray-400">
-                        No device telemetry recorded yet.
-                      </div>
-                    ) : (
-                      <div className="space-y-[1vw] mt-[0.5vw]">
-                        <div className="grid grid-cols-3 gap-[0.6vw]">
-                          {['Desktop', 'Mobile', 'Tablet'].map((devType) => {
-                            const item = devices.find(d => d.type === devType);
-                            const views = item ? item.views : 0;
-                            const pct = summary.totalViews > 0 ? Math.round((views / summary.totalViews) * 100) : 0;
-                            return (
-                              <div key={devType} className="bg-[#FAF9F6] border border-gray-200/80 rounded-[0.5vw] p-[0.7vw] text-center hover:border-orange-300 transition-colors">
-                                <div className="w-[1.8vw] h-[1.8vw] mx-auto mb-[0.3vw] rounded-[0.4vw] bg-white border border-gray-200 flex items-center justify-center text-gray-700 shadow-2xs">
-                                  {devType === 'Desktop' && <Icon icon="solar:laptop-minimalistic-linear" className="w-[1vw] h-[1vw] text-gray-700" />}
-                                  {devType === 'Mobile' && <Icon icon="solar:smartphone-linear" className="w-[1vw] h-[1vw] text-[#ea543a]" />}
-                                  {devType === 'Tablet' && <Icon icon="solar:tablet-linear" className="w-[1vw] h-[1vw] text-amber-600" />}
-                                </div>
-                                <div className="text-[0.7vw] text-gray-500 font-medium">{devType}</div>
-                                <div className="text-[1.1vw] font-bold text-gray-900 leading-tight">{pct}%</div>
-                                <div className="text-[0.65vw] text-gray-400">{views} sessions</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Browser list */}
-                        {analyticsData?.browsers && analyticsData.browsers.length > 0 && (
-                          <div className="pt-[0.6vw] border-t border-gray-100">
-                            <span className="text-[0.68vw] font-semibold text-gray-400 uppercase tracking-wider block mb-[0.4vw]">
-                              Top Browsers
-                            </span>
-                            <div className="space-y-[0.35vw]">
-                              {analyticsData.browsers.map(b => (
-                                <div key={b.browser} className="flex items-center justify-between text-[0.75vw]">
-                                  <span className="text-gray-700 font-medium">{b.browser}</span>
-                                  <span className="text-gray-600 font-semibold">{b.views} sessions</span>
-                                </div>
-                              ))}
-                            </div>
+                        ) : (
+                          <div className="text-[0.72vw] text-slate-600 py-[1vw]">
+                            No regional data recorded.
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="pt-[0.8vw] mt-[1vw] border-t border-gray-100">
-                    <button
-                      onClick={() => setActiveTab('sessions')}
-                      className="w-full text-center py-[0.45vw] bg-orange-50 hover:bg-orange-100/70 text-[#ea543a] font-semibold text-[0.75vw] rounded-[0.5vw] transition border border-orange-200/80 cursor-pointer flex items-center justify-center gap-[0.3vw]"
-                    >
-                      <span>Explore Visitor Sessions Table</span>
-                      <Icon icon="solar:arrow-right-linear" className="w-[0.8vw] h-[0.8vw]" />
-                    </button>
+                      {/* Clean Helper link at bottom */}
+                      <div className="pt-[0.6vw] mt-[0.8vw] border-t border-orange-100 flex items-center justify-between text-[0.68vw]">
+                        <span className="text-slate-600">Want per-flipbook details?</span>
+                        {selectedBookId ? (
+                          <button
+                            onClick={() => setActiveTab('sessions')}
+                            className="font-semibold text-[#ea543a] hover:underline flex items-center gap-[0.2vw] cursor-pointer"
+                          >
+                            <span>View Flipbook Sessions</span>
+                            <Icon icon="solar:arrow-right-linear" className="w-[0.7vw] h-[0.7vw]" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setActiveTab('books')}
+                            className="font-semibold text-[#ea543a] hover:underline flex items-center gap-[0.2vw] cursor-pointer"
+                          >
+                            <span>View Flipbooks Ranking</span>
+                            <Icon icon="solar:arrow-right-linear" className="w-[0.7vw] h-[0.7vw]" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -1247,16 +1488,16 @@ const Analytics = () => {
             </div>
           )}
 
-          {/* TAB 3: DAILY BREAKDOWN */}
+          {/* TAB 3: DAILY FLIPBOOK COUNTS (Date wise) */}
           {activeTab === 'daily' && (
             <div className="bg-white rounded-[0.75vw] border border-gray-200 shadow-2xs overflow-hidden">
               <div className="p-[0.8vw] border-b border-gray-200 flex items-center justify-between bg-[#FAFAFA]">
                 <h3 className="text-[0.78vw] font-bold text-gray-900 uppercase tracking-wider flex items-center gap-[0.3vw]">
                   <Icon icon="solar:calendar-date-bold" className="w-[0.9vw] h-[0.9vw] text-[#ea543a]" />
-                  <span>Day-by-Day Activity Log</span>
+                  <span>Daily Flipbook Counts (Date-Wise Breakdown)</span>
                 </h3>
-                <span className="text-[0.72vw] text-gray-500 font-medium">
-                  {dailyViews.length} Active Days in Period
+                <span className="text-[0.72vw] text-gray-600 font-medium">
+                  {dailyViews.filter(d => d.views > 0).length} Days with Views Recorded Across Past {selectedDays} Days
                 </span>
               </div>
 
@@ -1270,13 +1511,13 @@ const Analytics = () => {
                     <thead>
                       <tr className="bg-[#F8F8F8] border-b border-gray-200 text-gray-600 font-semibold text-[0.68vw] uppercase tracking-wider">
                         <th className="py-[0.6vw] px-[1vw]">Date (DD-MM-YYYY)</th>
-                        <th className="py-[0.6vw] px-[1vw] text-center">Total Sessions</th>
+                        <th className="py-[0.6vw] px-[1vw] text-center">Flipbook Views Count</th>
                         <th className="py-[0.6vw] px-[1vw] text-center">Avg. Session Time</th>
                         <th className="py-[0.6vw] px-[1vw]">Proportion of Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {dailyViews.map((day) => {
+                      {[...dailyViews].reverse().map((day) => {
                         const pct = summary.totalViews > 0 ? Math.round((day.views / summary.totalViews) * 100) : 0;
                         return (
                           <tr key={day._id} className="hover:bg-orange-50/25 transition-colors">
@@ -1359,7 +1600,7 @@ const Analytics = () => {
                             <button
                               onClick={() => {
                                 setSelectedBookId(b.v_id);
-                                setActiveTab('overview');
+                                setActiveTab('sessions');
                               }}
                               className="inline-flex items-center gap-[0.25vw] text-[0.72vw] font-semibold text-[#ea543a] hover:bg-orange-100/60 bg-orange-50 border border-orange-200/80 px-[0.6vw] py-[0.25vw] rounded-[0.35vw] transition cursor-pointer"
                             >
