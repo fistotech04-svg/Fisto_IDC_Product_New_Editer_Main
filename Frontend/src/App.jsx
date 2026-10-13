@@ -109,6 +109,7 @@ function App() {
               <Route path="/threed-dashboard" element={<ThreeDEditorDashboard />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/forum" element={<Forum />} />
+              <Route path="/forum/admin" element={<Forum isAdminMode={true} />} />
               <Route path="/tickets" element={<Tickets />} />
               <Route path="/profile/:useremail" element={<Viewprofile />} />
               <Route path="/profile" element={<Viewprofile />} />

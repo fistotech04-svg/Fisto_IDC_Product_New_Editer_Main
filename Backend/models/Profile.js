@@ -20,6 +20,11 @@ const profileSchema = new mongoose.Schema({
     type: String,
     default: '#E8D4C8'
   },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
   bannerBg: {
     type: {
       type: String,
