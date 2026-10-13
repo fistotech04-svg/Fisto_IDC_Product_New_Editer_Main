@@ -1039,7 +1039,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
   if (!isOpen) return null;
 
-  const qualityOptions = format === 'PDF' 
+  const qualityOptions = (format === 'PDF' || format === 'SVG')
     ? [
         { name: 'Low', res: '72 DPI' },
         { name: 'Medium', res: '150 DPI' },
@@ -1053,7 +1053,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
         { name: 'Ultra', res: '4096px' },
       ];
 
-  const formatOptions = ['PNG', 'JPG', 'WEBP', 'PDF'];
+  const formatOptions = ['PNG', 'JPG', 'WEBP', 'PDF', 'SVG'];
 
   // Higher quality square images for templates
   const posterTemplates = [
@@ -1151,6 +1151,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     JPG:  { mime: 'image/jpeg',       ext: 'jpg'  },
     WEBP: { mime: 'image/webp',       ext: 'webp' },
     PDF:  { mime: 'application/pdf',  ext: 'pdf'  },
+    SVG:  { mime: 'image/svg+xml',    ext: 'svg'  },
   };
 
   /**
@@ -1535,6 +1536,25 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
         });
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfW, pdfH);
         pdf.save(`${bookName}_poster.pdf`);
+      } else if (format === 'SVG') {
+        try {
+          const svgDataUri = await domtoimage.toSvg(element, {
+            width: rect.width * scale,
+            height: rect.height * scale,
+            style: {
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
+            }
+          });
+          saveAs(svgDataUri, `${bookName}_poster.svg`);
+        } catch (svgErr) {
+          const pngUrl = canvas.toDataURL('image/png');
+          const svgContent = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${canvas.width}" height="${canvas.height}" viewBox="0 0 ${canvas.width} ${canvas.height}"><image href="${pngUrl}" width="${canvas.width}" height="${canvas.height}"/></svg>`;
+          const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+          saveAs(blob, `${bookName}_poster.svg`);
+        }
       } else {
         const mimeType = format === 'PNG' ? 'image/png' : format === 'WEBP' ? 'image/webp' : 'image/jpeg';
         const dataUrl = canvas.toDataURL(mimeType, 0.95);
@@ -1715,6 +1735,56 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
           } else {
             throw new Error('Failed to generate PDF document');
           }
+        }
+
+      } else if (format === 'SVG') {
+        // ── TRUE VECTOR SVG EXPORT ────────────────────────────────
+        const preparePageSvg = async (idx) => {
+          const res = buildExportSvg(idx, maxPx, true);
+          if (!res) return null;
+          let { svgString } = res;
+
+          // 1. Inline all referenced images in the SVG to Base64
+          let inlinedSvg = await inlineSvgImages(svgString);
+
+          // 2. Convert <foreignObject> text into vector outlines / clean SVG text
+          try {
+            inlinedSvg = await convertSvgTextToOutlines(inlinedSvg);
+          } catch (textErr) {
+            console.warn('Text outline conversion fallback:', textErr);
+          }
+
+          // 3. Ensure xmlns attributes and XML declaration
+          if (!inlinedSvg.includes('xmlns=')) {
+            inlinedSvg = inlinedSvg.replace(/<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+          }
+          if (!inlinedSvg.includes('xmlns:xlink=')) {
+            inlinedSvg = inlinedSvg.replace(/<svg\b/i, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+          }
+          if (!inlinedSvg.trim().startsWith('<?xml')) {
+            inlinedSvg = `<?xml version="1.0" encoding="UTF-8"?>\n${inlinedSvg}`;
+          }
+
+          return inlinedSvg;
+        };
+
+        if (indices.length === 1) {
+          const finalSvg = await preparePageSvg(indices[0]);
+          if (!finalSvg) throw new Error('Page content not available');
+          const blob = new Blob([finalSvg], { type: 'image/svg+xml;charset=utf-8' });
+          const pgName = (modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g, '_');
+          saveAs(blob, `${bookName}_${pgName}.svg`);
+        } else {
+          const zip = new JSZip();
+          const folder = zip.folder(bookName);
+          for (const idx of indices) {
+            const finalSvg = await preparePageSvg(idx);
+            if (!finalSvg) continue;
+            const pgName = (modalPages[idx]?.name || `Page_${idx+1}`).replace(/\s+/g, '_');
+            folder.file(`${pgName}.svg`, finalSvg);
+          }
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+          saveAs(zipBlob, `${bookName}_${indices.length}_pages_svg.zip`);
         }
 
       } else if (indices.length === 1) {
@@ -2099,7 +2169,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                         <button key={opt.name} onClick={() => setQuality(opt.name)} className={`flex flex-col items-center justify-center py-[0.5vw] rounded-[0.5vw] border transition-all cursor-pointer ${quality === opt.name ? 'bg-black text-white border-black shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-200 shadow-sm'}`}><span className="text-[0.65vw] font-semibold">{opt.name}</span><span className={`text-[0.5vw] ${quality === opt.name ? 'text-gray-300' : 'text-gray-400'}`}>({opt.res})</span></button>
                       ))}
                     </div>
-                    <div className="grid grid-cols-4 gap-[0.4vw]">
+                    <div className="grid grid-cols-5 gap-[0.4vw]">
                       {formatOptions.map((fmt) => (
                         <button key={fmt} onClick={() => setFormat(fmt)} className={`py-[0.5vw] rounded-[0.5vw] border transition-all cursor-pointer font-semibold text-[0.7vw] ${format === fmt ? 'bg-black text-white border-black shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-200 shadow-sm'}`}>{fmt}</button>
                       ))}

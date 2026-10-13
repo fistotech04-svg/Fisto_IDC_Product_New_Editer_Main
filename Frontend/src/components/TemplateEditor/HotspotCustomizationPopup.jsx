@@ -3,7 +3,71 @@ import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import ColorPicker from './properties/ColorPicker';
 import { presets as hotspotPresets } from './HotspotPresetPopup';
-import { PRESETS, generateHotspotSVG, generateButtonSVG } from './hotspotSvgUtils';
+import { PRESETS, generateHotspotSVG, generateButtonSVG, generateSvgGradient } from './hotspotSvgUtils';
+
+const ALL_ICON_ASSETS = import.meta.glob('../../assets/hotspot preset icon/**/*.svg', { as: 'url', eager: true });
+const BUTTON_ICON_ASSETS = import.meta.glob('../../assets/hotspot preset icon/interactive_button/*.png', { as: 'url', eager: true });
+
+const getCategoryKeywords = (actionId) => {
+  const map = {
+    'zoom': ['zoom'],
+    'download': ['download'],
+    'info': ['info'],
+    'audio': ['audio']
+  };
+  return map[actionId] || [];
+};
+
+const getIconsForAction = (actionId) => {
+  if (!actionId) return [];
+  
+  const folderMap = {
+    'whatsapp': 'whatsapp',
+    'open-link': 'open_link',
+    'video': 'video',
+    'instagram': 'instagram',
+    'facebook': 'facebook',
+    'linkedin': 'linkedin',
+    'x': 'x',
+    'youtube': 'youtube',
+    'popup': 'popup',
+    'slideshow': 'slideshow',
+    '3d-viewer': '3d viewer',
+    'email': 'email',
+    'call': 'call',
+    'location': 'location',
+    'navigate-to': 'navigation page',
+    'zoom': 'zoom',
+    'info': 'info',
+    'info-box': 'info',
+    'download': 'download',
+    'audio': 'audio'
+  };
+
+  const folder = folderMap[actionId];
+  const matched = [];
+  
+  if (folder) {
+    const prefix = `../../assets/hotspot preset icon/${folder}/`.toLowerCase();
+    for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
+      if (path.toLowerCase().startsWith(prefix)) {
+        matched.push({ id: path, src: url });
+      }
+    }
+  } else {
+    const keywords = getCategoryKeywords(actionId);
+    if (keywords.length > 0) {
+      for (const [path, url] of Object.entries(ALL_ICON_ASSETS)) {
+        const lowerPath = path.toLowerCase();
+        if (keywords.some(kw => lowerPath.includes(kw))) {
+          matched.push({ id: path, src: url });
+        }
+      }
+    }
+  }
+  
+  return matched;
+};
 
 const HotspotCustomizationPopup = ({ isOpen, onClose, initialData, onSave }) => {
   const [customSrc, setCustomSrc] = useState(null);
