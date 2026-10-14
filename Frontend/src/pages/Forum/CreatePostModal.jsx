@@ -53,7 +53,7 @@ export default function CreatePostModal({ isOpen, onClose, onSubmit, targetModul
 
   const activeModule = FORUM_MODULES.find(m => m.id === moduleId) || FORUM_MODULES[0];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) {
       setError('Please enter a descriptive title for your post');
@@ -68,21 +68,26 @@ export default function CreatePostModal({ isOpen, onClose, onSubmit, targetModul
       return;
     }
 
-    setIsSubmitting(true);
-    const newPostData = {
-      moduleId: activeModule.id,
-      moduleName: activeModule.name,
-      postType,
-      title: title.trim(),
-      description: description.trim(),
-      status: postType === 'suggestion' ? 'under_review' : 'awaiting_admin'
-    };
+    try {
+      setIsSubmitting(true);
+      const newPostData = {
+        moduleId: activeModule.id,
+        moduleName: activeModule.name,
+        postType,
+        title: title.trim(),
+        description: description.trim(),
+        status: postType === 'suggestion' ? 'under_review' : 'awaiting_admin'
+      };
 
-    setTimeout(() => {
-      onSubmit(newPostData);
+      if (onSubmit) {
+        await onSubmit(newPostData);
+      }
       setIsSubmitting(false);
       onClose();
-    }, 200);
+    } catch (err) {
+      setError(err.message || 'Failed to submit post');
+      setIsSubmitting(false);
+    }
   };
 
   return (

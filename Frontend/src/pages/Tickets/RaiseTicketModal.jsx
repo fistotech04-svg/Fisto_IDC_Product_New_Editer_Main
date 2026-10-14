@@ -1,4 +1,4 @@
-// Frontend/src/pages/Tickets/RaiseTicketModal.jsx
+﻿// Frontend/src/pages/Tickets/RaiseTicketModal.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   X, 
@@ -7,7 +7,11 @@ import {
   Paperclip, 
   AlertCircle, 
   Check, 
-  UploadCloud 
+  UploadCloud,
+  ShieldAlert,
+  HelpCircle,
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 import { TICKET_MODULES, TICKET_PRIORITIES } from './ticketData';
 
@@ -61,25 +65,34 @@ export default function RaiseTicketModal({ isOpen, onClose, onSubmit, defaultMod
 
     setIsSubmitting(true);
     const selectedMod = modulesList.find(m => m.id === moduleId) || modulesList[0];
+    const userDisplayName = currentUser?.name || contactEmail.split('@')[0] || 'User';
 
     const newTicket = {
       id: `TICK-${Math.floor(1000 + Math.random() * 9000)}`,
       subject: subject.trim(),
       moduleId: selectedMod.id,
       moduleName: selectedMod.name,
+      department: selectedMod.name,
       priority,
       status: 'open',
       requester: {
-        name: currentUser?.name || contactEmail.split('@')[0] || 'User',
+        name: userDisplayName,
         email: contactEmail.trim(),
-        avatarColor: currentUser?.avatarBgColor || '#ec5137'
+        avatarColor: currentUser?.avatarBgColor || '#ec5137',
+        badge: 'Authorized User',
+        initials: userDisplayName.slice(0, 2).toUpperCase()
       },
+      ccRecipients: [
+        contactEmail.trim(),
+        'support@flipibook.com'
+      ],
       assignedTo: {
-        name: 'Support Operations',
+        name: 'Technical Support',
         role: 'Tier 1 Support',
         avatarColor: '#2563eb'
       },
       createdAt: 'Just now',
+      submittedAt: 'Just now',
       updatedAt: 'Just now',
       description: description.trim(),
       attachments: attachmentName ? [attachmentName] : [],
@@ -87,7 +100,9 @@ export default function RaiseTicketModal({ isOpen, onClose, onSubmit, defaultMod
         {
           id: `msg-${Date.now()}`,
           sender: 'user',
-          authorName: currentUser?.name || contactEmail.split('@')[0] || 'User',
+          authorName: userDisplayName,
+          badge: 'Authorized User',
+          email: contactEmail.trim(),
           timestamp: 'Just now',
           content: description.trim()
         }
@@ -101,170 +116,189 @@ export default function RaiseTicketModal({ isOpen, onClose, onSubmit, defaultMod
     }, 250);
   };
 
+  const activeModule = modulesList.find(m => m.id === moduleId) || modulesList[0];
+
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-stone-900/60 backdrop-blur-[2px] animate-in fade-in duration-150">
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-200"
+        className="bg-white w-full h-full flex flex-col overflow-hidden"
         role="dialog"
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/70">
-          <div className="flex items-center gap-2.5">
+        {/* Header - Full Width with Back button & Clear info */}
+        <div className="px-6 py-4 border-b border-orange-100 flex items-center justify-between bg-orange-50/40 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-200/60 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+              title="Back to Tickets"
+            >
+              <ArrowLeft size={18} />
+              <span className="hidden sm:inline">Back</span>
+            </button>
             <div className="w-8 h-8 rounded-lg bg-orange-100 text-[#ec5137] flex items-center justify-center">
               <LifeBuoy size={18} />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-gray-950">
-                Raise Support Ticket
-              </h2>
-              <p className="text-xs text-gray-500">
-                Direct inquiry to our engineering and customer success team
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-stone-900">
+                  Raise Support Ticket
+                </h2>
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-orange-100 text-[#c23d26] border border-orange-200">
+                  Direct Engineering Support
+                </span>
+              </div>
+              <p className="text-xs text-stone-500 font-normal">
+                Private inquiry to our engineering and customer success team
               </p>
             </div>
           </div>
 
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-200/50 transition-colors cursor-pointer"
+            className="text-stone-400 hover:text-[#ec5137] p-1.5 rounded-lg hover:bg-orange-50 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5">
-          {/* Module / Department */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
-              Affected Module / Service <span className="text-[#ec5137]">*</span>
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {modulesList.map((m) => {
-                const isSelected = m.id === moduleId;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setModuleId(m.id)}
-                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer flex items-center justify-between ${
-                      isSelected 
-                        ? 'border-[#ec5137] bg-orange-50/60 text-gray-900 ring-1 ring-[#ec5137]' 
-                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span>{m.name}</span>
-                    {isSelected && <Check size={14} className="text-[#ec5137]" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Priority */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
-              Issue Severity / Priority
-            </label>
-            <div className="flex items-center gap-2 flex-wrap">
-              {TICKET_PRIORITIES.map((p) => {
-                const isSelected = p.id === priority;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setPriority(p.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                      isSelected 
-                        ? `${p.color} ring-2 ring-gray-900/10 shadow-xs` 
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    {p.label} Priority
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Subject */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
-              Subject <span className="text-[#ec5137]">*</span>
-            </label>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="e.g. Export timeout when processing high-resolution flipbook"
-              className="w-full px-4 py-2.5 text-sm sm:text-base border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ec5137]/30 focus:border-[#ec5137] transition-all"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
-              Problem Description & Expected Outcome <span className="text-[#ec5137]">*</span>
-            </label>
-            <textarea
-              rows={5}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide exact details of what happened, error message, or steps to reproduce..."
-              className="w-full p-4 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ec5137]/30 focus:border-[#ec5137] transition-all resize-y"
-            />
-          </div>
-
-          {/* Attachments (Simulated) */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
-              Attach Screenshot or Log File (Optional)
-            </label>
-            <div className="border border-dashed border-gray-300 hover:border-gray-400 rounded-xl p-4 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-3">
-                <UploadCloud size={20} className="text-gray-400" />
-                <div className="text-xs">
-                  {attachmentName ? (
-                    <span className="font-bold text-gray-900">{attachmentName}</span>
-                  ) : (
-                    <span className="text-gray-500">Attach screenshot or error log (PNG, JPG, PDF, TXT)</span>
-                  )}
-                </div>
+        {/* Scrollable Form Body - Full Width */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 sm:p-8 lg:p-10 space-y-6">
+          <div className="w-full space-y-6">
+            {/* 2-Column Responsive Form Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Module Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
+                  Affected Module / Service <span className="text-[#ec5137]">*</span>
+                </label>
+                <select
+                  value={moduleId}
+                  onChange={(e) => setModuleId(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm font-medium rounded-xl border border-stone-300 bg-white focus:outline-none focus:border-[#ec5137] focus:ring-1 focus:ring-[#ec5137]/20 cursor-pointer text-stone-800"
+                >
+                  {modulesList.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <label className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors">
-                <span>Browse</span>
-                <input type="file" onChange={handleSimulatedFileUpload} className="hidden" />
-              </label>
+              {/* Issue Severity / Priority */}
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
+                  Issue Severity / Priority <span className="text-[#ec5137]">*</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {TICKET_PRIORITIES.map((p) => {
+                    const isSelected = p.id === priority;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setPriority(p.id)}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-semibold border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isSelected 
+                            ? `${p.color} ring-1 ring-orange-300 shadow-xs font-bold` 
+                            : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
+                        }`}
+                      >
+                        <span>{p.label} Priority</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+
+            {/* Subject / Title */}
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
+                Subject <span className="text-[#ec5137]">*</span>
+              </label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="e.g. Export timeout when processing high-resolution flipbook (75MB)"
+                className="w-full px-4 py-2.5 text-sm sm:text-base border border-stone-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#ec5137]/20 focus:border-[#ec5137] transition-all text-stone-900 font-normal"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
+                Problem Description & Expected Outcome <span className="text-[#ec5137]">*</span>
+              </label>
+              <textarea
+                rows={7}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Provide exact details of what happened, error message, steps to reproduce, or catalogue URL..."
+                className="w-full p-4 text-sm border border-stone-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#ec5137]/20 focus:border-[#ec5137] transition-all resize-y text-stone-900 font-normal leading-relaxed"
+              />
+            </div>
+
+            {/* Attachments Upload */}
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">
+                Attach Screenshot or Log File (Optional)
+              </label>
+              <div className="border border-dashed border-stone-300 hover:border-[#ec5137]/50 rounded-xl p-5 flex items-center justify-between bg-stone-50/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <UploadCloud size={22} className="text-stone-400" />
+                  <div className="text-xs">
+                    {attachmentName ? (
+                      <span className="font-semibold text-stone-900 text-sm">{attachmentName}</span>
+                    ) : (
+                      <span className="text-stone-500 text-sm">Attach screenshot or error log (PNG, JPG, PDF, TXT)</span>
+                    )}
+                  </div>
+                </div>
+
+                <label className="px-4 py-2 rounded-xl border border-stone-300 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer transition-colors shadow-xs">
+                  <span>Browse</span>
+                  <input type="file" onChange={handleSimulatedFileUpload} className="hidden" />
+                </label>
+              </div>
+            </div>
+
+            {/* Privacy Note */}
+            <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-xl flex items-center gap-2 text-xs text-stone-600">
+              <ShieldAlert size={16} className="text-stone-400 flex-shrink-0" />
+              <span>Support tickets are private to your organization and Flipibook technical engineers.</span>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl border border-red-200">
+                <AlertCircle size={15} />
+                <span>{error}</span>
+              </div>
+            )}
           </div>
 
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-xl border border-red-200">
-              <AlertCircle size={16} />
-              <span>{error}</span>
-            </div>
-          )}
-
           {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-            <span className="text-xs text-gray-400">
-              Updates will be sent to <strong>{contactEmail}</strong>
+          <div className="flex items-center justify-between pt-4 border-t border-stone-100">
+            <span className="text-xs text-stone-500 font-normal">
+              Department: <strong className="text-stone-800 font-medium">{activeModule.name}</strong>
             </span>
 
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
+                className="px-5 py-2.5 text-xs sm:text-sm font-semibold text-stone-600 hover:text-stone-900 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 text-sm font-bold text-white bg-[#ec5137] hover:bg-[#d9442b] rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                className="px-6 py-2.5 text-xs sm:text-sm font-semibold text-white bg-[#ec5137] hover:bg-[#d9442b] rounded-xl transition-all shadow-xs hover:shadow cursor-pointer disabled:opacity-50 flex items-center gap-2 active:scale-[0.99]"
               >
-                {isSubmitting ? 'Raising Ticket...' : 'Submit Ticket'}
+                <Send size={14} />
+                <span>{isSubmitting ? 'Raising Ticket...' : 'Submit Ticket'}</span>
               </button>
             </div>
           </div>

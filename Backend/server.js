@@ -20,6 +20,7 @@ import profileRoutes from "./routes/User_Details/profile.js";
 import activityRoutes from "./routes/User_Details/activity.js";
 import presetsRoutes from "./routes/Presets/presets.js";
 import { analyticsRoutes } from "./analytics_tracking/index.js";
+import { forumRoutes } from "./forum/index.js";
 import { seedPresets } from "./utils/seedPresets.js";
 import compression from "compression";
 import fs from "fs";
@@ -87,7 +88,7 @@ app.use(
       callback(null, true);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-user-email"],
     credentials: true,
     optionsSuccessStatus: 200 // Some legacy browsers choke on 204
   }),
@@ -251,6 +252,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/presets", presetsRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/forum", forumRoutes);
 
 import { startBackgroundTempCleaner } from "./utils/tempCleaner.js";
 
