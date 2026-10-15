@@ -21,6 +21,7 @@ import activityRoutes from "./routes/User_Details/activity.js";
 import presetsRoutes from "./routes/Presets/presets.js";
 import { analyticsRoutes } from "./analytics_tracking/index.js";
 import { forumRoutes } from "./forum/index.js";
+import { ticketRoutes } from "./tickets/index.js";
 import { seedPresets } from "./utils/seedPresets.js";
 import compression from "compression";
 import fs from "fs";
@@ -253,6 +254,7 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/presets", presetsRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/forum", forumRoutes);
+app.use("/api/tickets", ticketRoutes);
 
 import { startBackgroundTempCleaner } from "./utils/tempCleaner.js";
 

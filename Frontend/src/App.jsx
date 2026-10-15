@@ -24,7 +24,7 @@ import Explore from './pages/Explore';
 import Template from './pages/Template';
 import ContactUs from './pages/ContactUs';
 import Forum from './pages/Forum';
-import Tickets from './pages/Tickets';
+import Tickets, { TicketDetailsPage } from './pages/Tickets';
 import Unauthorized from './pages/Unauthorized';
 import NotFound from './pages/NotFound';
 import Editor from './Modules/Editer';
@@ -109,8 +109,8 @@ function App() {
               <Route path="/threed-dashboard" element={<ThreeDEditorDashboard />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/forum" element={<Forum />} />
-              <Route path="/forum/admin" element={<Forum isAdminMode={true} />} />
               <Route path="/tickets" element={<Tickets />} />
+              <Route path="/tickets/:ticketId" element={<TicketDetailsPage />} />
               <Route path="/profile/:useremail" element={<Viewprofile />} />
               <Route path="/profile" element={<Viewprofile />} />
               <Route path="/settings" element={<SettingsLayout />}>
