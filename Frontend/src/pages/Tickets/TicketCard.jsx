@@ -1,11 +1,10 @@
-// Frontend/src/pages/Tickets/TicketCard.jsx
 import React from 'react';
 import { 
   MessageSquare, 
   Paperclip, 
   Clock, 
-  ArrowRight,
-  ShieldAlert
+  ChevronRight,
+  LifeBuoy
 } from 'lucide-react';
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './ticketData';
 
@@ -15,70 +14,107 @@ export default function TicketCard({ ticket, onSelectTicket }) {
   const messageCount = ticket.messages ? ticket.messages.length : 0;
   const hasAttachments = ticket.attachments && ticket.attachments.length > 0;
 
+  const requesterName = ticket.requester?.name || 'User';
+  const authorInitials = ticket.requester?.initials || requesterName.slice(0, 2).toUpperCase();
+  const avatarColor = ticket.requester?.avatarColor || '#ec5137';
+
   return (
-    <div 
+    <article 
       onClick={() => onSelectTicket(ticket)}
-      className="group bg-white hover:bg-[#fafafc] border-b border-gray-200/80 p-4 sm:p-5 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+      className="group bg-white hover:bg-[#fff9f8] p-4 sm:p-5 rounded-2xl border border-stone-200 hover:border-[#ec5137]/40 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-sm"
     >
-      {/* Left Details */}
-      <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
-        {/* Ticket ID Tag */}
-        <span className="text-xs font-mono font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-700 flex-shrink-0 group-hover:bg-gray-200 transition-colors">
-          #{ticket.id}
-        </span>
+      <div className="flex items-start gap-3.5 sm:gap-4">
+        {/* Requester Avatar Circle */}
+        <div 
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 shadow-xs ring-2 ring-orange-100/80"
+          style={{ backgroundColor: avatarColor }}
+        >
+          {authorInitials}
+        </div>
 
-        {/* Title & Metadata */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm sm:text-base font-bold text-gray-950 group-hover:text-[#ec5137] transition-colors truncate">
-              {ticket.subject}
-            </h3>
-
-            {/* Department / Module Pill */}
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-gray-600 flex-shrink-0">
-              {ticket.moduleName}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-            <span className="text-gray-600 font-medium">Raised by {ticket.requester?.name}</span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
-              <Clock size={12} />
-              {ticket.createdAt}
-            </span>
-            {hasAttachments && (
-              <>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-gray-500">
-                  <Paperclip size={12} />
-                  {ticket.attachments.length} file
+        {/* Main Content Details */}
+        <div className="flex-1 min-w-0">
+          {/* Top Row: Requester & ID on Left, Structured Tags on Right */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-stone-600 truncate min-w-0">
+              <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 text-xs shrink-0 group-hover:bg-orange-100/70 group-hover:text-[#c23d26] transition-colors">
+                #{ticket.id}
+              </span>
+              <span className="font-semibold text-stone-900 truncate">{requesterName}</span>
+              {ticket.requester?.badge && (
+                <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-slate-700 text-white font-normal">
+                  {ticket.requester.badge}
                 </span>
-              </>
-            )}
+              )}
+              <span className="text-stone-300">•</span>
+              <span className="text-stone-500 font-normal shrink-0 text-xs flex items-center gap-1">
+                <Clock size={11} />
+                {ticket.createdAt || ticket.submittedAt || 'Recently'}
+              </span>
+            </div>
+
+            {/* Structured Tags on Right */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+              {/* Department / Module Tag */}
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-stone-700 bg-stone-100/80 border border-stone-200/80">
+                <LifeBuoy size={11} className="text-[#ec5137]" />
+                <span>{ticket.department || ticket.moduleName}</span>
+              </div>
+
+              {/* Priority Tag */}
+              <div className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${priorityObj.color}`}>
+                <span>{priorityObj.label} Priority</span>
+              </div>
+
+              {/* Status Badge */}
+              <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border ${statusObj.color}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`}></span>
+                <span>{statusObj.label}</span>
+              </div>
+
+              {/* Navigation Chevron */}
+              <div className="hidden sm:block text-stone-300 group-hover:text-[#ec5137] transition-colors ml-0.5">
+                <ChevronRight size={16} />
+              </div>
+            </div>
+          </div>
+
+          {/* Ticket Subject */}
+          <h3 className="text-base sm:text-[17px] font-semibold text-stone-900 group-hover:text-[#ec5137] transition-colors leading-snug">
+            {ticket.subject}
+          </h3>
+
+          {/* Description Preview */}
+          {ticket.description && (
+            <p className="text-xs sm:text-sm text-stone-600 line-clamp-2 mt-1.5 leading-relaxed font-normal">
+              {ticket.description}
+            </p>
+          )}
+
+          {/* Footer Metadata */}
+          <div className="flex items-center justify-between pt-3 mt-3 text-xs text-stone-500 border-t border-stone-100">
+            <div className="flex items-center gap-3 text-stone-500 font-normal text-xs">
+              <span>Updated {ticket.updatedAt || ticket.lastUpdated || ticket.createdAt || 'Just now'}</span>
+              {hasAttachments && (
+                <>
+                  <span className="text-stone-300">•</span>
+                  <span className="flex items-center gap-1 text-stone-600">
+                    <Paperclip size={12} />
+                    {ticket.attachments.length} attachment{ticket.attachments.length > 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-50 group-hover:bg-white text-stone-700 border border-stone-200/80 text-xs font-medium">
+                <MessageSquare size={12} className="text-[#ec5137]" />
+                <span>{messageCount} {messageCount === 1 ? 'message' : 'messages'}</span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Right Badges: Priority, Status, Messages */}
-      <div className="flex items-center gap-3 flex-shrink-0 self-end sm:self-center">
-        {/* Priority Badge */}
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${priorityObj.color}`}>
-          {priorityObj.label}
-        </span>
-
-        {/* Status Badge */}
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${statusObj.color}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`}></span>
-          {statusObj.label}
-        </span>
-
-        {/* Message replies count */}
-        <div className="flex items-center gap-1 text-xs text-gray-500 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200">
-          <MessageSquare size={13} className="text-gray-400" />
-          <span className="font-bold">{messageCount}</span>
-        </div>
-      </div>
-    </div>
+    </article>
   );
 }

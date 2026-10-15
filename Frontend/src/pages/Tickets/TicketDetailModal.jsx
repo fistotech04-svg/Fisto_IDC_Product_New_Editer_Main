@@ -1,4 +1,4 @@
-// Frontend/src/pages/Tickets/TicketDetailModal.jsx
+﻿// Frontend/src/pages/Tickets/TicketDetailModal.jsx
 import React, { useState } from 'react';
 import { 
   X, 
@@ -17,7 +17,8 @@ import {
   Radio, 
   Tag,
   CheckCircle2,
-  Trash2
+  Trash2,
+  ArrowLeft
 } from 'lucide-react';
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './ticketData';
 
@@ -103,25 +104,35 @@ export default function TicketDetailModal({
       ];
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-[2px] animate-in fade-in duration-150 overflow-y-auto">
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-slate-900/60 backdrop-blur-[2px] animate-in fade-in duration-150">
       <div 
-        className="bg-white rounded-lg shadow-2xl w-full max-w-6xl my-auto flex flex-col border border-slate-200 overflow-hidden text-slate-800"
+        className="bg-white w-full h-full flex flex-col text-slate-800 overflow-hidden"
         role="dialog"
       >
         {/* Top Title & Close Bar */}
-        <div className="bg-[#f8fafc] px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex flex-col">
-            <h1 className="text-xl sm:text-2xl font-normal text-[#2563eb] tracking-tight">
-              Ticket #{ticket.id} - Sub : {ticket.subject}
-            </h1>
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 font-sans">
-              <span className="hover:text-slate-600 cursor-pointer">Portal Home</span>
-              <span>/</span>
-              <span className="hover:text-slate-600 cursor-pointer">Client Area</span>
-              <span>/</span>
-              <span className="hover:text-slate-600 cursor-pointer">Support Tickets</span>
-              <span>/</span>
-              <span className="text-slate-600 font-medium">View Ticket</span>
+        <div className="bg-[#f8fafc] px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-200/60 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+              title="Back to Tickets"
+            >
+              <ArrowLeft size={18} />
+              <span className="hidden sm:inline">Back</span>
+            </button>
+            <div className="flex flex-col">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-normal text-[#2563eb] tracking-tight">
+                Ticket #{ticket.id} - Sub : {ticket.subject}
+              </h1>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 font-sans">
+                <span className="hover:text-slate-600 cursor-pointer">Portal Home</span>
+                <span>/</span>
+                <span className="hover:text-slate-600 cursor-pointer">Client Area</span>
+                <span>/</span>
+                <span className="hover:text-slate-600 cursor-pointer">Support Tickets</span>
+                <span>/</span>
+                <span className="text-slate-600 font-medium">View Ticket</span>
+              </div>
             </div>
           </div>
 
@@ -135,7 +146,7 @@ export default function TicketDetailModal({
         </div>
 
         {/* Action Top Bar */}
-        <div className="px-6 py-3 bg-[#e2f1fa]/40 border-b border-sky-100 flex items-center justify-between">
+        <div className="px-6 py-3 bg-[#e2f1fa]/40 border-b border-sky-100 flex items-center justify-between flex-shrink-0">
           <button 
             onClick={() => setShowReplyForm(!showReplyForm)}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded bg-sky-50 hover:bg-sky-100 text-[#0284c7] font-medium text-sm transition-all border border-sky-200 cursor-pointer shadow-xs"
@@ -153,8 +164,8 @@ export default function TicketDetailModal({
           </button>
         </div>
 
-        {/* Main Content 2-Column Layout */}
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-[#fcfcfc] overflow-y-auto max-h-[calc(88vh-130px)]">
+        {/* Main Content 2-Column Full-Width Layout */}
+        <div className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-[#fcfcfc] overflow-y-auto">
           {/* Left Column (Ticket Info Sidebar) */}
           <div className="lg:col-span-4 space-y-4">
             {/* Box 1: Ticket Information */}
@@ -418,7 +429,7 @@ export default function TicketDetailModal({
                       {msg.content}
                     </div>
 
-                    {/* Rating stars placeholder on bottom right of staff reply like in screenshot */}
+                    {/* Rating stars placeholder on bottom right of staff reply */}
                     {isAgent && (
                       <div className="px-5 pb-3 flex justify-end items-center gap-1 text-slate-300">
                         <Star size={14} className="hover:text-amber-400 cursor-pointer" />

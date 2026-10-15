@@ -15,7 +15,7 @@ import {
   CornerDownRight,
   Reply
 } from 'lucide-react';
-import { POST_STATUS_CONFIG } from './forumData';
+import { POST_STATUS_CONFIG, formatForumDate } from './forumData';
 import { useToast } from '../../components/CustomToast';
 
 export default function PostDetailView({ 
@@ -31,8 +31,7 @@ export default function PostDetailView({
   isAdmin: propIsAdmin
 }) {
   const toast = useToast();
-  const [commentText, setCommentText] = useState('');
-  const [authorFollowUpText, setAuthorFollowUpText] = useState('');
+    const [authorFollowUpText, setAuthorFollowUpText] = useState('');
   const [showAuthorFollowUpBox, setShowAuthorFollowUpBox] = useState(false);
   const [adminReplyText, setAdminReplyText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState(post?.status || 'awaiting_admin');
@@ -41,8 +40,7 @@ export default function PostDetailView({
   const [adminFollowUpReplies, setAdminFollowUpReplies] = useState({});
   const [activeReplyBoxId, setActiveReplyBoxId] = useState(null);
 
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
+    const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
   const [isSubmittingAdmin, setIsSubmittingAdmin] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -84,31 +82,7 @@ export default function PostDetailView({
     }
   };
 
-  const handleUserCommentSubmit = (e) => {
-    e.preventDefault();
-    if (!commentText.trim()) return;
-
-    setIsSubmittingComment(true);
-    const newComment = {
-      id: `c-${Date.now()}`,
-      author: {
-        name: currentUser?.name || 'Community Member',
-        initials: (currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'U'),
-        avatarColor: '#ec5137',
-        email: currentUserId
-      },
-      createdAt: 'Just now',
-      content: commentText.trim()
-    };
-
-    setTimeout(() => {
-      onAddUserComment(post.id, newComment);
-      setCommentText('');
-      setIsSubmittingComment(false);
-      if (toast?.showToast) toast.showToast('Comment posted', 'success');
-    }, 150);
-  };
-
+  
   const handleAuthorFollowUpSubmit = (e) => {
     e.preventDefault();
     if (!authorFollowUpText.trim()) return;
@@ -254,12 +228,13 @@ export default function PostDetailView({
             </span>
 
             {/* Status Badge */}
+            {isAdmin && (
             <span className={`px-2.5 py-1 rounded-md font-medium text-xs border flex items-center gap-1.5 ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border || 'border-stone-200'}`}>
               <span>{statusInfo.label}</span>
-            </span>
+            </span>)}
 
             <span className="text-stone-500 font-normal text-xs sm:text-sm">
-              Posted by <strong className="text-stone-800 font-semibold">{post.author?.name}</strong> • {post.createdAt}
+              Posted by <strong className="text-stone-800 font-semibold">{post.author?.name}</strong> • {formatForumDate(post.createdAt)}
             </span>
           </div>
 
@@ -304,7 +279,7 @@ export default function PostDetailView({
             </button>
 
             <span className="text-xs text-stone-500 font-normal">
-              Updated {post.updatedAt || post.createdAt}
+              Updated {formatForumDate(post.updatedAt || post.createdAt)}
             </span>
           </div>
         </div>
@@ -340,7 +315,7 @@ export default function PostDetailView({
                           Official Reply
                         </span>
                       </div>
-                      <span className="text-xs text-stone-500">{post.adminReply.createdAt}</span>
+                      <span className="text-xs text-stone-500">{formatForumDate(post.adminReply.createdAt)}</span>
                     </div>
                   </div>
                 </div>
@@ -387,7 +362,7 @@ export default function PostDetailView({
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
                               Author Follow-up #{idx + 1}
                             </span>
-                            <span className="text-xs text-stone-400 font-normal">• {fu.createdAt}</span>
+                            <span className="text-xs text-stone-400 font-normal">• {formatForumDate(fu.createdAt)}</span>
                           </div>
                         </div>
 
@@ -408,7 +383,7 @@ export default function PostDetailView({
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-[#c23d26] border border-orange-300">
                                 Admin Response
                               </span>
-                              <span className="text-xs text-stone-400 font-normal">• {fu.adminReply.createdAt}</span>
+                              <span className="text-xs text-stone-400 font-normal">• {formatForumDate(fu.adminReply.createdAt)}</span>
                             </div>
                           </div>
                           <p className="text-xs sm:text-sm text-stone-800 leading-relaxed font-normal pl-8 whitespace-pre-line">
@@ -561,77 +536,6 @@ export default function PostDetailView({
               </form>
             )}
           </div>
-        </div>
-
-        {/* 3. Community Comments Section (Distinct from the Official Thread) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-base font-semibold text-stone-900">
-              Community Comments ({comments.length})
-            </h2>
-            <span className="text-xs text-stone-500 font-normal">
-              Other users sharing workflows or experiences.
-            </span>
-          </div>
-
-          {/* Comments List */}
-          <div className="space-y-3.5">
-            {comments.map((comment) => (
-              <div 
-                key={comment.id}
-                className="rounded-2xl border bg-white border-stone-200/90 p-4 sm:p-5 shadow-2xs space-y-2"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div 
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold shadow-xs"
-                      style={{ backgroundColor: comment.author?.avatarColor || '#ec5137' }}
-                    >
-                      {comment.author?.initials || 'U'}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <strong className="text-xs sm:text-sm font-semibold text-stone-900">{comment.author?.name}</strong>
-                      <span className="text-xs text-stone-400 font-normal">• {comment.createdAt}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-xs sm:text-sm text-stone-700 leading-relaxed font-normal whitespace-pre-line pl-9.5">
-                  {comment.content}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Add Community Comment Form */}
-          <form onSubmit={handleUserCommentSubmit} className="bg-white rounded-2xl border border-stone-200/90 p-4 space-y-3 shadow-2xs">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-stone-800">Add a Comment:</span>
-            </div>
-
-            <textarea
-              rows={3}
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Share your experience or tip..."
-              className="w-full p-3 text-xs sm:text-sm border border-stone-200 rounded-xl focus:outline-none focus:border-[#ec5137] focus:ring-1 focus:ring-[#ec5137]/20 text-stone-800"
-            />
-
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-[11px] text-stone-500 font-normal">
-                Comments are publicly visible to all Flipibook creators.
-              </span>
-
-              <button
-                type="submit"
-                disabled={!commentText.trim() || isSubmittingComment}
-                className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-[#ec5137] hover:bg-[#d9442b] transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Send size={13} />
-                <span>{isSubmittingComment ? 'Posting...' : 'Post Comment'}</span>
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </div>
