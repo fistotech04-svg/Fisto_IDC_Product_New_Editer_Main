@@ -1,18 +1,12 @@
 // Frontend/src/pages/Forum/Forum.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
 import { 
   Search, 
   Plus, 
   Layers, 
-  FolderKanban, 
   UserCheck, 
   CheckCircle2, 
   HelpCircle,
-  BookOpen,
-  Filter,
-  ArrowUpDown,
-  Lightbulb,
   Clock,
   Sparkles,
   Inbox,
@@ -43,22 +37,18 @@ import {
 import { useToast } from '../../components/CustomToast';
 
 export default function Forum({ isAdminMode = false }) {
-  const location = useLocation();
-  const isAdminRoute = Boolean(isAdminMode || (location && location.pathname.includes('/forum/admin')));
-
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   
-  // 3 Primary Forum Navigation Areas:
-  // 'all' = All Discussions across all 6 modules
-  // 'modules' = Module Discussions (filtered by selected module)
+  // Primary Forum Navigation Areas:
+  // 'all' = All Discussions
+  // 'modules' = Module Discussions (if clicked from sidebar)
   // 'my_posts' = Personal user posts
   const [activeArea, setActiveArea] = useState('all'); 
   const [selectedModuleId, setSelectedModuleId] = useState('my-flipbooks');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Filters: 'all' | 'unanswered' | 'answered' | 'my_posts'
   const [statusFilter, setStatusFilter] = useState('all');
@@ -86,21 +76,12 @@ export default function Forum({ isAdminMode = false }) {
   });
 
   const effectiveUser = useMemo(() => {
-    if (isAdminRoute) {
-      return {
-        ...(currentUser || {}),
-        name: currentUser?.name || 'Flipibook Admin',
-        email: currentUser?.email || currentUser?.emailId || 'admin@flipibook.com',
-        isAdmin: true,
-        role: 'admin'
-      };
-    }
     return currentUser;
-  }, [currentUser, isAdminRoute]);
+  }, [currentUser]);
 
   const currentUserId = effectiveUser?.email || effectiveUser?.emailId || 'current_user';
   const isAdminUser = Boolean(
-    isAdminRoute || 
+    isAdminMode ||
     effectiveUser?.isAdmin || 
     effectiveUser?.role === 'admin' || 
     effectiveUser?.role === 'Staff'
@@ -321,7 +302,7 @@ export default function Forum({ isAdminMode = false }) {
     }
   };
 
-  const basePath = isAdminRoute ? '/forum/admin' : '/forum';
+  const basePath = '/forum';
 
   const handleSelectPost = (post) => {
     setSelectedPostId(post.id);
@@ -636,6 +617,8 @@ export default function Forum({ isAdminMode = false }) {
                     post={post}
                     onSelectPost={handleSelectPost}
                     isAdmin={isAdminUser}
+                    currentUser={effectiveUser}
+                    onAddAdminReply={handleAddAdminReply}
                   />
                 ))
               ) : (

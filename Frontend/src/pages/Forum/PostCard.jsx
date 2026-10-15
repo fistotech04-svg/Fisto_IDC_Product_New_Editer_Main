@@ -1,17 +1,30 @@
 // Frontend/src/pages/Forum/PostCard.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   MessageSquare, 
   ChevronRight,
-  HelpCircle,
+  HelpCircle,   
   Lightbulb,
-  ThumbsUp,
   Clock,
-  BookOpen
+  Send,
+  CornerDownRight,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { POST_STATUS_CONFIG, formatForumDate } from './forumData';
 
-export default function PostCard({ post, onSelectPost, isAdmin = false }) {
+export default function PostCard({ 
+  post, 
+  onSelectPost, 
+  isAdmin = false,
+  currentUser = null,
+  onAddAdminReply = null
+}) {
+  const [showReplyBox, setShowReplyBox] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replyStatus, setReplyStatus] = useState(post.status || 'answered');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const authorInitials = post.author?.initials || (post.author?.name ? post.author.name.slice(0, 2).toUpperCase() : 'U');
   const avatarColor = post.author?.avatarColor || '#ec5137';
   const isSuggestion = post.postType === 'suggestion';
@@ -71,6 +84,38 @@ export default function PostCard({ post, onSelectPost, isAdmin = false }) {
   const totalConversations = conversationItems.length;
   const visibleConversations = conversationItems.slice(0, 2);
   const hasMoreConversations = totalConversations > 2;
+
+  const handleAdminDirectReply = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!replyText.trim() || isSubmitting) return;
+
+    try {
+      setIsSubmitting(true);
+      const replyPayload = {
+        content: replyText.trim(),
+        status: replyStatus,
+        author: {
+          name: currentUser?.name || 'Flipibook Engineering',
+          email: currentUser?.email || currentUser?.emailId || 'admin@flipibook.com',
+          initials: 'AD',
+          avatarColor: '#2563eb',
+          role: 'Official Reply',
+          isAdmin: true
+        }
+      };
+
+      if (onAddAdminReply) {
+        await onAddAdminReply(post.id, replyPayload);
+      }
+      setReplyText('');
+      setShowReplyBox(false);
+    } catch (err) {
+      console.error('[PostCard] Direct admin reply error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <article
@@ -198,6 +243,72 @@ export default function PostCard({ post, onSelectPost, isAdmin = false }) {
             </div>
           )}
 
+          {/* Admin Direct Reply in the Card */}
+          {isAdmin && showReplyBox && (
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="mt-3 p-3 bg-orange-50/50 rounded-xl border border-orange-200/90 space-y-2.5"
+            >
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-[#c23d26] flex items-center gap-1">
+                  <ShieldCheck size={13} />
+                  <span>Admin Direct Reply</span>
+                </span>
+
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-stone-500 font-normal text-[11px]">Set Status:</span>
+                  <select
+                    value={replyStatus}
+                    onChange={(e) => setReplyStatus(e.target.value)}
+                    className="text-xs bg-white border border-stone-300 rounded-lg px-2 py-0.5 text-stone-800 focus:outline-none focus:border-[#ec5137]"
+                  >
+                    <option value="answered">Answered</option>
+                    <option value="under_review">Under Review</option>
+                    <option value="planned">Planned</option>
+                    <option value="implemented">Implemented</option>
+                    <option value="declined">Not Planned</option>
+                  </select>
+                </div>
+              </div>
+
+              <textarea
+                rows={2}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Type your official reply directly from this card..."
+                className="w-full p-2.5 text-xs bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-[#ec5137] focus:ring-1 focus:ring-[#ec5137]/20 text-stone-800"
+              />
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReplyBox(false)}
+                  className="px-2.5 py-1 text-xs text-stone-600 hover:bg-stone-200/60 rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAdminDirectReply}
+                  disabled={!replyText.trim() || isSubmitting}
+                  className="px-3.5 py-1 text-xs font-semibold text-white bg-[#ec5137] hover:bg-[#d9442b] rounded-lg disabled:opacity-50 cursor-pointer flex items-center gap-1 shadow-2xs"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={12} />
+                      <span>Reply</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Clean Footer Metadata */}
           <div className="flex items-center justify-between pt-3 mt-3 text-xs sm:text-sm text-stone-500 border-t border-stone-100">
             <div className="flex items-center gap-1.5 text-stone-500 font-normal text-xs">
@@ -206,6 +317,21 @@ export default function PostCard({ post, onSelectPost, isAdmin = false }) {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Admin "Reply" Button in the card */}
+              {isAdmin && !showReplyBox && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowReplyBox(true);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100/80 text-xs font-semibold text-[#c23d26] transition-colors cursor-pointer"
+                >
+                  <CornerDownRight size={12} />
+                  <span>Admin Reply</span>
+                </button>
+              )}
+
               {/* Conversation reply count */}
               {totalConversations > 0 && (
                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-50 group-hover:bg-white text-stone-700 border border-stone-200/80 text-xs font-medium">

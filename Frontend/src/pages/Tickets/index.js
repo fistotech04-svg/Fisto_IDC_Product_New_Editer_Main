@@ -5,4 +5,5 @@ export { default as TicketSidebar } from './TicketSidebar';
 export { default as TicketCard } from './TicketCard';
 export { default as RaiseTicketModal } from './RaiseTicketModal';
 export { default as TicketDetailModal } from './TicketDetailModal';
+export { default as TicketDetailsPage } from './TicketDetailsPage';
 export * from './ticketData';
