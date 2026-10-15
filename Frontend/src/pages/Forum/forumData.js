@@ -108,3 +108,35 @@ export const POST_STATUS_CONFIG = {
     dot: 'bg-stone-400'
   }
 };
+
+export const formatForumDate = (dateVal) => {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) {
+    // If it's already a friendly string like 'Just now', '2 hours ago'
+    return String(dateVal);
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSec < 60) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  // Standard readable date: "Oct 14, 2026, 9:43 AM"
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};

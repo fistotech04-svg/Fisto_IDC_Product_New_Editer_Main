@@ -488,27 +488,7 @@ export default function Forum({ isAdminMode = false }) {
                 </span>
               </button>
 
-              {/* Tab B: Module Discussions */}
-              <button
-                onClick={() => {
-                  setActiveArea('modules');
-                  setSelectedPostId(null);
-                  setActivePost(null);
-                }}
-                className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-t-xl text-xs sm:text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  activeArea === 'modules'
-                    ? 'border-[#ec5137] text-[#c23d26] bg-orange-50/40'
-                    : 'border-transparent text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-                }`}
-              >
-                <FolderKanban size={15} />
-                <span>{activeModule.name}</span>
-                <span className="text-[11px] px-1.5 py-0.2 rounded-md bg-stone-100 text-stone-600 font-medium">
-                  {moduleCounts[selectedModuleId] || 0}
-                </span>
-              </button>
-
-              {/* Tab C: My Posts */}
+              {/* Tab B: My Posts */}
               <button
                 onClick={() => {
                   setActiveArea('my_posts');
@@ -544,85 +524,87 @@ export default function Forum({ isAdminMode = false }) {
             </div>
           </div>
 
-          {/* Section 2: Filters & Sorting Toolbar */}
-          <div className="px-4 sm:px-6 py-2.5 bg-stone-50/60 border-b border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 flex-shrink-0 text-xs">
-            {/* Left: Quick Status Filters */}
-            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar">
-              <span className="text-stone-500 font-medium mr-1 hidden sm:inline flex-shrink-0">
-                Filter:
-              </span>
+          {/* Section 2: Filters & Sorting Toolbar (Admin Only) */}
+          {isAdminUser && (
+            <div className="px-4 sm:px-6 py-2.5 bg-stone-50/60 border-b border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 flex-shrink-0 text-xs">
+              {/* Left: Quick Status Filters */}
+              <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar">
+                <span className="text-stone-500 font-medium mr-1 hidden sm:inline flex-shrink-0">
+                  Filter:
+                </span>
 
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap ${
-                  statusFilter === 'all'
-                    ? 'bg-stone-900 text-white shadow-2xs font-semibold'
-                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-                }`}
-              >
-                All Status
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('unanswered')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  statusFilter === 'unanswered'
-                    ? 'bg-amber-600 text-white shadow-2xs font-semibold'
-                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-                }`}
-              >
-                <HelpCircle size={12} />
-                <span>Awaiting Admin</span>
-                {totalUnansweredCount > 0 && (
-                  <span className={`text-[10px] px-1 rounded-sm ${
-                    statusFilter === 'unanswered' ? 'bg-amber-800 text-amber-100' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {totalUnansweredCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('answered')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  statusFilter === 'answered'
-                    ? 'bg-emerald-600 text-white shadow-2xs font-semibold'
-                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-                }`}
-              >
-                <CheckCircle2 size={12} />
-                <span>Answered</span>
-              </button>
-            </div>
-
-            {/* Right: Sorting Mode */}
-            <div className="flex items-center justify-between sm:justify-end gap-2 text-stone-500">
-              <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-lg border border-stone-200/80">
                 <button
-                  onClick={() => setSortOrder('newest')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
-                    sortOrder === 'newest'
-                      ? 'bg-white text-stone-900 border border-stone-300 shadow-2xs font-semibold'
-                      : 'text-stone-600 hover:bg-stone-200/60'
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                    statusFilter === 'all'
+                      ? 'bg-stone-900 text-white shadow-2xs font-semibold'
+                      : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                   }`}
-                  title="Shows newest discussions first"
                 >
-                  Newest
+                  All Status
                 </button>
+
                 <button
-                  onClick={() => setSortOrder('updated')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
-                    sortOrder === 'updated'
-                      ? 'bg-white text-stone-900 border border-stone-300 shadow-2xs font-semibold'
-                      : 'text-stone-600 hover:bg-stone-200/60'
+                  onClick={() => setStatusFilter('unanswered')}
+                  className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    statusFilter === 'unanswered'
+                      ? 'bg-amber-600 text-white shadow-2xs font-semibold'
+                      : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                   }`}
-                  title="Shows recently replied or updated discussions"
                 >
-                  Recently Updated
+                  <HelpCircle size={12} />
+                  <span>Awaiting Admin</span>
+                  {totalUnansweredCount > 0 && (
+                    <span className={`text-[10px] px-1 rounded-sm ${
+                      statusFilter === 'unanswered' ? 'bg-amber-800 text-amber-100' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {totalUnansweredCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setStatusFilter('answered')}
+                  className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    statusFilter === 'answered'
+                      ? 'bg-emerald-600 text-white shadow-2xs font-semibold'
+                      : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                  }`}
+                >
+                  <CheckCircle2 size={12} />
+                  <span>Answered</span>
                 </button>
               </div>
+
+              {/* Right: Sorting Mode */}
+              <div className="flex items-center justify-between sm:justify-end gap-2 text-stone-500">
+                <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-lg border border-stone-200/80">
+                  <button
+                    onClick={() => setSortOrder('newest')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+                      sortOrder === 'newest'
+                        ? 'bg-white text-stone-900 border border-stone-300 shadow-2xs font-semibold'
+                        : 'text-stone-600 hover:bg-stone-200/60'
+                    }`}
+                    title="Shows newest discussions first"
+                  >
+                    Newest
+                  </button>
+                  <button
+                    onClick={() => setSortOrder('updated')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+                      sortOrder === 'updated'
+                        ? 'bg-white text-stone-900 border border-stone-300 shadow-2xs font-semibold'
+                        : 'text-stone-600 hover:bg-stone-200/60'
+                    }`}
+                    title="Shows recently replied or updated discussions"
+                  >
+                    Recently Updated
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Section 3: Discussions Feed (Full-Width Responsive Layout) */}
           <div className="flex-1 overflow-y-auto p-2.5 sm:p-6 lg:p-8">
@@ -653,6 +635,7 @@ export default function Forum({ isAdminMode = false }) {
                     key={post.id}
                     post={post}
                     onSelectPost={handleSelectPost}
+                    isAdmin={isAdminUser}
                   />
                 ))
               ) : (
