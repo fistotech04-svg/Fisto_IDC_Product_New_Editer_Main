@@ -104,6 +104,13 @@ const ticketSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Compound indexes for high-speed ticket queries, counts, and sorting
+ticketSchema.index({ isDeleted: 1, createdAt: -1 });
+ticketSchema.index({ isDeleted: 1, 'requester.email': 1, createdAt: -1 });
+ticketSchema.index({ isDeleted: 1, status: 1 });
+ticketSchema.index({ isDeleted: 1, 'requester.email': 1, status: 1 });
+ticketSchema.index({ isDeleted: 1, moduleId: 1 });
+
 // Helper virtual for whether admin/staff has replied
 ticketSchema.virtual('hasAdminReplied').get(function () {
   if (!this.messages || this.messages.length === 0) return false;
