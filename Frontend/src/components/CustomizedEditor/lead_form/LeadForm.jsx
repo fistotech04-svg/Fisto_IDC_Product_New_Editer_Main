@@ -103,8 +103,8 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
       newField.label = 'Select Products';
       newField.showQuantity = true;
       newField.products = [
-        { id: Date.now().toString() + '-p1', name: 'Product 1', image: '' },
-        { id: Date.now().toString() + '-p2', name: 'Product 2', image: '' }
+        { id: Date.now().toString() + '-p1', name: 'Product 1', category: 'Product category 1', image: '' },
+        { id: Date.now().toString() + '-p2', name: 'Product 2', category: 'Product category 1', image: '' }
       ];
     }
     const newFields = [...(settings.fields || []), newField];
@@ -129,7 +129,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     const newFields = (settings.fields || []).map(f => {
       if (f.id === fieldId) {
         const nextNum = (f.products || []).length + 1;
-        const newProd = { id: Date.now().toString(), name: `Product ${nextNum}`, image: '' };
+        const newProd = { id: Date.now().toString(), name: `Product ${nextNum}`, category: `Product category ${nextNum}`, image: '' };
         return { ...f, products: [...(f.products || []), newProd] };
       }
       return f;
@@ -165,8 +165,21 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
       services: 'Select Service',
       enquiry: 'Enter your Enquiry'
     };
+    const defaultLabels = {
+      name: 'Full Name',
+      email: 'Email Address',
+      company: 'Company Name',
+      phone: 'Phone Number',
+      services: 'Services',
+      enquiry: 'Enquiry'
+    };
     const newFields = (settings.fields || []).map(f =>
-      f.id === id ? { ...f, type, placeholder: defaultPlaceholders[type] } : f
+      f.id === id ? { 
+        ...f, 
+        type, 
+        label: defaultLabels[type] || type,
+        placeholder: defaultPlaceholders[type] || `Enter your ${type}`
+      } : f
     );
     onUpdate({ ...settings, fields: newFields });
     setActiveDropdownId(null);
@@ -476,6 +489,76 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                   placeholder="Request Callback"
                 />
               </div>
+
+              {/* Form Layout: 1 Column vs 2 Columns */}
+              <div className="pt-[0.5vw] border-t border-gray-100 space-y-[0.4vw]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[0.72vw] font-semibold text-gray-900">Form Layout (Desktop)</span>
+                  <div className="flex items-center gap-[0.4vw] bg-gray-100 p-[0.15vw] rounded-[0.4vw]">
+                    <button
+                      type="button"
+                      onClick={() => updateAppearance('layoutColumns', '1')}
+                      className={`px-[0.6vw] py-[0.25vw] rounded-[0.3vw] text-[0.65vw] font-medium transition-all ${
+                        (settings.appearance?.layoutColumns || '1') === '1'
+                          ? 'bg-white text-gray-900 shadow-xs'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      1 Column
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateAppearance('layoutColumns', '2')}
+                      className={`px-[0.6vw] py-[0.25vw] rounded-[0.3vw] text-[0.65vw] font-medium transition-all ${
+                        settings.appearance?.layoutColumns === '2'
+                          ? 'bg-white text-indigo-600 font-semibold shadow-xs'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      2 Columns
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Organize into Sections Provision */}
+              <div className="pt-[0.5vw] border-t border-gray-100 space-y-[0.6vw]">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[0.72vw] font-semibold text-gray-900">Separate Form Sections</span>
+                    <span className="text-[0.6vw] text-gray-500">Group contact info & product/other details under section titles</span>
+                  </div>
+                  <Switch
+                    enabled={settings.appearance?.enableSections === true}
+                    onChange={(val) => updateAppearance('enableSections', val)}
+                  />
+                </div>
+
+                {settings.appearance?.enableSections && (
+                  <div className="space-y-[0.5vw] pl-[0.2vw] pt-[0.2vw] border-l-2 border-indigo-400">
+                    <div className="flex flex-col gap-[0.2vw]">
+                      <label className="text-[0.65vw] font-medium text-gray-700">Contact / Basic Section Title :</label>
+                      <input
+                        type="text"
+                        value={settings.appearance?.contactSectionTitle !== undefined ? settings.appearance?.contactSectionTitle : 'Contact Information'}
+                        onChange={(e) => updateAppearance('contactSectionTitle', e.target.value)}
+                        placeholder="Contact Information"
+                        className="w-full border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.68vw] text-gray-700 bg-white shadow-xs focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-[0.2vw]">
+                      <label className="text-[0.65vw] font-medium text-gray-700">Product / Details Section Title :</label>
+                      <input
+                        type="text"
+                        value={settings.appearance?.productSectionTitle !== undefined ? settings.appearance?.productSectionTitle : 'Product Selection'}
+                        onChange={(e) => updateAppearance('productSectionTitle', e.target.value)}
+                        placeholder="Product Selection"
+                        className="w-full border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.68vw] text-gray-700 bg-white shadow-xs focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -664,21 +747,30 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                                 )}
                               </label>
 
-                              {/* Product Name Input */}
-                              <input
-                                type="text"
-                                value={prod.name || ''}
-                                onChange={(e) => handleProductChange(field.id, prod.id, 'name', e.target.value)}
-                                placeholder={`Product ${pIdx + 1} Name`}
-                                className="flex-1 border border-gray-200 rounded-[0.3vw] px-[0.5vw] py-[0.3vw] text-[0.68vw] text-gray-700 outline-none focus:border-indigo-500 bg-white h-[1.8vw]"
-                              />
+                              {/* Product Name & Category Inputs */}
+                              <div className="flex-1 flex flex-col gap-[0.25vw]">
+                                <input
+                                  type="text"
+                                  value={prod.name || ''}
+                                  onChange={(e) => handleProductChange(field.id, prod.id, 'name', e.target.value)}
+                                  placeholder={`Product ${pIdx + 1} Name`}
+                                  className="w-full border border-gray-200 rounded-[0.3vw] px-[0.5vw] py-[0.25vw] text-[0.68vw] text-gray-700 outline-none focus:border-indigo-500 bg-white h-[1.6vw]"
+                                />
+                                <input
+                                  type="text"
+                                  value={prod.category || ''}
+                                  onChange={(e) => handleProductChange(field.id, prod.id, 'category', e.target.value)}
+                                  placeholder="Category (e.g. Product category 1)"
+                                  className="w-full border border-gray-200 rounded-[0.3vw] px-[0.5vw] py-[0.25vw] text-[0.62vw] text-gray-500 outline-none focus:border-indigo-500 bg-white h-[1.5vw]"
+                                />
+                              </div>
 
                               {/* Remove Product */}
                               {(field.products || []).length > 1 && (
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveProductItem(field.id, prod.id)}
-                                  className="text-red-400 hover:text-red-600 p-[0.3vw] rounded-[0.3vw] hover:bg-red-50 transition-colors shrink-0"
+                                  className="text-red-400 hover:text-red-600 p-[0.3vw] rounded-[0.3vw] hover:bg-red-50 transition-colors shrink-0 self-center"
                                   title="Remove Product"
                                 >
                                   <Icon icon="lucide:trash-2" className="w-[0.85vw] h-[0.85vw]" />
@@ -758,7 +850,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                       </div>
                     </div>
                   );
-                } else if (field.type === 'feedback' || field.type === 'enquiry') {
+                } else if (field.type === 'feedback') {
                   return (
                     <div
                       key={field.id}
@@ -852,14 +944,13 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                   {/* Card Body */}
                   <div className="p-[0.75vw] space-y-[0.75vw]">
                     {/* Label Row */}
-                    <div className="flex items-center gap-[0.5vw] relative">
+                    <div className="flex items-center gap-[0.5vw] relative" id={`dropdown-container-${field.id}`}>
                       <label className="text-[0.7vw] font-medium text-gray-700 w-[2.5vw]">Label :</label>
                       <div className="flex-1 flex items-center border border-gray-200 rounded-[0.4vw] focus-within:border-indigo-500 bg-white">
                         {/* Dropdown Trigger */}
                         <div
                           className="h-[1.8vw] px-[0.4vw] border-r border-gray-200 flex items-center justify-center cursor-pointer bg-gray-50/50 rounded-l-[0.4vw] hover:bg-gray-100"
                           onClick={() => setActiveDropdownId(activeDropdownId === field.id ? null : field.id)}
-                          id={`dropdown-container-${field.id}`}
                         >
                           {field.type === 'email' ? (
                             <Icon icon="logos:google-gmail" width="0.8vw" />
@@ -889,7 +980,7 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                                   <div
                                     key={opt.type}
                                     className="flex items-center gap-[0.75vw] p-[0.4vw] hover:bg-gray-50 rounded-[0.3vw] cursor-pointer"
-                                    onClick={(e) => {
+                                    onMouseDown={(e) => {
                                       e.stopPropagation();
                                       handleTypeChange(field.id, opt.type);
                                     }}
