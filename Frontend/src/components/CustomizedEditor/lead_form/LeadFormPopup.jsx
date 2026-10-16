@@ -60,6 +60,36 @@ const LeadFormPopup = ({
         }
     };
 
+    const handleToggleProduct = (fieldKey, prod) => {
+        const currentList = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
+        const exists = currentList.find(p => (p.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
+        if (exists) {
+            handleInputChange(fieldKey, currentList.filter(p => (p.id ? p.id !== prod.id : (typeof p === 'string' ? p : p.name) !== prod.name)));
+        } else {
+            const newItem = {
+                id: prod.id || Date.now().toString(),
+                name: prod.name,
+                category: prod.category || '',
+                image: prod.image || '',
+                quantity: 1
+            };
+            handleInputChange(fieldKey, [...currentList, newItem]);
+        }
+    };
+
+    const handleProductQtyChange = (fieldKey, prodIdentifier, delta) => {
+        const currentList = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
+        const nextList = currentList.map(p => {
+            const isMatch = p.id ? p.id === prodIdentifier : (typeof p === 'string' ? p : p.name) === prodIdentifier;
+            if (isMatch) {
+                const currQty = typeof p === 'object' && p.quantity ? p.quantity : 1;
+                return { ...p, quantity: Math.max(1, currQty + delta) };
+            }
+            return p;
+        });
+        handleInputChange(fieldKey, nextList);
+    };
+
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         if (isSubmitting || isSubmitted) return;
@@ -68,8 +98,9 @@ const LeadFormPopup = ({
         const fields = leadFormSettings.fields || [];
 
         fields.forEach(field => {
-            const fieldKey = field.label || field.type;
-            const value = (formValues[fieldKey] || '').trim();
+            const fieldKey = field.id || field.label || field.type;
+            const rawVal = formValues[fieldKey];
+            const value = typeof rawVal === 'string' ? rawVal.trim() : (Array.isArray(rawVal) ? (rawVal.length > 0 ? 'selected' : '') : (rawVal ? String(rawVal) : ''));
 
             // 1. Required check: Mandatory mode (!allowSkip) or field.required
             if (field.required || !leadFormSettings.appearance?.allowSkip) {
@@ -102,6 +133,14 @@ const LeadFormPopup = ({
         }
         setErrors({});
 
+        // Prepare payload for leadData
+        const leadPayload = {};
+        fields.forEach((field, idx) => {
+            const fieldKey = field.id || field.label || field.type;
+            const displayLabel = field.label || `Field ${idx + 1}`;
+            leadPayload[displayLabel] = formValues[fieldKey];
+        });
+
         setIsSubmitting(true);
         try {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -110,7 +149,8 @@ const LeadFormPopup = ({
                 shareId: shareId,
                 flipbookName: flipbookName,
                 userEmail: userEmail,
-                leadData: formValues,
+                leadData: leadPayload,
+                rawLeadData: formValues,
                 viewerIp: viewerIp || '',
                 leadNotification: leadFormSettings?.leadNotification
             });
@@ -135,7 +175,7 @@ const LeadFormPopup = ({
     /* ─── MOBILE PORTRAIT ─────────────────────────────────────────────────── */
     if (isMobile) {
         const bgFillColor = hexToRgba(leadFormSettings.appearance?.bgFill || '#ffffff', leadFormSettings.appearance?.bgFillOpacity ?? 100);
-        const bgStrokeColor = hexToRgba(leadFormSettings.appearance?.bgStroke && leadFormSettings.appearance?.bgStroke !== '#' ? leadFormSettings.appearance.bgStroke : '#F3F4F6', leadFormSettings.appearance?.bgStrokeOpacity ?? 100);
+        const bgStrokeColor = hexToRgba(leadFormSettings.appearance?.bgStroke && leadFormSettings.appearance?.bgStroke !== '#' ? leadFormSettings.appearance.bgStroke : '#E5E7EB', leadFormSettings.appearance?.bgStrokeOpacity ?? 100);
         const textFillColor = hexToRgba(leadFormSettings.appearance?.textFill || '#111827', leadFormSettings.appearance?.textFillOpacity ?? 100);
         const textStrokeColor = hexToRgba(leadFormSettings.appearance?.textStroke && leadFormSettings.appearance?.textStroke !== '#' ? leadFormSettings.appearance.textStroke : '#', leadFormSettings.appearance?.textStrokeOpacity ?? 100);
         const btnFillColor = hexToRgba(leadFormSettings.appearance?.btnFill || '#3E4491', leadFormSettings.appearance?.btnFillOpacity ?? 100);
@@ -144,7 +184,7 @@ const LeadFormPopup = ({
 
         return (
             <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
-                <div className="relative w-full lead-form-mobile-scope" style={{ fontFamily: leadFormSettings.appearance?.fontStyle || 'Inter' }}>
+                <div className="relative w-full max-w-[440px] lead-form-mobile-scope" style={{ fontFamily: leadFormSettings.appearance?.fontStyle || 'Inter' }}>
                     <style>{`
                         .lead-form-mobile-scope input::placeholder,
                         .lead-form-mobile-scope textarea::placeholder {
@@ -254,16 +294,60 @@ const LeadFormPopup = ({
                                     </div>
 
                                     {/* Form Fields */}
-                                    <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden w-full">
-                                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-1 pr-1">
-                                            {(leadFormSettings.fields || []).map(field => {
-                                                const fieldKey = field.label || field.type;
-                                                const hasError = Boolean(errors[fieldKey]);
+                                    <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden w-full mt-1.5">
+                                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pt-1 pb-1 pr-1">
+                                            {(() => {
+                                                const fieldsList = leadFormSettings.fields || [];
+                                                const enableSections = Boolean(leadFormSettings.appearance?.enableSections);
+                                                const contactSectionTitle = leadFormSettings.appearance?.contactSectionTitle || 'Contact Information';
+                                                const productSectionTitle = leadFormSettings.appearance?.productSectionTitle || 'Product Selection';
+
+                                                const isBasicField = (f) => ['name', 'phone', 'email', 'company', 'services', 'enquiry'].includes(f.type);
+                                                const hasBasicFields = fieldsList.some(isBasicField);
+                                                const hasProductOrOtherFields = fieldsList.some(f => !isBasicField(f));
+
+                                                let contactSectionRendered = false;
+                                                let otherSectionRendered = false;
+
+                                                return fieldsList.map((field) => {
+                                                    const fieldKey = field.id || field.label || field.type;
+                                                    const hasError = Boolean(errors[fieldKey]);
+                                                    const isBasic = isBasicField(field);
+
+                                                    let sectionHeader = null;
+                                                    if (enableSections) {
+                                                        if (isBasic && !contactSectionRendered && hasProductOrOtherFields) {
+                                                            contactSectionRendered = true;
+                                                            sectionHeader = (
+                                                                <div key={`section-contact`} className="pt-1 pb-0.5 border-b border-gray-100 mb-1">
+                                                                    <span className="text-[12px] font-bold text-gray-900 tracking-tight" style={{ color: textFillColor }}>
+                                                                        {contactSectionTitle}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        } else if (!isBasic && !otherSectionRendered && hasBasicFields) {
+                                                            otherSectionRendered = true;
+                                                            sectionHeader = (
+                                                                <div key={`section-other`} className="pt-2 pb-0.5 border-b border-gray-100 mb-1">
+                                                                    <span className="text-[12px] font-bold text-gray-900 tracking-tight" style={{ color: textFillColor }}>
+                                                                        {field.type === 'products' ? productSectionTitle : (leadFormSettings.appearance?.productSectionTitle || 'Additional Information')}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                    }
+
+                                                    return (
+                                                        <React.Fragment key={field.id}>
+                                                            {sectionHeader}
+                                                            {(() => {
+
+                                                // 1. Text Area (Feedback) - No icon! Clean textarea
                                                 if (field.type === 'feedback') {
                                                     return (
-                                                        <div key={field.id} className="space-y-2 py-1">
+                                                        <div key={field.id} className="space-y-1.5 py-1">
                                                             <label 
-                                                                className="text-[12px] font-medium" 
+                                                                className="text-[12px] font-medium block" 
                                                                 style={{ 
                                                                     color: textFillColor,
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
@@ -286,104 +370,148 @@ const LeadFormPopup = ({
                                                     );
                                                 }
 
-                                            if (field.type === 'rating') {
-                                                return (
-                                                    <div key={field.id} className="space-y-2 py-1">
-                                                        <label 
-                                                            className="text-[12px] font-medium" 
-                                                            style={{ 
-                                                                color: textFillColor,
-                                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
-                                                            }}
-                                                        >
-                                                            {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
-                                                        </label>
-                                                        <div className="flex items-center gap-4">
-                                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                                <Icon 
-                                                                    key={star} 
-                                                                    icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
-                                                                    className={`w-8 h-8 text-yellow-400 stroke-1 cursor-pointer`}
-                                                                    onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-
-                                            if (field.type === 'dropdown') {
-                                                return (
-                                                    <div key={field.id} className="space-y-2 py-1">
-                                                        <label 
-                                                            className="text-[12px] font-medium" 
-                                                            style={{ 
-                                                                color: textFillColor,
-                                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
-                                                            }}
-                                                        >
-                                                            {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
-                                                        </label>
-                                                        <div className="relative">
-                                                            <select
-                                                                value={formValues[fieldKey] || ''}
-                                                                onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg py-2.5 px-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm appearance-none`}
-                                                                style={{
-                                                                    borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
-                                                                    color: formValues[fieldKey] ? textFillColor : 'inherit',
-                                                                    fontFamily: 'inherit'
+                                                // 2. Rating - Stars
+                                                if (field.type === 'rating') {
+                                                    return (
+                                                        <div key={field.id} className="space-y-1.5 py-1">
+                                                            <label 
+                                                                className="text-[12px] font-medium block" 
+                                                                style={{ 
+                                                                    color: textFillColor,
+                                                                    WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                <option value="" disabled>{field.placeholder || 'Select Option'}</option>
-                                                                {(field.options || []).map((opt, idx) => (
-                                                                    <option key={idx} value={opt}>{opt}</option>
+                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            </label>
+                                                            <div className="flex items-center gap-3">
+                                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                                    <Icon 
+                                                                        key={star} 
+                                                                        icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
+                                                                        className="w-7 h-7 text-yellow-400 stroke-1 cursor-pointer transition-transform active:scale-95"
+                                                                        onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
+                                                                    />
                                                                 ))}
-                                                            </select>
-                                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                                <Icon icon="fluent:chevron-down-12-regular" className="w-4 h-4 text-gray-500" />
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            }
+                                                    );
+                                                }
 
-                                            if (field.type === 'checkbox') {
-                                                return (
-                                                    <div key={field.id} className="space-y-2 py-1">
-                                                        <label 
-                                                            className="text-[12px] font-medium" 
-                                                            style={{ 
-                                                                color: textFillColor,
-                                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
-                                                            }}
-                                                        >
-                                                            {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
-                                                        </label>
-                                                        <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-                                                            {(field.options || []).map((opt, idx) => {
-                                                                const isChecked = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey].includes(opt) : formValues[fieldKey] === opt;
-                                                                return (
+                                                // 3. Dropdown - Select box
+                                                if (field.type === 'dropdown') {
+                                                    return (
+                                                        <div key={field.id} className="space-y-1.5 py-1">
+                                                            <label 
+                                                                className="text-[12px] font-medium block" 
+                                                                style={{ 
+                                                                    color: textFillColor,
+                                                                    WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
+                                                                }}
+                                                            >
+                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            </label>
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={formValues[fieldKey] || ''}
+                                                                    onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                                                                    className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg py-2.5 px-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm appearance-none`}
+                                                                    style={{
+                                                                        borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
+                                                                        color: formValues[fieldKey] ? textFillColor : 'inherit',
+                                                                        fontFamily: 'inherit'
+                                                                    }}
+                                                                >
+                                                                    <option value="" disabled>{field.placeholder || 'Select Option'}</option>
+                                                                    {(field.options || []).map((opt, idx) => (
+                                                                        <option key={idx} value={opt}>{opt}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                                    <Icon icon="fluent:chevron-down-12-regular" className="w-4 h-4 text-gray-500" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                // 4. Checkbox - Multi select options
+                                                if (field.type === 'checkbox') {
+                                                    return (
+                                                        <div key={field.id} className="space-y-1.5 py-1">
+                                                            <label 
+                                                                className="text-[12px] font-medium block" 
+                                                                style={{ 
+                                                                    color: textFillColor,
+                                                                    WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
+                                                                }}
+                                                            >
+                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            </label>
+                                                            <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                                                                {(field.options || []).map((opt, idx) => {
+                                                                    const isChecked = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey].includes(opt) : formValues[fieldKey] === opt;
+                                                                    return (
+                                                                        <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                name={fieldKey}
+                                                                                value={opt}
+                                                                                checked={isChecked}
+                                                                                onChange={(e) => {
+                                                                                    const currentValues = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : (formValues[fieldKey] ? [formValues[fieldKey]] : []);
+                                                                                    let newValues;
+                                                                                    if (e.target.checked) {
+                                                                                        newValues = [...currentValues, opt];
+                                                                                    } else {
+                                                                                        newValues = currentValues.filter(v => v !== opt);
+                                                                                    }
+                                                                                    handleInputChange(fieldKey, newValues);
+                                                                                }}
+                                                                                className={`w-4 h-4 text-[#3E4491] bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} rounded focus:ring-[#3E4491]`}
+                                                                            />
+                                                                            <span 
+                                                                                className="text-[12px] font-medium whitespace-nowrap" 
+                                                                                style={{ 
+                                                                                    color: textFillColor,
+                                                                                    WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
+                                                                                }}
+                                                                            >
+                                                                                {opt}
+                                                                            </span>
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                // 5. Radio Button - Single select option
+                                                if (field.type === 'radio') {
+                                                    return (
+                                                        <div key={field.id} className="space-y-1.5 py-1">
+                                                            <label 
+                                                                className="text-[12px] font-medium block" 
+                                                                style={{ 
+                                                                    color: textFillColor,
+                                                                    WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
+                                                                }}
+                                                            >
+                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            </label>
+                                                            <div className="flex flex-col gap-2">
+                                                                {(field.options || []).map((opt, idx) => (
                                                                     <label key={idx} className="flex items-center gap-2 cursor-pointer">
                                                                         <input
-                                                                            type="checkbox"
+                                                                            type="radio"
                                                                             name={fieldKey}
                                                                             value={opt}
-                                                                            checked={isChecked}
-                                                                            onChange={(e) => {
-                                                                                const currentValues = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : (formValues[fieldKey] ? [formValues[fieldKey]] : []);
-                                                                                let newValues;
-                                                                                if (e.target.checked) {
-                                                                                    newValues = [...currentValues, opt];
-                                                                                } else {
-                                                                                    newValues = currentValues.filter(v => v !== opt);
-                                                                                }
-                                                                                handleInputChange(fieldKey, newValues);
-                                                                            }}
-                                                                            className={`w-4 h-4 text-[#3E4491] bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} rounded focus:ring-[#3E4491]`}
+                                                                            checked={formValues[fieldKey] === opt}
+                                                                            onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                                                                            className={`w-4 h-4 text-blue-600 bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} focus:ring-blue-500`}
                                                                         />
                                                                         <span 
-                                                                            className="text-[12px] font-medium whitespace-nowrap" 
+                                                                            className="text-[12px] font-medium" 
                                                                             style={{ 
                                                                                 color: textFillColor,
                                                                                 WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
@@ -392,162 +520,137 @@ const LeadFormPopup = ({
                                                                             {opt}
                                                                         </span>
                                                                     </label>
-                                                                );
-                                                            })}
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            }
+                                                    );
+                                                }
 
-                                            if (field.type === 'products') {
-                                                const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
-                                                const showQty = field.showQuantity !== false;
+                                                // 6. Products Selection
+                                                if (field.type === 'products') {
+                                                    const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
+                                                    const showQty = field.showQuantity !== false;
 
-                                                const handleToggleProduct = (prodName) => {
-                                                    const exists = selectedProducts.find(p => (typeof p === 'string' ? p : p.name) === prodName);
-                                                    let updated;
-                                                    if (exists) {
-                                                        updated = selectedProducts.filter(p => (typeof p === 'string' ? p : p.name) !== prodName);
-                                                    } else {
-                                                        updated = [...selectedProducts, { name: prodName, quantity: 1 }];
-                                                    }
-                                                    handleInputChange(fieldKey, updated);
-                                                };
+                                                    return (
+                                                        <div key={field.id} className="space-y-1.5 py-1">
+                                                            <label 
+                                                                className="text-[12px] font-medium block" 
+                                                                style={{ 
+                                                                    color: textFillColor,
+                                                                    WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
+                                                                }}
+                                                            >
+                                                                {field.label || 'Select Products'} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            </label>
+                                                            <div className="flex flex-col gap-2">
+                                                                {(field.products || []).map((prod) => {
+                                                                    const prodItem = selectedProducts.find(p => (prod.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
+                                                                    const isChecked = Boolean(prodItem);
+                                                                    const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
+                                                                    const prodKey = prod.id || prod.name;
 
-                                                const handleQtyChange = (prodName, delta) => {
-                                                    const updated = selectedProducts.map(p => {
-                                                        const pName = typeof p === 'string' ? p : p.name;
-                                                        if (pName === prodName) {
-                                                            const currentQty = typeof p === 'object' && p.quantity ? p.quantity : 1;
-                                                            const nextQty = Math.max(1, currentQty + delta);
-                                                            return { name: pName, quantity: nextQty };
-                                                        }
-                                                        return p;
-                                                    });
-                                                    handleInputChange(fieldKey, updated);
-                                                };
+                                                                    return (
+                                                                        <div 
+                                                                            key={prodKey}
+                                                                            onClick={() => handleToggleProduct(fieldKey, prod)}
+                                                                            className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
+                                                                                isChecked 
+                                                                                    ? 'border-indigo-500 bg-indigo-50/40 shadow-xs' 
+                                                                                    : 'border-gray-200 bg-white hover:bg-gray-50'
+                                                                            }`}
+                                                                        >
+                                                                            <div className="flex items-center gap-2.5">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={isChecked}
+                                                                                    onChange={() => {}}
+                                                                                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 pointer-events-none"
+                                                                                />
+                                                                                {prod.image ? (
+                                                                                    <img src={prod.image} alt={prod.name} className="w-8 h-8 rounded-md object-cover border border-gray-200" />
+                                                                                ) : (
+                                                                                    <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center text-gray-400">
+                                                                                        <Icon icon="lucide:package" className="w-4 h-4" />
+                                                                                    </div>
+                                                                                )}
+                                                                                <span className="text-[12px] font-medium text-gray-800" style={{ color: textFillColor }}>
+                                                                                    {prod.name}
+                                                                                </span>
+                                                                            </div>
 
-                                                return (
-                                                    <div key={field.id} className="space-y-2 py-1">
-                                                        <div className="flex flex-col gap-2">
-                                                            {(field.products || []).map((prod) => {
-                                                                const prodItem = selectedProducts.find(p => (typeof p === 'string' ? p : p.name) === prod.name);
-                                                                const isChecked = Boolean(prodItem);
-                                                                const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
-
-                                                                return (
-                                                                    <div 
-                                                                        key={prod.id || prod.name}
-                                                                        onClick={() => handleToggleProduct(prod.name)}
-                                                                        className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
-                                                                            isChecked 
-                                                                                ? 'border-indigo-500 bg-indigo-50/40 shadow-xs' 
-                                                                                : 'border-gray-200 bg-white hover:bg-gray-50'
-                                                                        }`}
-                                                                    >
-                                                                        <div className="flex items-center gap-2.5">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                checked={isChecked}
-                                                                                onChange={() => {}} // handled by parent onClick
-                                                                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 pointer-events-none"
-                                                                            />
-                                                                            {prod.image ? (
-                                                                                <img src={prod.image} alt={prod.name} className="w-8 h-8 rounded-md object-cover border border-gray-200" />
-                                                                            ) : (
-                                                                                <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center text-gray-400">
-                                                                                    <Icon icon="lucide:package" className="w-4 h-4" />
+                                                                            {showQty && isChecked && (
+                                                                                <div 
+                                                                                    className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-1.5 py-0.5"
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                >
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleProductQtyChange(fieldKey, prodKey, -1)}
+                                                                                        className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-xs font-bold"
+                                                                                    >
+                                                                                        -
+                                                                                    </button>
+                                                                                    <span className="text-[11px] font-semibold text-gray-800 w-4 text-center">{qty}</span>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleProductQtyChange(fieldKey, prodKey, 1)}
+                                                                                        className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-xs font-bold"
+                                                                                    >
+                                                                                        +
+                                                                                    </button>
                                                                                 </div>
                                                                             )}
-                                                                            <span className="text-[12px] font-medium text-gray-800" style={{ color: textFillColor }}>
-                                                                                {prod.name}
-                                                                            </span>
                                                                         </div>
-
-                                                                        {showQty && isChecked && (
-                                                                            <div 
-                                                                                className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-1.5 py-0.5"
-                                                                                onClick={(e) => e.stopPropagation()}
-                                                                            >
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleQtyChange(prod.name, -1)}
-                                                                                    className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-xs font-bold"
-                                                                                >
-                                                                                    -
-                                                                                </button>
-                                                                                <span className="text-[11px] font-semibold text-gray-800 w-4 text-center">{qty}</span>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleQtyChange(prod.name, 1)}
-                                                                                    className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-xs font-bold"
-                                                                                >
-                                                                                    +
-                                                                                </button>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            }
+                                                    );
+                                                }
 
-                                            if (field.type === 'radio') {
+                                                // 7. Standard Text Input Box (Name, Email, Phone, Company, Services, Enquiry, etc.)
                                                 return (
-                                                    <div key={field.id} className="space-y-2 py-1">
-                                                        <div className="flex flex-col gap-2">
-                                                            {(field.options || []).map((opt, idx) => (
-                                                                <label key={idx} className="flex items-center gap-2 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={fieldKey}
-                                                                        value={opt}
-                                                                        checked={formValues[fieldKey] === opt}
-                                                                        onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                        className={`w-4 h-4 text-blue-600 bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} focus:ring-blue-500`}
-                                                                    />
-                                                                    <span 
-                                                                        className="text-[12px] font-medium" 
-                                                                        style={{ 
-                                                                            color: textFillColor,
-                                                                            WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
-                                                                        }}
-                                                                    >
-                                                                        {opt}
-                                                                    </span>
-                                                                </label>
-                                                            ))}
+                                                    <div key={field.id} className="space-y-1.5 py-1">
+                                                        <label 
+                                                            className="text-[12px] font-medium block" 
+                                                            style={{ 
+                                                                color: textFillColor,
+                                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
+                                                            }}
+                                                        >
+                                                            {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                        </label>
+                                                        <div className="relative">
+                                                            <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${field.type === 'phone' ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                                {field.type === 'email' ? <Icon icon="logos:google-gmail" className="w-4 h-4" /> :
+                                                                 field.type === 'phone' ? <Icon icon="material-symbols:call" className="w-4 h-4 text-gray-500" /> :
+                                                                 field.type === 'company' ? <Icon icon="lucide:building-2" className="w-4 h-4 text-gray-500" /> :
+                                                                 field.type === 'services' ? <Icon icon="lucide:settings" className="w-4 h-4 text-gray-500" /> :
+                                                                 field.type === 'enquiry' ? <Icon icon="lucide:message-square" className="w-4 h-4 text-gray-500" /> :
+                                                                 <Icon icon="lucide:user" className="w-4 h-4 text-gray-500" />}
+                                                            </div>
+                                                            <input
+                                                                type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
+                                                                placeholder={field.placeholder || `Enter your ${field.label || field.type}`}
+                                                                value={formValues[fieldKey] || ''}
+                                                                onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                                                                className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg py-2.5 pl-9 pr-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm`}
+                                                                style={{
+                                                                    borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
+                                                                    color: textFillColor,
+                                                                    fontFamily: 'inherit'
+                                                                }}
+                                                            />
                                                         </div>
                                                     </div>
                                                 );
-                                            }
-
-                                            return (
-                                                <div key={field.id} className="relative">
-                                                    <div className={`absolute left-3 top-1/2 -translate-y-1/2 ${field.type === 'phone' ? 'text-gray-400' : 'text-gray-900'}`}>
-                                                        {field.type === 'email' ? <Icon icon="logos:google-gmail" className="w-4 h-4" /> :
-                                                         field.type === 'phone' ? <Icon icon="lucide:phone" className="w-4 h-4" /> :
-                                                         field.type === 'company' ? <Icon icon="lucide:building-2" className="w-4 h-4" /> :
-                                                         <Icon icon="lucide:user" className="w-4 h-4" />}
-                                                    </div>
-                                                    <input
-                                                        type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
-                                                        placeholder={field.placeholder || `Enter your ${field.type}`}
-                                                        value={formValues[fieldKey] || ''}
-                                                        onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                        className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} rounded-lg py-2.5 pl-9 pr-3 text-[12px] font-medium focus:outline-none transition-all shadow-sm`}
-                                                        style={{
-                                                            borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
-                                                            color: textFillColor,
-                                                            fontFamily: 'inherit'
-                                                        }}
-                                                    />
-                                                </div>
-                                            );
-                                        })}
+                                            })()}
+                                        </React.Fragment>
+                                    );
+                                });
+                            })()}
                                         </div>
+
                                         <div className="shrink-0 mt-3 pt-3 border-t border-gray-100">
                                             {Object.values(errors).filter(Boolean).length > 0 && (
                                                 <div className="w-full bg-red-50 border border-red-200 text-red-600 rounded-lg p-2 text-xs font-medium text-center flex items-center justify-center gap-1.5 mb-2">
@@ -607,14 +710,18 @@ const LeadFormPopup = ({
                     }
                 `}</style>
                 <div
-                    className={`${isTablet ? 'w-[24vw] rounded-[1vw]' : 'w-[30vw] rounded-[1.3vw]'} max-h-[85vh] flex flex-col overflow-hidden shadow-[0_1vw_4vw_rgba(0,0,0,0.1)] relative border animate-in zoom-in-95 duration-300`}
+                    className={`${
+                        isTablet 
+                            ? 'w-[28vw] rounded-[1vw]' 
+                            : (leadFormSettings.appearance?.layoutColumns === '2' ? 'w-[42vw] max-w-[680px] rounded-[1.3vw]' : 'w-[28vw] max-w-[460px] rounded-[1.2vw]')
+                    } max-h-[85vh] flex flex-col overflow-hidden shadow-[0_1vw_4vw_rgba(0,0,0,0.12)] relative border animate-in zoom-in-95 duration-300`}
                     style={{
                         fontFamily: leadFormSettings.appearance?.fontStyle || 'Inter',
                         backgroundColor: bgFillColor,
                         borderColor: bgStrokeColor
                     }}
                 >
-                    <div className={`flex flex-col overflow-hidden w-full h-full ${isTablet ? 'p-[1vw]' : 'py-[1.2vw] px-[2vw]'}`}>
+                    <div className={`flex flex-col overflow-hidden w-full h-full ${isTablet ? 'p-[1.2vw]' : 'py-[1.4vw] px-[1.8vw]'}`}>
                         {isSubmitted ? (
                             <div className="py-[2vw] text-center space-y-[0.8vw] my-auto">
                                 <div className="w-[3vw] h-[3vw] rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto animate-bounce">
@@ -684,14 +791,60 @@ const LeadFormPopup = ({
                                 </div>
 
                                 {/* Form Fields */}
-                                <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden w-full">
-                                    <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
-                                        <div className={`${isTablet ? 'max-w-[14vw] space-y-[0.8vw]' : 'max-w-[18vw] space-y-[0.85vw]'} mx-auto pr-[0.4vw]`}>
-                                            {(leadFormSettings.fields || []).map(field => {
-                                                const fieldKey = field.label || field.type;
-                                                const hasError = Boolean(errors[fieldKey]);
+                                <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden w-full mt-[0.5vw]">
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar w-full pt-[0.4vw]">
+                                        <div className="w-full space-y-[0.85vw] pr-[0.3vw]">
+                                            {(() => {
+                                                const fieldsList = leadFormSettings.fields || [];
+                                                const enableSections = Boolean(leadFormSettings.appearance?.enableSections);
+                                                const isTwoCol = !isTablet && leadFormSettings.appearance?.layoutColumns === '2';
+                                                const contactSectionTitle = leadFormSettings.appearance?.contactSectionTitle || 'Contact Information';
+                                                const productSectionTitle = leadFormSettings.appearance?.productSectionTitle || 'Product Selection';
+
+                                                const isBasicField = (f) => ['name', 'phone', 'email', 'company', 'services', 'enquiry'].includes(f.type);
+                                                const hasBasicFields = fieldsList.some(isBasicField);
+                                                const hasProductOrOtherFields = fieldsList.some(f => !isBasicField(f));
+
+                                                let contactSectionRendered = false;
+                                                let otherSectionRendered = false;
+
                                                 return (
-                                                    <div key={field.id} className="flex flex-col space-y-[0.2vw]">
+                                                    <div className={`w-full ${isTwoCol ? 'grid grid-cols-2 gap-x-[1vw] gap-y-[0.85vw]' : 'space-y-[0.85vw]'}`}>
+                                                        {fieldsList.map((field) => {
+                                                            const fieldKey = field.id || field.label || field.type;
+                                                            const hasError = Boolean(errors[fieldKey]);
+                                                            const isBasic = isBasicField(field);
+
+                                                            // In two-column layout, full-width fields like feedback (textarea), products, ratings, or checkbox span both columns
+                                                            const isFullSpan = isTwoCol && (field.type === 'feedback' || field.type === 'products' || field.type === 'rating' || field.type === 'checkbox');
+
+                                                            let sectionHeader = null;
+                                                            if (enableSections) {
+                                                                if (isBasic && !contactSectionRendered && hasProductOrOtherFields) {
+                                                                    contactSectionRendered = true;
+                                                                    sectionHeader = (
+                                                                        <div key={`section-contact`} className={`${isTwoCol ? 'col-span-2' : ''} pt-[0.2vw] pb-[0.2vw] border-b border-gray-100 mb-[0.2vw]`}>
+                                                                            <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.82vw]'} font-bold tracking-tight text-gray-900`} style={{ color: textFillColor }}>
+                                                                                {contactSectionTitle}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                } else if (!isBasic && !otherSectionRendered && hasBasicFields) {
+                                                                    otherSectionRendered = true;
+                                                                    sectionHeader = (
+                                                                        <div key={`section-other`} className={`${isTwoCol ? 'col-span-2' : ''} pt-[0.6vw] pb-[0.2vw] border-b border-gray-100 mb-[0.2vw]`}>
+                                                                            <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.82vw]'} font-bold tracking-tight text-gray-900`} style={{ color: textFillColor }}>
+                                                                                {field.type === 'products' ? productSectionTitle : (leadFormSettings.appearance?.productSectionTitle || 'Additional Information')}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            }
+
+                                                            return (
+                                                                <React.Fragment key={field.id}>
+                                                                    {sectionHeader}
+                                                                    <div className={`flex flex-col space-y-[0.2vw] ${isFullSpan ? 'col-span-2' : ''}`}>
                                                         <label 
                                                             className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-normal`}
                                                             style={{
@@ -702,202 +855,79 @@ const LeadFormPopup = ({
                                                             {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
                                                         </label>
 
-                                                        <div className="relative">
-                                                            {field.type === 'feedback' ? (
-                                                                <textarea
-                                                                    placeholder={field.placeholder || 'Enter your Feedback'}
+                                                        {/* 1. Text Area (Feedback) - No icon! Clean textarea box */}
+                                                        {field.type === 'feedback' ? (
+                                                            <textarea
+                                                                placeholder={field.placeholder || 'Enter your Feedback'}
+                                                                value={formValues[fieldKey] || ''}
+                                                                onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                                                                className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] p-[0.8vw] text-[0.5vw] h-[6vw]' : 'rounded-[0.6vw] p-[1vw] text-[0.75vw] h-[8vw]'} font-medium focus:outline-none transition-all resize-none shadow-sm`}
+                                                                style={{
+                                                                    borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
+                                                                    color: textFillColor,
+                                                                    fontFamily: 'inherit'
+                                                                }}
+                                                            />
+                                                        ) : field.type === 'dropdown' ? (
+                                                            /* 2. Dropdown Select */
+                                                            <div className="relative">
+                                                                <select
                                                                     value={formValues[fieldKey] || ''}
                                                                     onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                    className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] p-[0.8vw] text-[0.5vw] h-[6vw]' : 'rounded-[0.6vw] p-[1vw] text-[0.75vw] h-[8vw]'} font-medium focus:outline-none transition-all resize-none shadow-sm`}
+                                                                    className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] px-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] px-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm appearance-none`}
                                                                     style={{
                                                                         borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
-                                                                        color: textFillColor,
+                                                                        color: formValues[fieldKey] ? textFillColor : 'inherit',
                                                                         fontFamily: 'inherit'
                                                                     }}
-                                                                />
-                                                            ) : field.type === 'dropdown' ? (
-                                                                <>
-                                                                    <select
-                                                                        value={formValues[fieldKey] || ''}
-                                                                        onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                        className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] px-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] px-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm appearance-none`}
-                                                                        style={{
-                                                                            borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
-                                                                            color: formValues[fieldKey] ? textFillColor : 'inherit',
-                                                                            fontFamily: 'inherit'
-                                                                        }}
-                                                                    >
-                                                                        <option value="" disabled>{field.placeholder || `Select Option`}</option>
-                                                                        {(field.options || []).map((opt, idx) => (
-                                                                            <option key={idx} value={opt}>{opt}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                    <div className={`${isTablet ? 'right-[0.6vw]' : 'right-[0.9vw]'} absolute top-1/2 -translate-y-1/2 pointer-events-none`}>
-                                                                        <Icon icon="fluent:chevron-down-12-regular" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} text-gray-500`} />
-                                                                    </div>
-                                                                </>
-                                                            ) : field.type === 'rating' ? (
-                                                                <div className="flex items-center gap-[1.5vw]">
-                                                                    {[1, 2, 3, 4, 5].map((star) => (
-                                                                        <Icon 
-                                                                            key={star} 
-                                                                            icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
-                                                                            className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} text-yellow-400 stroke-1 cursor-pointer`} 
-                                                                            onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
-                                                                        />
-                                                                    ))}
-                                                                </div>
-                                                            ) : field.type === 'checkbox' ? (
-                                                                <div className="grid grid-cols-2 gap-y-[0.4vw] gap-x-[1vw]">
-                                                                    {(field.options || []).map((opt, idx) => {
-                                                                        const isChecked = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey].includes(opt) : formValues[fieldKey] === opt;
-                                                                        return (
-                                                                            <label key={idx} className="flex items-center gap-[0.4vw] cursor-pointer">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    name={fieldKey}
-                                                                                    value={opt}
-                                                                                    checked={isChecked}
-                                                                                    onChange={(e) => {
-                                                                                        const currentValues = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : (formValues[fieldKey] ? [formValues[fieldKey]] : []);
-                                                                                        let newValues;
-                                                                                        if (e.target.checked) {
-                                                                                            newValues = [...currentValues, opt];
-                                                                                        } else {
-                                                                                            newValues = currentValues.filter(v => v !== opt);
-                                                                                        }
-                                                                                        handleInputChange(fieldKey, newValues);
-                                                                                    }}
-                                                                                    className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'} text-[#3E4491] bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} rounded focus:ring-[#3E4491]`}
-                                                                                />
-                                                                                <span
-                                                                                    className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium whitespace-nowrap`}
-                                                                                    style={{
-                                                                                        color: textFillColor,
-                                                                                        WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
-                                                                                    }}
-                                                                                >
-                                                                                    {opt}
-                                                                                </span>
-                                                                            </label>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            ) : field.type === 'products' ? (
-                                                                <div className="flex flex-col gap-[0.4vw]">
-                                                                    {(() => {
-                                                                        const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
-                                                                        const showQty = field.showQuantity !== false;
-
-                                                                        const handleToggleProduct = (prodName) => {
-                                                                            const exists = selectedProducts.find(p => (typeof p === 'string' ? p : p.name) === prodName);
-                                                                            let updated;
-                                                                            if (exists) {
-                                                                                updated = selectedProducts.filter(p => (typeof p === 'string' ? p : p.name) !== prodName);
-                                                                            } else {
-                                                                                updated = [...selectedProducts, { name: prodName, quantity: 1 }];
-                                                                            }
-                                                                            handleInputChange(fieldKey, updated);
-                                                                        };
-
-                                                                        const handleQtyChange = (prodName, delta) => {
-                                                                            const updated = selectedProducts.map(p => {
-                                                                                const pName = typeof p === 'string' ? p : p.name;
-                                                                                if (pName === prodName) {
-                                                                                    const currentQty = typeof p === 'object' && p.quantity ? p.quantity : 1;
-                                                                                    const nextQty = Math.max(1, currentQty + delta);
-                                                                                    return { name: pName, quantity: nextQty };
-                                                                                }
-                                                                                return p;
-                                                                            });
-                                                                            handleInputChange(fieldKey, updated);
-                                                                        };
-
-                                                                        return (field.products || []).map((prod) => {
-                                                                            const prodItem = selectedProducts.find(p => (typeof p === 'string' ? p : p.name) === prod.name);
-                                                                            const isChecked = Boolean(prodItem);
-                                                                            const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
-
-                                                                            return (
-                                                                                <div
-                                                                                    key={prod.id || prod.name}
-                                                                                    onClick={() => handleToggleProduct(prod.name)}
-                                                                                    className={`flex items-center justify-between p-[0.35vw] rounded-[0.4vw] border transition-all cursor-pointer ${
-                                                                                        isChecked
-                                                                                            ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
-                                                                                            : 'border-gray-200 bg-white hover:bg-gray-50'
-                                                                                    }`}
-                                                                                >
-                                                                                    <div className="flex items-center gap-[0.5vw]">
-                                                                                        <input
-                                                                                            type="checkbox"
-                                                                                            checked={isChecked}
-                                                                                            onChange={() => {}}
-                                                                                            className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'} text-[#3E4491] rounded border-gray-300 pointer-events-none`}
-                                                                                        />
-                                                                                        {prod.image ? (
-                                                                                            <img
-                                                                                                src={prod.image}
-                                                                                                alt={prod.name}
-                                                                                                className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} rounded-[0.3vw] object-cover border border-gray-200 shrink-0`}
-                                                                                            />
-                                                                                        ) : (
-                                                                                            <div className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} rounded-[0.3vw] bg-gray-100 flex items-center justify-center text-gray-400 shrink-0`}>
-                                                                                                <Icon icon="lucide:package" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
-                                                                                            </div>
-                                                                                        )}
-                                                                                        <span
-                                                                                            className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium`}
-                                                                                            style={{
-                                                                                                color: textFillColor,
-                                                                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
-                                                                                            }}
-                                                                                        >
-                                                                                            {prod.name}
-                                                                                        </span>
-                                                                                    </div>
-
-                                                                                    {showQty && isChecked && (
-                                                                                        <div
-                                                                                            className="flex items-center gap-[0.3vw] bg-white border border-gray-200 rounded-[0.3vw] px-[0.3vw] py-[0.1vw]"
-                                                                                            onClick={(e) => e.stopPropagation()}
-                                                                                        >
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleQtyChange(prod.name, -1)}
-                                                                                                className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-[0.7vw] font-bold"
-                                                                                            >
-                                                                                                -
-                                                                                            </button>
-                                                                                            <span className="text-[0.7vw] font-semibold text-gray-800 w-[1vw] text-center">{qty}</span>
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleQtyChange(prod.name, 1)}
-                                                                                                className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-[0.7vw] font-bold"
-                                                                                            >
-                                                                                                +
-                                                                                            </button>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            );
-                                                                        });
-                                                                    })()}
-                                                                </div>
-                                                            ) : field.type === 'radio' ? (
-                                                                <div className="flex flex-col gap-[0.4vw]">
+                                                                >
+                                                                    <option value="" disabled>{field.placeholder || `Select Option`}</option>
                                                                     {(field.options || []).map((opt, idx) => (
+                                                                        <option key={idx} value={opt}>{opt}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <div className={`${isTablet ? 'right-[0.6vw]' : 'right-[0.9vw]'} absolute top-1/2 -translate-y-1/2 pointer-events-none`}>
+                                                                    <Icon icon="fluent:chevron-down-12-regular" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} text-gray-500`} />
+                                                                </div>
+                                                            </div>
+                                                        ) : field.type === 'rating' ? (
+                                                            /* 3. Rating Stars */
+                                                            <div className="flex items-center gap-[1.5vw] py-[0.2vw]">
+                                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                                    <Icon 
+                                                                        key={star} 
+                                                                        icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
+                                                                        className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} text-yellow-400 stroke-1 cursor-pointer transition-transform active:scale-95`} 
+                                                                        onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        ) : field.type === 'checkbox' ? (
+                                                            /* 4. Checkbox Multi-selection */
+                                                            <div className="grid grid-cols-2 gap-y-[0.4vw] gap-x-[1vw]">
+                                                                {(field.options || []).map((opt, idx) => {
+                                                                    const isChecked = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey].includes(opt) : formValues[fieldKey] === opt;
+                                                                    return (
                                                                         <label key={idx} className="flex items-center gap-[0.4vw] cursor-pointer">
                                                                             <input
-                                                                                type="radio"
+                                                                                type="checkbox"
                                                                                 name={fieldKey}
                                                                                 value={opt}
-                                                                                checked={formValues[fieldKey] === opt}
-                                                                                onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                                className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'} text-[#3E4491] bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} focus:ring-[#3E4491]`}
+                                                                                checked={isChecked}
+                                                                                onChange={(e) => {
+                                                                                    const currentValues = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : (formValues[fieldKey] ? [formValues[fieldKey]] : []);
+                                                                                    let newValues;
+                                                                                    if (e.target.checked) {
+                                                                                        newValues = [...currentValues, opt];
+                                                                                    } else {
+                                                                                        newValues = currentValues.filter(v => v !== opt);
+                                                                                    }
+                                                                                    handleInputChange(fieldKey, newValues);
+                                                                                }}
+                                                                                className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'} text-[#3E4491] bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} rounded focus:ring-[#3E4491]`}
                                                                             />
                                                                             <span
-                                                                                className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium`}
+                                                                                className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium whitespace-nowrap`}
                                                                                 style={{
                                                                                     color: textFillColor,
                                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
@@ -906,40 +936,150 @@ const LeadFormPopup = ({
                                                                                 {opt}
                                                                             </span>
                                                                         </label>
-                                                                    ))}
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : field.type === 'radio' ? (
+                                                            /* 5. Radio Single-selection */
+                                                            <div className="flex flex-col gap-[0.4vw]">
+                                                                {(field.options || []).map((opt, idx) => (
+                                                                    <label key={idx} className="flex items-center gap-[0.4vw] cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={fieldKey}
+                                                                            value={opt}
+                                                                            checked={formValues[fieldKey] === opt}
+                                                                            onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                                                                            className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'} text-[#3E4491] bg-white border ${hasError ? '!border-red-500' : 'border-gray-300'} focus:ring-[#3E4491]`}
+                                                                        />
+                                                                        <span
+                                                                            className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium`}
+                                                                            style={{
+                                                                                color: textFillColor,
+                                                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
+                                                                            }}
+                                                                        >
+                                                                            {opt}
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        ) : field.type === 'products' ? (
+                                                            /* 6. Products Selection */
+                                                            <div className="flex flex-col gap-[0.4vw]">
+                                                                {(() => {
+                                                                    const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
+                                                                    const showQty = field.showQuantity !== false;
+
+                                                                    return (field.products || []).map((prod) => {
+                                                                        const prodItem = selectedProducts.find(p => (prod.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
+                                                                        const isChecked = Boolean(prodItem);
+                                                                        const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
+                                                                        const prodKey = prod.id || prod.name;
+
+                                                                        return (
+                                                                            <div
+                                                                                key={prodKey}
+                                                                                onClick={() => handleToggleProduct(fieldKey, prod)}
+                                                                                className={`flex items-center justify-between p-[0.35vw] rounded-[0.4vw] border transition-all cursor-pointer ${
+                                                                                    isChecked
+                                                                                        ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
+                                                                                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                                                                                }`}
+                                                                            >
+                                                                                <div className="flex items-center gap-[0.5vw]">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={isChecked}
+                                                                                        onChange={() => {}}
+                                                                                        className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'} text-[#3E4491] rounded border-gray-300 pointer-events-none`}
+                                                                                    />
+                                                                                    {prod.image ? (
+                                                                                        <img
+                                                                                            src={prod.image}
+                                                                                            alt={prod.name}
+                                                                                            className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} rounded-[0.3vw] object-cover border border-gray-200 shrink-0`}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        <div className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} rounded-[0.3vw] bg-gray-100 flex items-center justify-center text-gray-400 shrink-0`}>
+                                                                                            <Icon icon="lucide:package" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <span
+                                                                                        className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium`}
+                                                                                        style={{
+                                                                                            color: textFillColor,
+                                                                                            WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
+                                                                                        }}
+                                                                                    >
+                                                                                        {prod.name}
+                                                                                    </span>
+                                                                                </div>
+
+                                                                                {showQty && isChecked && (
+                                                                                    <div
+                                                                                        className="flex items-center gap-[0.3vw] bg-white border border-gray-200 rounded-[0.3vw] px-[0.3vw] py-[0.1vw]"
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                    >
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleProductQtyChange(fieldKey, prodKey, -1)}
+                                                                                            className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-[0.7vw] font-bold"
+                                                                                        >
+                                                                                            -
+                                                                                        </button>
+                                                                                        <span className="text-[0.7vw] font-semibold text-gray-800 w-[1vw] text-center">{qty}</span>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleProductQtyChange(fieldKey, prodKey, 1)}
+                                                                                            className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-[0.7vw] font-bold"
+                                                                                        >
+                                                                                            +
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    });
+                                                                })()}
+                                                            </div>
+                                                        ) : (
+                                                            /* 7. Standard Input Box (Email, Phone, Company, Services, Enquiry, Name, etc.) */
+                                                            <div className="relative">
+                                                                <div className={`${isTablet ? 'left-[0.6vw] pr-[0.5vw]' : 'left-[0.8vw] pr-[0.7vw]'} absolute top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none ${field.type === 'phone' ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                                    {field.type === 'email' ? <Icon icon="logos:google-gmail" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
+                                                                     field.type === 'phone' ? <Icon icon="material-symbols:call" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
+                                                                     field.type === 'company' ? <Icon icon="lucide:building-2" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
+                                                                     field.type === 'services' ? <Icon icon="lucide:settings" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
+                                                                     field.type === 'enquiry' ? <Icon icon="lucide:message-square" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
+                                                                     <Icon icon="lucide:user" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
                                                                 </div>
-                                                            ) : (
-                                                                <>
-                                                                    <div className={`${isTablet ? 'left-[0.6vw] pr-[0.5vw]' : 'left-[0.8vw] pr-[0.7vw]'} absolute top-1/2 -translate-y-1/2 flex items-center justify-center text-gray-900`}>
-                                                                        {field.type === 'email' ? <Icon icon="logos:google-gmail" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
-                                                                         field.type === 'phone' ? <Icon icon="material-symbols:call" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
-                                                                         field.type === 'company' ? <Icon icon="lucide:building-2" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} /> :
-                                                                         <Icon icon="lucide:user" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />}
-                                                                    </div>
-                                                                    <input
-                                                                        type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
-                                                                        placeholder={field.placeholder || `Enter your ${field.type}`}
-                                                                        value={formValues[fieldKey] || ''}
-                                                                        onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-                                                                        className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] pl-[2.5vw] pr-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] pl-[3.5vw] pr-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm`}
-                                                                        style={{
-                                                                            borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
-                                                                            color: textFillColor,
-                                                                            fontFamily: 'inherit'
-                                                                        }}
-                                                                    />
-                                                                </>
-                                                            )}
+                                                                <input
+                                                                    type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
+                                                                    placeholder={field.placeholder || `Enter your ${field.label || field.type}`}
+                                                                    value={formValues[fieldKey] || ''}
+                                                                    onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                                                                    className={`w-full bg-white border ${hasError ? '!border-red-500 ring-2 ring-red-100' : ''} ${isTablet ? 'rounded-[0.4vw] py-[0.5vw] pl-[2.5vw] pr-[0.8vw] text-[0.5vw]' : 'rounded-[0.6vw] py-[0.5vw] pl-[3.5vw] pr-[0.9vw] text-[0.75vw]'} font-medium focus:outline-none transition-all shadow-sm`}
+                                                                    style={{
+                                                                        borderColor: hasError ? '#EF4444' : (bgStrokeColor !== 'transparent' && bgStrokeColor !== '#' ? bgStrokeColor : '#D1D5DB'),
+                                                                        color: textFillColor,
+                                                                        fontFamily: 'inherit'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )}
                                                         </div>
-                                                    </div>
+                                                    </React.Fragment>
                                                 );
                                             })}
-
                                         </div>
-                                    </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
                                     
                                     <div className="shrink-0 mt-[0.8vw] pt-[0.4vw] border-t border-gray-100 w-full">
-                                        <div className={`${isTablet ? 'max-w-[14vw]' : 'max-w-[18vw]'} mx-auto`}>
+                                        <div className="w-full">
                                             {Object.values(errors).filter(Boolean).length > 0 && (
                                                 <div className="w-full bg-red-50 border border-red-200 text-red-600 rounded-[0.4vw] py-[0.3vw] px-[0.6vw] text-[0.68vw] font-medium text-center flex items-center justify-center gap-[0.3vw] animate-in fade-in duration-200 mb-[0.6vw]">
                                                     <Icon icon="lucide:alert-circle" className="w-[0.9vw] h-[0.9vw] shrink-0" />
