@@ -89,7 +89,7 @@ app.use(
       callback(null, true);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-user-email"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-user-email", "x-is-admin"],
     credentials: true,
     optionsSuccessStatus: 200 // Some legacy browsers choke on 204
   }),
