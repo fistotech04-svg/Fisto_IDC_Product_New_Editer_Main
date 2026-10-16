@@ -129,11 +129,11 @@ export default function RaiseTicketModal({ isOpen, onClose, onSubmit, defaultMod
         console.warn('Backend ticket creation failed, falling back to local object:', err);
       }
 
-      // Local fallback
+      // Fallback only if backend is completely offline
       const localTicket = {
         ...ticketPayload,
         id: `TICK-${Math.floor(1000 + Math.random() * 9000)}`,
-        createdAt: 'Just now',
+        createdAt: new Date().toISOString(),
         submittedAt: 'Just now',
         updatedAt: 'Just now',
         messages: [
