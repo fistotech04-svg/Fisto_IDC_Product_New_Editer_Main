@@ -1,6 +1,63 @@
 // Backend/tickets/ticketController.js
 import Ticket from './ticketModel.js';
 import User from '../models/auth.js';
+import { uploadBufferToSupabase } from '../config/supabase.js';
+
+/**
+ * Helper to upload base64 or buffer attachments to Supabase Storage bucket.
+ * Returns the public URL, ensuring MongoDB stores only lightweight URLs.
+ */
+async function processAttachmentsForSupabase(attachments = [], folderPrefix = 'ticket_attachments') {
+  if (!Array.isArray(attachments) || attachments.length === 0) return [];
+
+  const processed = [];
+  for (const att of attachments) {
+    if (!att || !att.url) {
+      processed.push(att);
+      continue;
+    }
+
+    // If it's already a hosted URL (http / https) and not base64, keep it
+    if (att.url.startsWith('http://') || att.url.startsWith('https://')) {
+      processed.push(att);
+      continue;
+    }
+
+    // Check if it's a data URL: data:image/png;base64,...
+    const matches = att.url.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      try {
+        const mimeType = matches[1] || 'image/jpeg';
+        const base64Data = matches[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const ext = mimeType.split('/')[1] || 'jpg';
+        const cleanName = (att.name || `image_${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${cleanName}`;
+        const destinationPath = `tickets/${folderPrefix}/${fileName}`;
+
+        const publicUrl = await uploadBufferToSupabase(buffer, destinationPath, mimeType);
+        if (publicUrl) {
+          processed.push({
+            name: att.name || cleanName,
+            url: publicUrl,
+            size: att.size || buffer.length,
+            type: mimeType,
+            width: att.width,
+            height: att.height
+          });
+          continue;
+        }
+      } catch (err) {
+        console.error('[Supabase Ticket Upload Error]:', err);
+      }
+    }
+
+    // Fallback if upload fails or is not base64
+    processed.push(att);
+  }
+
+  return processed;
+}
 
 /**
  * GET /api/tickets
@@ -31,12 +88,12 @@ export const getTickets = async (req, res) => {
     const effectiveEmail = (email || headerEmail || '').toLowerCase().trim();
     let isAdminUser = String(isAdmin) === 'true' || req.headers['x-is-admin'] === 'true';
 
-    // Verify admin role against database or email pattern
+    // Verify admin role against email pattern or database ONLY if not already flagged as admin
     if (!isAdminUser && effectiveEmail) {
       if (effectiveEmail.includes('admin') || effectiveEmail.includes('fisto') || effectiveEmail.includes('sham')) {
         isAdminUser = true;
       } else {
-        const userDoc = await User.findOne({ emailId: effectiveEmail }).lean();
+        const userDoc = await User.findOne({ emailId: effectiveEmail }).select('role').lean();
         if (userDoc && (userDoc.role === 'admin' || userDoc.role === 'staff')) {
           isAdminUser = true;
         }
@@ -163,6 +220,9 @@ export const createTicket = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Description is required' });
     }
 
+    // Process attachments to Supabase storage bucket so MongoDB only holds lightweight URLs
+    const uploadedAttachments = await processAttachmentsForSupabase(attachments, 'initial');
+
     const newTicket = new Ticket({
       subject: subject.trim(),
       moduleId: moduleId || 'others',
@@ -178,14 +238,14 @@ export const createTicket = async (req, res) => {
       },
       ccRecipients: Array.isArray(ccRecipients) ? ccRecipients : [],
       description: description.trim(),
-      attachments: Array.isArray(attachments) ? attachments : [],
+      attachments: uploadedAttachments,
       messages: [
         {
           sender: 'user',
           authorName: requester?.name || 'Support User',
           authorEmail: requester?.email || 'user@example.com',
           content: description.trim(),
-          attachments: Array.isArray(attachments) ? attachments : [],
+          attachments: uploadedAttachments,
           createdAt: new Date()
         }
       ]
@@ -253,12 +313,15 @@ export const addTicketMessage = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
 
+    // Process reply attachments to Supabase storage bucket
+    const uploadedAttachments = await processAttachmentsForSupabase(attachments, 'replies');
+
     const newMessage = {
       sender,
       authorName: authorName || (sender === 'user' ? ticket.requester?.name : 'Support Agent'),
       authorEmail: authorEmail || ticket.requester?.email,
       content: content.trim(),
-      attachments: Array.isArray(attachments) ? attachments : [],
+      attachments: uploadedAttachments,
       createdAt: new Date()
     };
 

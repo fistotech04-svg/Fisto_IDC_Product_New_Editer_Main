@@ -39,8 +39,9 @@ export default function Tickets() {
   const location = useLocation();
   const toast = useToast();
 
-  const [tickets, setTickets] = useState(() => getStoredTickets());
-  const [isLoading, setIsLoading] = useState(false);
+  const [tickets, setTickets] = useState([]);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRaiseModalOpen, setIsRaiseModalOpen] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState(null);
 
@@ -122,6 +123,7 @@ export default function Tickets() {
       setTickets(getStoredTickets());
     } finally {
       setIsLoading(false);
+      setHasLoadedOnce(true);
     }
   }, [isAdminUser, currentUser]);
 
@@ -138,6 +140,22 @@ export default function Tickets() {
       }
     } catch (e) {}
   }, [location.search]);
+
+  // Listen for background sync updates when ticket is created
+  useEffect(() => {
+    const handleSync = (e) => {
+      const { tempId, ticket: backendTicket } = e.detail || {};
+      if (tempId && backendTicket) {
+        setTickets(prev => {
+          const updated = prev.map(t => (t.id === tempId ? backendTicket : t));
+          saveStoredTickets(updated);
+          return updated;
+        });
+      }
+    };
+    window.addEventListener('ticketCreatedSync', handleSync);
+    return () => window.removeEventListener('ticketCreatedSync', handleSync);
+  }, []);
 
   // Sync to storage
   useEffect(() => {
@@ -336,7 +354,7 @@ export default function Tickets() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-3">
-          {isLoading && (
+          {hasLoadedOnce && isLoading && (
             <div className="flex items-center gap-2 text-xs text-stone-500 font-medium bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
               <Loader2 size={13} className="animate-spin text-stone-600" />
               <span>Syncing...</span>
@@ -515,7 +533,13 @@ export default function Tickets() {
 
         {/* Ticket Table View */}
         <div className="w-full">
-          {filteredTickets.length > 0 ? (
+          {!hasLoadedOnce && isLoading ? (
+            <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center shadow-xs flex flex-col items-center justify-center min-h-[300px]">
+              <Loader2 size={32} className="animate-spin text-[#ec5137] mb-3" />
+              <p className="text-sm font-semibold text-stone-700">Loading support tickets...</p>
+              <p className="text-xs text-stone-400 mt-1">Retrieving latest tickets from server</p>
+            </div>
+          ) : filteredTickets.length > 0 ? (
             <div className="bg-white rounded-2xl border border-stone-300 shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
