@@ -7,7 +7,7 @@ import SidebarItem from './SidebarItem';
 import Appearance from './Appearance';
 import MenuBar from './MenuBar';
 import OtherSetup from './OtherSetup';
-import LeadForm from './LeadForm';
+import LeadForm from './lead_form';
 import Visibility from './Visibility';
 import Statistic from './Statistic';
 import FlipbookInfoModal from '../FlipbookInfoModal';

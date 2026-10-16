@@ -2,14 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { Plus, Trash2 } from 'lucide-react';
-import PremiumDropdown from './PremiumDropdown';
-import ColorPallet from './ColorPallet';
+import PremiumDropdown from '../PremiumDropdown';
+import ColorPallet from '../ColorPallet';
 
-import Template1Icon from '../../assets/quick template/Frame 1171276601 (1).svg';
-import Template2Icon from '../../assets/quick template/Frame 1171276601 (2).svg';
-import Template3Icon from '../../assets/quick template/Frame 1171276601 (3).svg';
-import Template4Icon from '../../assets/quick template/Frame 1171276601 (4).svg';
-import Template5Icon from '../../assets/quick template/Frame 1171276601 (5).svg';
+import Template1Icon from '../../../assets/quick template/Frame 1171276601 (1).svg';
+import Template2Icon from '../../../assets/quick template/Frame 1171276601 (2).svg';
+import Template3Icon from '../../../assets/quick template/Frame 1171276601 (3).svg';
+import Template4Icon from '../../../assets/quick template/Frame 1171276601 (4).svg';
+import Template5Icon from '../../../assets/quick template/Frame 1171276601 (5).svg';
 
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
@@ -32,7 +32,9 @@ const Switch = ({ enabled, onChange }) => (
 );
 
 const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
-  const [isColorOpen, setIsColorOpen] = useState(true);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [isColorOpen, setIsColorOpen] = useState(false);
+  const [isEnquiryBtnOpen, setIsEnquiryBtnOpen] = useState(true);
 
   const updateNested = (category, field, value) => {
     onUpdate({
@@ -97,10 +99,61 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
       newField.placeholder = 'Enter your Feedback';
     } else if (type === 'rating') {
       newField.label = 'Provide Ratings';
+    } else if (type === 'products') {
+      newField.label = 'Select Products';
+      newField.showQuantity = true;
+      newField.products = [
+        { id: Date.now().toString() + '-p1', name: 'Product 1', image: '' },
+        { id: Date.now().toString() + '-p2', name: 'Product 2', image: '' }
+      ];
     }
     const newFields = [...(settings.fields || []), newField];
     onUpdate({ ...settings, fields: newFields });
     setIsAddFieldPopupOpen(false);
+  };
+
+  const handleProductChange = (fieldId, productId, key, value) => {
+    const newFields = (settings.fields || []).map(f => {
+      if (f.id === fieldId) {
+        const newProducts = (f.products || []).map(p =>
+          p.id === productId ? { ...p, [key]: value } : p
+        );
+        return { ...f, products: newProducts };
+      }
+      return f;
+    });
+    onUpdate({ ...settings, fields: newFields });
+  };
+
+  const handleAddProductItem = (fieldId) => {
+    const newFields = (settings.fields || []).map(f => {
+      if (f.id === fieldId) {
+        const nextNum = (f.products || []).length + 1;
+        const newProd = { id: Date.now().toString(), name: `Product ${nextNum}`, image: '' };
+        return { ...f, products: [...(f.products || []), newProd] };
+      }
+      return f;
+    });
+    onUpdate({ ...settings, fields: newFields });
+  };
+
+  const handleRemoveProductItem = (fieldId, productId) => {
+    const newFields = (settings.fields || []).map(f => {
+      if (f.id === fieldId) {
+        return { ...f, products: (f.products || []).filter(p => p.id !== productId) };
+      }
+      return f;
+    });
+    onUpdate({ ...settings, fields: newFields });
+  };
+
+  const handleProductImageUpload = (fieldId, productId, file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      handleProductChange(fieldId, productId, 'image', e.target.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleTypeChange = (id, type) => {
@@ -124,9 +177,9 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     onUpdate({ ...settings, fields: newFields });
   };
 
-  const handleFieldChange = (id, placeholder, label) => {
+  const handleFieldChange = (id, placeholder, label, extraUpdates = {}) => {
     const newFields = (settings.fields || []).map(f =>
-      f.id === id ? { ...f, placeholder, ...(label !== undefined && { label }) } : f
+      f.id === id ? { ...f, placeholder, ...(label !== undefined && { label }), ...extraUpdates } : f
     );
     onUpdate({ ...settings, fields: newFields });
   };
@@ -320,13 +373,8 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
         </button>
       </div>
 
-      <div className="flex items-center justify-between pt-[1vw] pr-[1vw] pl-[1vw]">
-        <div className="flex flex-col">
-          <span className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap">Turn ON/OFF the Lead Form</span>
-          <p className="text-[0.6vw] text-gray-400 font-sm mt-[0.2vw]  max-w-[15vw]">
-            Turning this OFF will disable all lead form settings below, and turning it ON will enable them again<span className="text-red-500">*</span>
-          </p>
-        </div>
+      <div className="flex items-center justify-between pt-[1vw] pb-[0.5vw] pr-[1vw] pl-[1vw]">
+        <span className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap">Turn ON/OFF the Lead Form</span>
         <Switch
           enabled={settings.enabled}
           onChange={(val) => {
@@ -356,10 +404,43 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
       >
         <div className={`space-y-[1vw] transition-all duration-300 ${!settings.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
 
+          {/* Quick Templates Section - Collapsible Accordion to save space */}
+          <div className={`bg-white rounded-[0.8vw] shadow-[0_0.9vw_1.2vw_rgba(0,0,0,0.05)] transition-all duration-300 relative z-0 ${isTemplatesOpen ? 'ring-1 ring-gray-200' : ''}`}>
+            <button
+              onClick={() => setIsTemplatesOpen(!isTemplatesOpen)}
+              className={`w-full flex items-center justify-between px-[0.5vw] py-[0.8vw] pl-[1vw] pr-[1vw] shadow-sm transition-all duration-300 ${isTemplatesOpen ? 'rounded-t-[0.8vw] border-b-transparent bg-gray-50/50' : 'rounded-[0.8vw] bg-white'}`}
+            >
+              <div className="flex items-center gap-[0.4vw]">
+                <Icon icon="lucide:layout-template" className="w-[1vw] h-[1vw] text-indigo-600" />
+                <span className="text-[0.8vw] font-semibold text-gray-900">Quick Templates</span>
+              </div>
+              <Icon icon="lucide:chevron-down" className={`w-[1.2vw] h-[1.2vw] text-gray-400 transition-transform duration-300 ${isTemplatesOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isTemplatesOpen && (
+              <div className="p-[0.8vw] border-t border-gray-200 bg-gray-50/50 rounded-b-[0.8vw] space-y-[0.6vw] animate-in fade-in slide-in-from-top-2">
+                <div className="grid grid-cols-2 gap-[0.5vw] w-full">
+                  {quickTemplates.map((template) => (
+                    <div 
+                      key={template.id} 
+                      onClick={() => handleSelectTemplate(template)}
+                      className="flex flex-col items-center justify-between cursor-pointer group rounded-[0.5vw] border border-gray-200 p-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.03)] hover:border-[#4A3AFF] hover:shadow-[0_0.2vw_0.6vw_rgba(74,58,255,0.12)] transition-all bg-white"
+                    >
+                      <div className="w-full flex justify-center rounded-[0.3vw] bg-gray-50/50 p-[0.2vw] mb-[0.3vw] group-hover:bg-[#F4F3FF] transition-colors">
+                        <img src={template.icon} alt={template.name} className="w-[3vw] h-auto object-contain rounded-[0.3vw]" />
+                      </div>
+                      <span className="text-[0.65vw] font-semibold text-gray-800 text-center leading-tight group-hover:text-[#4A3AFF] transition-colors">{template.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Customize your Form */}
           <div className="space-y-[1vw]">
             <div className="flex items-center gap-[0.5vw]">
-              <h3 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Customize your Form</h3>
+              <h3 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap">Customize your Form</h3>
               <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
             </div>
 
@@ -489,6 +570,132 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                                 <Plus size="0.7vw" /> Add
                               </button>
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else if (field.type === 'products') {
+                  return (
+                    <div
+                      key={field.id}
+                      className="bg-white border border-gray-200 rounded-[0.5vw] overflow-visible shadow-sm"
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between px-[0.75vw] py-[0.5vw] border-b border-gray-100">
+                        <div className="flex items-center gap-[0.4vw]">
+                          <Icon icon="lucide:shopping-bag" className="w-[0.9vw] h-[0.9vw] text-indigo-600" />
+                          <span className="text-[0.75vw] text-gray-800 font-medium">Product Selection</span>
+                        </div>
+                        <div className="relative" id={`delete-menu-${field.id}`}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveDeleteMenuId(activeDeleteMenuId === field.id ? null : field.id); }}
+                            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.2vw] rounded-full hover:bg-gray-100"
+                            title="More Options"
+                          >
+                            <Icon icon="lucide:more-vertical" width="1vw" />
+                          </button>
+                          {activeDeleteMenuId === field.id && (
+                            <div className="absolute right-0 top-[100%] mt-[0.2vw] bg-white border border-gray-200 shadow-md rounded-[0.4vw] p-[0.2vw] z-[50] min-w-[7vw]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveField(field.id); setActiveDeleteMenuId(null); }}
+                                className="flex items-center gap-[0.4vw] w-full px-[0.5vw] py-[0.4vw] text-red-500 hover:bg-red-50 rounded-[0.3vw] text-[0.7vw] font-medium transition-colors"
+                              >
+                                <Icon icon="lucide:trash-2" width="0.8vw" />
+                                Delete Field
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Body */}
+                      <div className="p-[0.75vw] space-y-[0.75vw]">
+                        {/* Label Row */}
+                        <div className="flex items-center gap-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-700 w-[3.5vw]">Label :</label>
+                          <input
+                            type="text"
+                            value={field.label || ''}
+                            onChange={(e) => handleFieldChange(field.id, field.placeholder, e.target.value)}
+                            className="flex-1 border border-gray-200 rounded-[0.4vw] px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-600 outline-none focus:border-indigo-500 h-[1.8vw] bg-white w-full normal-case"
+                            placeholder="Select Products"
+                          />
+                        </div>
+
+                        {/* Quantity Toggle Row */}
+                        <div className="flex items-center justify-between py-[0.2vw] px-[0.2vw] bg-gray-50/70 rounded-[0.4vw] border border-gray-100">
+                          <span className="text-[0.68vw] font-medium text-gray-700">Enable Quantity Selector</span>
+                          <Switch
+                            enabled={field.showQuantity !== false}
+                            onChange={(val) => handleFieldChange(field.id, field.placeholder, field.label, { showQuantity: val })}
+                          />
+                        </div>
+
+                        {/* Product Items List */}
+                        <div className="space-y-[0.5vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-700 block">Products :</label>
+                          
+                          {(field.products || []).map((prod, pIdx) => (
+                            <div key={prod.id || pIdx} className="flex items-center gap-[0.4vw] p-[0.4vw] bg-gray-50/50 rounded-[0.4vw] border border-gray-100">
+                              {/* Product Image Upload Thumbnail */}
+                              <label className="w-[2.2vw] h-[2.2vw] rounded-[0.3vw] border border-dashed border-gray-300 hover:border-indigo-500 bg-white flex items-center justify-center cursor-pointer shrink-0 relative overflow-hidden group/img transition-colors" title="Upload Product Image">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    if (e.target.files?.[0]) {
+                                      handleProductImageUpload(field.id, prod.id, e.target.files[0]);
+                                    }
+                                  }}
+                                />
+                                {prod.image ? (
+                                  <>
+                                    <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                      <Icon icon="lucide:camera" className="w-[0.9vw] h-[0.9vw]" />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center text-gray-400 group-hover/img:text-indigo-600">
+                                    <Icon icon="lucide:image-plus" className="w-[0.9vw] h-[0.9vw]" />
+                                  </div>
+                                )}
+                              </label>
+
+                              {/* Product Name Input */}
+                              <input
+                                type="text"
+                                value={prod.name || ''}
+                                onChange={(e) => handleProductChange(field.id, prod.id, 'name', e.target.value)}
+                                placeholder={`Product ${pIdx + 1} Name`}
+                                className="flex-1 border border-gray-200 rounded-[0.3vw] px-[0.5vw] py-[0.3vw] text-[0.68vw] text-gray-700 outline-none focus:border-indigo-500 bg-white h-[1.8vw]"
+                              />
+
+                              {/* Remove Product */}
+                              {(field.products || []).length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveProductItem(field.id, prod.id)}
+                                  className="text-red-400 hover:text-red-600 p-[0.3vw] rounded-[0.3vw] hover:bg-red-50 transition-colors shrink-0"
+                                  title="Remove Product"
+                                >
+                                  <Icon icon="lucide:trash-2" className="w-[0.85vw] h-[0.85vw]" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Add Product Button */}
+                          <div className="flex justify-end pt-[0.2vw]">
+                            <button
+                              type="button"
+                              onClick={() => handleAddProductItem(field.id)}
+                              className="flex items-center gap-[0.2vw] px-[0.6vw] py-[0.3vw] bg-gray-100 rounded-[0.4vw] text-gray-600 text-[0.65vw] font-medium hover:bg-gray-200 transition-colors"
+                            >
+                              <Plus size="0.7vw" /> Add Product
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -858,6 +1065,52 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
 
                 {settings.appearance.allowSkip && (
                   <div className="ml-[1.85vw] space-y-[0.8vw] pt-[0.25vw] border-t border-gray-200 mt-[0.5vw]">
+                    {/* Skip Button Style Selector */}
+                    <div className="space-y-[0.4vw]">
+                      <span className="block text-[0.75vw] font-medium text-gray-900 mt-[0.4vw]">Skip Button Type :</span>
+                      <div className="flex items-center gap-[1vw]">
+                        <label className="flex items-center gap-[0.5vw] cursor-pointer group">
+                          <div className="relative flex items-center justify-center">
+                            <input
+                              type="radio"
+                              name="skipType"
+                              checked={(settings.appearance.skipType || 'text') === 'text'}
+                              onChange={() => updateAppearance('skipType', 'text')}
+                              className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
+                            />
+                            <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                          </div>
+                          <span className={`text-[0.7vw] font-medium ${(settings.appearance.skipType || 'text') === 'text' ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}>Text Button ("Skip")</span>
+                        </label>
+                        <label className="flex items-center gap-[0.5vw] cursor-pointer group">
+                          <div className="relative flex items-center justify-center">
+                            <input
+                              type="radio"
+                              name="skipType"
+                              checked={settings.appearance.skipType === 'icon'}
+                              onChange={() => updateAppearance('skipType', 'icon')}
+                              className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[1.5px] border-black rounded-full checked:border-[#4A3AFF] transition-all bg-transparent"
+                            />
+                            <div className="absolute w-[0.55vw] h-[0.55vw] bg-[#4A3AFF] rounded-full scale-0 peer-checked:scale-100 transition-transform" />
+                          </div>
+                          <span className={`text-[0.7vw] font-medium ${settings.appearance.skipType === 'icon' ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}>Cancel "X" Button</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {(settings.appearance.skipType || 'text') === 'text' && (
+                      <div className="flex flex-col gap-[0.3vw]">
+                        <label className="text-[0.7vw] font-medium text-gray-700">Skip Button Text :</label>
+                        <input
+                          type="text"
+                          value={settings.appearance.skipText !== undefined ? settings.appearance.skipText : 'Skip'}
+                          onChange={(e) => updateAppearance('skipText', e.target.value)}
+                          placeholder="Skip"
+                          className="w-full border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.7vw] text-gray-700 focus:outline-none focus:border-indigo-500 bg-white shadow-sm"
+                        />
+                      </div>
+                    )}
+
                     <span className="block text-[0.75vw] font-medium text-gray-900 mt-[0.6vw] mb-[0.2vw]">If Skipped :</span>
                     
                     {[
@@ -991,8 +1244,20 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                         align="right"
                       />
                     </div>
-                    <ColorPickerItem label="Fill :" color={settings.appearance.textFill} onChange={(val) => updateAppearance('textFill', val)} />
-                    <ColorPickerItem label="Stoke :" color={settings.appearance.textStroke} onChange={(val) => updateAppearance('textStroke', val)} />
+                    <ColorPickerItem
+                      label="Fill :"
+                      color={settings.appearance.textFill}
+                      opacity={settings.appearance.textFillOpacity ?? 100}
+                      onChange={(val) => updateAppearance('textFill', val)}
+                      onOpacityChange={(val) => updateAppearance('textFillOpacity', val)}
+                    />
+                    <ColorPickerItem
+                      label="Stoke :"
+                      color={settings.appearance.textStroke}
+                      opacity={settings.appearance.textStrokeOpacity ?? 100}
+                      onChange={(val) => updateAppearance('textStroke', val)}
+                      onOpacityChange={(val) => updateAppearance('textStrokeOpacity', val)}
+                    />
                   </div>
 
                   {/* Background Color */}
@@ -1001,20 +1266,217 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
                       <h4 className="text-[0.75vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Background Color</h4>
                       <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
                     </div>
-                    <ColorPickerItem label="Fill :" color={settings.appearance.bgFill} onChange={(val) => updateAppearance('bgFill', val)} />
-                    <ColorPickerItem label="Stoke :" color={settings.appearance.bgStroke} onChange={(val) => updateAppearance('bgStroke', val)} />
+                    <ColorPickerItem
+                      label="Fill :"
+                      color={settings.appearance.bgFill}
+                      opacity={settings.appearance.bgFillOpacity ?? 100}
+                      onChange={(val) => updateAppearance('bgFill', val)}
+                      onOpacityChange={(val) => updateAppearance('bgFillOpacity', val)}
+                    />
+                    <ColorPickerItem
+                      label="Stoke :"
+                      color={settings.appearance.bgStroke}
+                      opacity={settings.appearance.bgStrokeOpacity ?? 100}
+                      onChange={(val) => updateAppearance('bgStroke', val)}
+                      onOpacityChange={(val) => updateAppearance('bgStrokeOpacity', val)}
+                    />
                   </div>
 
-                  {/* Button */}
+                    {/* Button */}
                   <div className="space-y-[0.75vw]">
                     <div className="flex items-center gap-[0.5vw]">
                       <h4 className="text-[0.75vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Button</h4>
                       <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
                     </div>
-                    <ColorPickerItem label="Fill :" color={settings.appearance.btnFill} onChange={(val) => updateAppearance('btnFill', val)} />
-                    <ColorPickerItem label="Stoke :" color={settings.appearance.btnStroke} onChange={(val) => updateAppearance('btnStroke', val)} />
-                    <ColorPickerItem label="Text :" color={settings.appearance.btnText} onChange={(val) => updateAppearance('btnText', val)} />
+                    <ColorPickerItem
+                      label="Fill :"
+                      color={settings.appearance.btnFill}
+                      opacity={settings.appearance.btnFillOpacity ?? 100}
+                      onChange={(val) => updateAppearance('btnFill', val)}
+                      onOpacityChange={(val) => updateAppearance('btnFillOpacity', val)}
+                    />
+                    <ColorPickerItem
+                      label="Stoke :"
+                      color={settings.appearance.btnStroke}
+                      opacity={settings.appearance.btnStrokeOpacity ?? 100}
+                      onChange={(val) => updateAppearance('btnStroke', val)}
+                      onOpacityChange={(val) => updateAppearance('btnStrokeOpacity', val)}
+                    />
+                    <ColorPickerItem
+                      label="Text :"
+                      color={settings.appearance.btnText}
+                      opacity={settings.appearance.btnTextOpacity ?? 100}
+                      onChange={(val) => updateAppearance('btnText', val)}
+                      onOpacityChange={(val) => updateAppearance('btnTextOpacity', val)}
+                    />
                   </div>
+
+                  {/* Skip / Close Button Colors */}
+                  {settings.appearance.allowSkip && (
+                    <div className="space-y-[0.75vw]">
+                      <div className="flex items-center gap-[0.5vw]">
+                        <h4 className="text-[0.75vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Skip / Cancel Button</h4>
+                        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
+                      </div>
+                      <ColorPickerItem
+                        label="Color :"
+                        color={settings.appearance.skipColor || '#3E4491'}
+                        opacity={settings.appearance.skipOpacity ?? 100}
+                        onChange={(val) => updateAppearance('skipColor', val)}
+                        onOpacityChange={(val) => updateAppearance('skipOpacity', val)}
+                      />
+                      {settings.appearance.skipType === 'icon' && (
+                        <>
+                          <ColorPickerItem
+                            label="Fill :"
+                            color={settings.appearance.skipBgFill || 'transparent'}
+                            opacity={settings.appearance.skipBgFillOpacity ?? 100}
+                            onChange={(val) => updateAppearance('skipBgFill', val)}
+                            onOpacityChange={(val) => updateAppearance('skipBgFillOpacity', val)}
+                          />
+                          <ColorPickerItem
+                            label="Stoke :"
+                            color={settings.appearance.skipBgStroke || 'transparent'}
+                            opacity={settings.appearance.skipBgStrokeOpacity ?? 100}
+                            onChange={(val) => updateAppearance('skipBgStroke', val)}
+                            onOpacityChange={(val) => updateAppearance('skipBgStrokeOpacity', val)}
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Canvas Enquiry Floating Button Settings */}
+            <div className={`bg-white rounded-[0.8vw] shadow-[0_0.9vw_1.2vw_rgba(0,0,0,0.05)] transition-all duration-300 relative z-0 ${isEnquiryBtnOpen ? 'ring-1 ring-gray-200' : ''}`}>
+              <button
+                onClick={() => setIsEnquiryBtnOpen(!isEnquiryBtnOpen)}
+                className={`w-full flex items-center justify-between px-[0.5vw] py-[0.8vw] pl-[1vw] pr-[1vw] shadow-sm transition-all duration-300 ${isEnquiryBtnOpen ? 'rounded-t-[0.8vw] border-b-transparent bg-gray-50/50' : 'rounded-[0.8vw] bg-white'}`}
+              >
+                <div className="flex items-center gap-[0.4vw]">
+                  <Icon icon="lucide:message-square-plus" className="w-[1vw] h-[1vw] text-[#4A3AFF]" />
+                  <span className="text-[0.8vw] font-semibold text-gray-900">Canvas Enquiry Button</span>
+                </div>
+                <Icon icon="lucide:chevron-down" className={`w-[1.2vw] h-[1.2vw] text-gray-400 transition-transform duration-300 ${isEnquiryBtnOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isEnquiryBtnOpen && (
+                <div className="p-[1vw] border-t border-gray-200 bg-gray-50/50 rounded-b-[0.8vw] space-y-[0.8vw] animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.75vw] font-semibold text-gray-900">Show Button on Canvas</span>
+                    <Switch
+                      enabled={settings.enquiryButton?.enabled !== false}
+                      onChange={(val) => updateNested('enquiryButton', 'enabled', val)}
+                    />
+                  </div>
+
+                  {settings.enquiryButton?.enabled !== false && (
+                    <div className="space-y-[0.75vw] pt-[0.25vw] border-t border-gray-200">
+                      {/* Show Text Switch */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[0.7vw] font-medium text-gray-800">Show Button Text</span>
+                        <Switch
+                          enabled={settings.enquiryButton?.showText !== false}
+                          onChange={(val) => {
+                            if (!val && (!settings.enquiryButton?.icon || settings.enquiryButton?.icon === 'none')) {
+                              // If turning off text and currently icon is 'none', automatically default icon to 'lucide:mail'
+                              onUpdate({
+                                ...settings,
+                                enquiryButton: {
+                                  ...settings.enquiryButton,
+                                  showText: false,
+                                  icon: 'lucide:mail'
+                                }
+                              });
+                            } else {
+                              updateNested('enquiryButton', 'showText', val);
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Button Label Text */}
+                      {settings.enquiryButton?.showText !== false && (
+                        <div className="flex flex-col gap-[0.3vw]">
+                          <label className="text-[0.7vw] font-medium text-gray-800">Button Text :</label>
+                          <input
+                            type="text"
+                            value={settings.enquiryButton?.text !== undefined ? settings.enquiryButton.text : 'Enquire Now'}
+                            onChange={(e) => updateNested('enquiryButton', 'text', e.target.value)}
+                            className="w-full border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.7vw] text-gray-700 focus:outline-none focus:border-indigo-500 bg-white shadow-sm"
+                            placeholder="Enquire Now"
+                          />
+                        </div>
+                      )}
+
+                      {/* Select Icon */}
+                      <div className="flex flex-col gap-[0.3vw]">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[0.7vw] font-medium text-gray-800">Choose Icon :</label>
+                          {settings.enquiryButton?.showText === false && (
+                            <span className="text-[0.55vw] text-amber-600 font-medium">* Icon is mandatory when text is hidden</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-4 gap-[0.4vw]">
+                          {[
+                            { id: 'lucide:mail', label: 'Mail' },
+                            { id: 'lucide:message-square', label: 'Message' },
+                            { id: 'lucide:phone', label: 'Phone' },
+                            { id: 'lucide:send', label: 'Send' },
+                            { id: 'lucide:help-circle', label: 'Help' },
+                            { id: 'lucide:user-check', label: 'Contact' },
+                            { id: 'lucide:clipboard-list', label: 'Form' },
+                            ...(settings.enquiryButton?.showText !== false ? [{ id: 'none', label: 'None' }] : [])
+                          ].map(item => {
+                            const currentIcon = (settings.enquiryButton?.showText === false && (!settings.enquiryButton?.icon || settings.enquiryButton?.icon === 'none'))
+                              ? 'lucide:mail'
+                              : (settings.enquiryButton?.icon || 'lucide:mail');
+                            const isSelected = currentIcon === item.id;
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => updateNested('enquiryButton', 'icon', item.id)}
+                                className={`flex flex-col items-center justify-center p-[0.4vw] rounded-[0.4vw] border transition-all ${
+                                  isSelected
+                                    ? 'border-[#4A3AFF] bg-[#EEF2FF] text-[#4A3AFF] shadow-sm'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                                }`}
+                                title={item.label}
+                              >
+                                {item.id === 'none' ? (
+                                  <span className="text-[0.6vw] font-bold text-gray-400">None</span>
+                                ) : (
+                                  <Icon icon={item.id} className="w-[1vw] h-[1vw]" />
+                                )}
+                                <span className="text-[0.55vw] mt-[0.1vw] font-medium">{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Button Colors */}
+                      <div className="space-y-[0.5vw] pt-[0.2vw]">
+                        <ColorPickerItem
+                          label="Bg Color :"
+                          color={settings.enquiryButton?.bgFill || '#4A3AFF'}
+                          opacity={settings.enquiryButton?.bgOpacity ?? 100}
+                          onChange={(val) => updateNested('enquiryButton', 'bgFill', val)}
+                          onOpacityChange={(val) => updateNested('enquiryButton', 'bgOpacity', val)}
+                        />
+                        <ColorPickerItem
+                          label="Text Color :"
+                          color={settings.enquiryButton?.textColor || '#FFFFFF'}
+                          opacity={settings.enquiryButton?.textOpacity ?? 100}
+                          onChange={(val) => updateNested('enquiryButton', 'textColor', val)}
+                          onOpacityChange={(val) => updateNested('enquiryButton', 'textOpacity', val)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1029,83 +1491,60 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
             className="absolute top-0 left-full w-[100vw] h-[100vh] z-[100]"
             onClick={() => setIsAddFieldPopupOpen(false)}
           />
-          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[19vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col transition-all">
-            
-            {/* Header Tabs */}
-            <div className="flex bg-[#E5E5E5] w-full">
+          <div className="absolute top-[40%] right-0 translate-x-1/2 -translate-y-1/2 z-[101] bg-white rounded-[1vw] w-[18vw] shadow-[0_1vw_3vw_rgba(0,0,0,0.15)] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col transition-all border border-gray-100">
+            {/* Header */}
+            <div className="flex items-center justify-between px-[1.2vw] py-[0.8vw] border-b border-gray-100 bg-gray-50/50">
+              <span className="text-[0.8vw] font-semibold text-gray-900">Add Field</span>
               <button 
-                onClick={() => setActivePopupTab('templates')}
-                className={`flex-1 py-[0.9vw] text-[0.85vw] transition-colors border-b ${activePopupTab === 'templates' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
-                Quick Templates
-              </button>
-              <button 
-                onClick={() => setActivePopupTab('custom')}
-                className={`flex-1 py-[0.9vw] text-[0.85vw] transition-colors border-b ${activePopupTab === 'custom' ? 'text-black bg-white border-black border-b-[0.15vw] font-semibold' : 'text-gray-500 hover:text-gray-700 border-[#D1D1D1] font-medium'}`}>
-                Custom Fields
+                onClick={() => setIsAddFieldPopupOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
               </button>
             </div>
             
-            {/* Content */}
-            <div className="p-[1.5vw] flex flex-col items-center bg-white w-full h-[17vw]">
-              {activePopupTab === 'templates' ? (
-                <div className="w-full flex flex-col items-start h-full overflow-y-auto [&::-webkit-scrollbar]:w-[0.4vw] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full pr-[0.5vw]">
-                  <p className="text-[0.9vw] text-gray-700 mb-[1.5vw] font-medium text-left leading-tight w-full">
-                    Start quickly with a pre-designed lead form template.
-                  </p>
-                  <div className="grid grid-cols-2 gap-[1vw] w-full pb-[1vw]">
-                    {quickTemplates.map((template) => (
-                      <div 
-                        key={template.id} 
-                        onClick={() => handleSelectTemplate(template)}
-                        className="flex flex-col items-center justify-between cursor-pointer group rounded-[0.8vw] border border-gray-100 p-[0.6vw] shadow-[0_0.2vw_0.8vw_rgba(0,0,0,0.04)] group-hover:border-gray-300 group-hover:shadow-[0_0.4vw_1.2vw_rgba(0,0,0,0.08)] transition-all bg-white"
-                      >
-                        <div className="w-full flex justify-center rounded-[0.4vw] bg-white mb-[0.8vw]">
-                          <img src={template.icon} alt={template.name} className="w-[4.5vw] h-auto object-contain rounded-[0.4vw]" />
-                        </div>
-                        <span className="text-[0.85vw] font-semibold text-black text-center leading-tight pb-[0.2vw]">{template.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-[0.75vw] text-gray-600 mb-[1.5vw] font-medium text-center">
-                    Click a field below to add it to your lead form.
-                  </p>
+            {/* Content: Custom Fields */}
+            <div className="p-[1.2vw] flex flex-col bg-white w-full">
+              <p className="text-[0.7vw] text-gray-500 mb-[1vw] font-normal">
+                Click a field below to add it to your lead form.
+              </p>
               
-              <div className="grid grid-cols-2 gap-[0.8vw] w-full">
-                <button onClick={() => handleAddField('empty')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
-                  <Icon icon="lucide:type" className="w-[1vw] h-[1vw] text-gray-600" />
-                  <span className="text-[0.7vw] font-medium text-gray-700">Input Box</span>
+              <div className="grid grid-cols-2 gap-[0.7vw] w-full">
+                <button onClick={() => handleAddField('empty')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:type" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Input Box</span>
                 </button>
                 
-                <button onClick={() => handleAddField('feedback')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
-                  <Icon icon="lucide:text-cursor-input" className="w-[1vw] h-[1vw] text-gray-600" />
-                  <span className="text-[0.7vw] font-medium text-gray-700">Text Area</span>
+                <button onClick={() => handleAddField('feedback')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:text-cursor-input" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Text Area</span>
                 </button>
                 
-                <button onClick={() => handleAddField('radio')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
-                  <Icon icon="lucide:circle-dot" className="w-[1vw] h-[1vw] text-gray-600" />
-                  <span className="text-[0.7vw] font-medium text-gray-700">Radio Button</span>
+                <button onClick={() => handleAddField('radio')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:circle-dot" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Radio Button</span>
                 </button>
                 
-                <button onClick={() => handleAddField('dropdown')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
-                  <Icon icon="lucide:list-collapse" className="w-[1vw] h-[1vw] text-gray-600" />
-                  <span className="text-[0.7vw] font-medium text-gray-700">Dropdown</span>
+                <button onClick={() => handleAddField('dropdown')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:list-collapse" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Dropdown</span>
                 </button>
 
-                <button onClick={() => handleAddField('rating')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
-                  <Icon icon="lucide:star" className="w-[1vw] h-[1vw] text-gray-600" />
-                  <span className="text-[0.7vw] font-medium text-gray-700">Rating</span>
+                <button onClick={() => handleAddField('rating')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:star" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Rating</span>
                 </button>
 
-                <button onClick={() => handleAddField('checkbox')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-all group bg-white justify-center">
-                  <Icon icon="lucide:check-square" className="w-[1vw] h-[1vw] text-gray-600" />
-                  <span className="text-[0.7vw] font-medium text-gray-700">Checkbox</span>
+                <button onClick={() => handleAddField('checkbox')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center">
+                  <Icon icon="lucide:check-square" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Checkbox</span>
                 </button>
-                  </div>
-                </>
-              )}
+
+                <button onClick={() => handleAddField('products')} className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.6vw] border border-gray-100 rounded-[0.4vw] shadow-[0_0.1vw_0.3vw_rgba(0,0,0,0.04)] hover:border-[#4A3AFF] hover:bg-gray-50 transition-all group bg-white justify-center col-span-2">
+                  <Icon icon="lucide:shopping-bag" className="w-[1vw] h-[1vw] text-gray-600 group-hover:text-[#4A3AFF]" />
+                  <span className="text-[0.7vw] font-medium text-gray-700 group-hover:text-[#4A3AFF]">Products</span>
+                </button>
+              </div>
             </div>
           </div>
         </>
@@ -1114,14 +1553,13 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
   );
 };
 
-const ColorPickerItem = ({ label, color, onChange }) => {
+const ColorPickerItem = ({ label, color, opacity = 100, onChange, onOpacityChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
   const pickerRef = useRef(null);
   const swatchRef = useRef(null);
 
   // The click-outside logic is now handled internally by ColorPallet via onClose
-
 
   const handleOpen = () => {
     if (!isOpen && swatchRef.current) {
@@ -1138,24 +1576,32 @@ const ColorPickerItem = ({ label, color, onChange }) => {
     setIsOpen(!isOpen);
   };
 
+  const displayOpacity = opacity !== undefined && opacity !== null ? opacity : 100;
+
   return (
     <div className="flex items-center gap-[0.4vw] relative">
-      <span className="w-[3vw] text-[0.7vw] pl-[0.5vw] font-semibold text-gray-700 shrink-0">{label}</span>
-      <div className="flex-1 flex items-center gap-[0.5vw]">
+      <span className="w-[4.6vw] text-[0.7vw] pl-[0.2vw] font-semibold text-gray-700 shrink-0 whitespace-nowrap">{label}</span>
+      <div className="flex-1 flex items-center gap-[0.4vw] min-w-0">
         <div
           ref={swatchRef}
-          className="w-[1.8vw] h-[1.8vw] rounded-[0.4vw] border border-gray-900 cursor-pointer overflow-hidden relative shadow-sm color-picker-trigger"
-          style={{ backgroundColor: color === '#' || !color || color === 'transparent' ? 'white' : color }}
+          className="w-[1.8vw] h-[1.8vw] rounded-[0.4vw] border border-gray-900 cursor-pointer overflow-hidden relative shadow-sm color-picker-trigger shrink-0"
+          style={{
+            backgroundColor: color === '#' || !color || color === 'transparent'
+              ? 'white'
+              : (color.startsWith('#') && color.length >= 7
+                  ? `rgba(${parseInt(color.slice(1,3), 16)}, ${parseInt(color.slice(3,5), 16)}, ${parseInt(color.slice(5,7), 16)}, ${displayOpacity / 100})`
+                  : color)
+          }}
           onClick={handleOpen}
         >
           {(color === '#' || !color || color === 'transparent') && (
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[0.1vw] bg-red-500 rotate-45"></div>
           )}
         </div>
-        <div className="flex-1 flex items-center bg-white border border-gray-900 rounded-[0.4vw] px-[0.6vw] py-[0.2vw] h-[1.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-          <span className="text-[0.7vw] font-medium text-gray-600 flex-1">{color && color.length > 1 ? color.toUpperCase() : '#'}</span>
-          <div className="w-[1px] h-[70%] bg-gray-100 mx-[0.4vw]"></div>
-          <div className="text-[0.7vw] font-semibold text-gray-800 w-[2.5vw] text-right">100%</div>
+        <div className="flex-1 flex items-center bg-white border border-gray-900 rounded-[0.4vw] px-[0.4vw] py-[0.2vw] h-[1.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.02)] min-w-0 overflow-hidden">
+          <span className="text-[0.68vw] font-medium text-gray-600 flex-1 truncate">{color && color.length > 1 ? color.toUpperCase() : '#'}</span>
+          <div className="w-[1px] h-[70%] bg-gray-100 mx-[0.3vw] shrink-0"></div>
+          <div className="text-[0.68vw] font-semibold text-gray-800 shrink-0 text-right">{displayOpacity}%</div>
         </div>
       </div>
       {isOpen && createPortal(
@@ -1163,7 +1609,8 @@ const ColorPickerItem = ({ label, color, onChange }) => {
           <ColorPallet
             color={color && color.startsWith('#') && color.length >= 7 ? color.substring(0, 7) : '#ffffff'}
             onChange={onChange}
-            opacity={100}
+            opacity={displayOpacity}
+            onOpacityChange={onOpacityChange}
             onClose={() => setIsOpen(false)}
             style={{ position: 'fixed', top: pickerPos.y, left: pickerPos.x, zIndex: 9999, transform: 'none' }}
           />

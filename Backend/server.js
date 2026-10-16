@@ -22,6 +22,7 @@ import presetsRoutes from "./routes/Presets/presets.js";
 import { analyticsRoutes } from "./analytics_tracking/index.js";
 import { forumRoutes } from "./forum/index.js";
 import { ticketRoutes } from "./tickets/index.js";
+import { leadRoutes } from "./lead_form/index.js";
 import { seedPresets } from "./utils/seedPresets.js";
 import compression from "compression";
 import fs from "fs";
@@ -255,6 +256,7 @@ app.use("/api/presets", presetsRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/forum", forumRoutes);
 app.use("/api/tickets", ticketRoutes);
+app.use("/api/lead-form", leadRoutes);
 
 import { startBackgroundTempCleaner } from "./utils/tempCleaner.js";
 

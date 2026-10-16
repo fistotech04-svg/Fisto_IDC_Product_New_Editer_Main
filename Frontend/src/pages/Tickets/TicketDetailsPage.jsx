@@ -285,46 +285,48 @@ export default function TicketDetailsPage() {
       attachments: compressedFormatted
     };
 
-    try {
-      const updatedTicketFromBackend = await addTicketMessageApi(ticket.id, messagePayload);
-      if (updatedTicketFromBackend && updatedTicketFromBackend.id) {
-        setCurrentTicket(updatedTicketFromBackend);
-        setTickets(prev => prev.map(t => t.id === ticket.id ? updatedTicketFromBackend : t));
-        saveStoredTickets(tickets.map(t => t.id === ticket.id ? updatedTicketFromBackend : t));
-        setReplyText('');
-        setReplyAttachments([]);
-        setIsSubmitting(false);
-        setShowReplyForm(false);
-        if (toast?.showToast) {
-          toast.showToast(isAdminUser ? 'Admin reply sent to user' : 'Message sent to support', 'success');
-        }
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend reply post failed, saving locally:', err);
-    }
-
-    // Local fallback update
-    const localNewMessage = {
+    // Optimistic UI update: immediately show reply in UI and clear form
+    const localOptimisticMessage = {
       ...messagePayload,
-      timestamp: 'Just now'
+      timestamp: 'Just now',
+      createdAt: new Date().toISOString()
     };
 
-    const updatedTicket = {
+    const optimisticTicket = {
       ...ticket,
       updatedAt: 'Just now',
-      messages: [...(ticket.messages || []), localNewMessage]
+      messages: [...(ticket.messages || []), localOptimisticMessage]
     };
-    setCurrentTicket(updatedTicket);
-    const updatedTickets = tickets.map(t => t.id === ticket.id ? updatedTicket : t);
-    setTickets(updatedTickets);
-    saveStoredTickets(updatedTickets);
+
+    setCurrentTicket(optimisticTicket);
+    setTickets(prev => {
+      const updated = prev.map(t => t.id === ticket.id ? optimisticTicket : t);
+      saveStoredTickets(updated);
+      return updated;
+    });
+
     setReplyText('');
     setReplyAttachments([]);
     setIsSubmitting(false);
     setShowReplyForm(false);
+
     if (toast?.showToast) {
       toast.showToast(isAdminUser ? 'Admin reply posted' : 'Message sent to support', 'success');
+    }
+
+    // Sync in background to backend
+    try {
+      const updatedTicketFromBackend = await addTicketMessageApi(ticket.id, messagePayload);
+      if (updatedTicketFromBackend && updatedTicketFromBackend.id) {
+        setCurrentTicket(updatedTicketFromBackend);
+        setTickets(prev => {
+          const updated = prev.map(t => t.id === ticket.id ? updatedTicketFromBackend : t);
+          saveStoredTickets(updated);
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.warn('Backend reply background sync failed (persisted locally):', err);
     }
   };
 

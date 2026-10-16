@@ -37,7 +37,7 @@ import TabletLayout8 from './Tablet/TabletLayouts/TabletLayout8';
 import GalleryPopup from './popups/GalleryPopup';
 import { getBookmarkClipPath, getBookmarkBorderRadius, getBookmarkSVGPath } from './BookmarkStylesPopup';
 import FlipBookEngine from './FlipBookEngine';
-import LeadFormPopup from './popups/LeadFormPopup';
+import LeadFormPopup from './lead_form/LeadFormPopup';
 import { getFromDB, saveToDB } from '../../utils/dbUtils';
 
 
@@ -3422,6 +3422,7 @@ const PreviewArea = React.memo(({
     });
     const [showLeadForm, setShowLeadForm] = useState(false);
     const [leadFormSubmitted, setLeadFormSubmitted] = useState(false);
+    const [leadFormDismissed, setLeadFormDismissed] = useState(false);
     const [showThumbnailBar, setShowThumbnailBar] = useState(false);
     const [showAddBookmarkPopup, setShowAddBookmarkPopup] = useState(false);
     const [showAddNotesPopup, setShowAddNotesPopup] = useState(false);
@@ -4446,9 +4447,14 @@ const PreviewArea = React.memo(({
         const prevEnabled = prevEnabledRef.current === true || prevEnabledRef.current === 'true';
         if (currentEnabled && !prevEnabled && !isPublishedPreview) {
             setLeadFormSubmitted(false);
+            setLeadFormDismissed(false);
         }
         prevEnabledRef.current = leadFormSettings?.enabled;
     }, [leadFormSettings?.enabled, isPublishedPreview]);
+
+    useEffect(() => {
+        setLeadFormDismissed(false);
+    }, [activeSubView, currentPage]);
 
     useEffect(() => {
         const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
@@ -4457,7 +4463,7 @@ const PreviewArea = React.memo(({
             return;
         }
 
-        if (isLoading || leadFormSubmitted) {
+        if (isLoading || leadFormSubmitted || leadFormDismissed) {
             setShowLeadForm(false);
             return;
         }
@@ -4480,16 +4486,16 @@ const PreviewArea = React.memo(({
         } else if (timing !== 'after-seconds') {
             setShowLeadForm(false);
         }
-    }, [currentPage, leadFormSettings, leadFormSubmitted, pages.length, activeSubView, isLoading]);
+    }, [currentPage, leadFormSettings, leadFormSubmitted, leadFormDismissed, pages.length, activeSubView, isLoading]);
 
     // Separate useEffect for after-seconds to prevent resetting timer on page change
     useEffect(() => {
         let timeoutId;
         const isLeadFormTabActive = (activeSubView || '').toLowerCase() === 'leadform';
-        if (isLeadFormTabActive || isLoading) return;
+        if (isLeadFormTabActive || isLoading || leadFormDismissed) return;
 
         const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
-        if (isEnabled && !leadFormSubmitted && leadFormSettings.appearance?.timing === 'after-seconds') {
+        if (isEnabled && !leadFormSubmitted && !leadFormDismissed && leadFormSettings.appearance?.timing === 'after-seconds') {
             const afterSeconds = leadFormSettings.appearance?.afterSeconds || 30;
             timeoutId = setTimeout(() => {
                 setShowLeadForm(true);
@@ -4499,7 +4505,7 @@ const PreviewArea = React.memo(({
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [leadFormSettings?.enabled, leadFormSettings?.appearance?.timing, leadFormSettings?.appearance?.afterSeconds, leadFormSubmitted, activeSubView, isLoading]);
+    }, [leadFormSettings?.enabled, leadFormSettings?.appearance?.timing, leadFormSettings?.appearance?.afterSeconds, leadFormSubmitted, leadFormDismissed, activeSubView, isLoading]);
 
 
 
@@ -5176,6 +5182,68 @@ const PreviewArea = React.memo(({
                     </span>
                 </div>
             )}
+
+            {/* Floating Enquiry Button for Lead Form */}
+            {(() => {
+                const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
+                const isBtnEnabled = leadFormSettings?.enquiryButton?.enabled !== false;
+                if (!isEnabled || !isBtnEnabled || showLeadForm) return null;
+
+                const showText = leadFormSettings?.enquiryButton?.showText !== false;
+                const rawText = leadFormSettings?.enquiryButton?.text;
+                const btnText = rawText !== undefined ? rawText : 'Enquire Now';
+                const hasText = showText && btnText && btnText.trim().length > 0;
+                const rawIcon = leadFormSettings?.enquiryButton?.icon;
+                // If text is hidden, icon is mandatory; fallback to 'lucide:mail' if empty or 'none'
+                const btnIcon = (!hasText && (!rawIcon || rawIcon === 'none')) ? 'lucide:mail' : (rawIcon || 'lucide:mail');
+                const bgFill = leadFormSettings?.enquiryButton?.bgFill || '#4A3AFF';
+                const bgOpacity = leadFormSettings?.enquiryButton?.bgOpacity ?? 100;
+                const textColor = leadFormSettings?.enquiryButton?.textColor || '#FFFFFF';
+                const textOpacity = leadFormSettings?.enquiryButton?.textOpacity ?? 100;
+
+                const hexToRgbaLocal = (hex, op = 100) => {
+                    if (!hex || hex === '#' || hex === 'transparent') return 'transparent';
+                    if (!hex.startsWith('#')) return hex;
+                    let c = hex.substring(1);
+                    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+                    if (c.length >= 6) {
+                        const r = parseInt(c.substring(0, 2), 16) || 0;
+                        const g = parseInt(c.substring(2, 4), 16) || 0;
+                        const b = parseInt(c.substring(4, 6), 16) || 0;
+                        return `rgba(${r}, ${g}, ${b}, ${op / 100})`;
+                    }
+                    return hex;
+                };
+
+                return (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setLeadFormDismissed(false);
+                            setLeadFormSubmitted(false);
+                            setShowLeadForm(true);
+                        }}
+                        style={{
+                            backgroundColor: hexToRgbaLocal(bgFill, bgOpacity),
+                            color: hexToRgbaLocal(textColor, textOpacity)
+                        }}
+                        className={`absolute right-[1.5vw] bottom-[4.8vw] z-[990] flex items-center justify-center gap-[0.5vw] rounded-full shadow-[0_0.4vw_1.2vw_rgba(0,0,0,0.22)] hover:shadow-[0_0.6vw_1.6vw_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer font-medium tracking-wide ${
+                            hasText
+                                ? (isMobile ? 'bottom-[5.5rem] right-4 px-3 py-2 text-xs' : 'px-[0.9vw] py-[0.55vw] text-[0.75vw]')
+                                : (isMobile ? 'bottom-[5.5rem] right-4 w-10 h-10 p-2' : 'w-[2.4vw] h-[2.4vw] p-[0.5vw]')
+                        }`}
+                        title={btnText || 'Enquire'}
+                    >
+                        {btnIcon && btnIcon !== 'none' && (
+                            <Icon icon={btnIcon} className={`${isMobile ? (hasText ? 'w-4 h-4' : 'w-5 h-5') : (hasText ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')} shrink-0`} />
+                        )}
+                        {hasText && (
+                            <span className="whitespace-nowrap font-semibold">{btnText}</span>
+                        )}
+                    </button>
+                );
+            })()}
         </>
     );
 
@@ -6547,6 +6615,7 @@ const PreviewArea = React.memo(({
                     onClose={() => {
                         setShowLeadForm(false);
                         setLeadFormSubmitted(true);
+                        setLeadFormDismissed(true);
                     }}
                 />
             )}
@@ -6558,16 +6627,6 @@ const PreviewArea = React.memo(({
                     className="absolute inset-0 z-[9999]"
                     style={{ cursor: 'zoom-out' }}
                     onClick={() => setInteractionZoom(null)}
-                />
-            )}
-
-            {/* Centered Screen Lead Form Modal Overlay */}
-            {showLeadForm && (
-                <LeadFormPopup
-                    leadFormSettings={leadFormSettings}
-                    isTablet={isTablet}
-                    isMobile={activeDevice === 'Mobile'}
-                    onClose={() => setLeadFormSubmitted(true)}
                 />
             )}
         </div>

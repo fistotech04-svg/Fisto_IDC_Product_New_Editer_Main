@@ -8,7 +8,7 @@ import Branding from './Branding';
 import Appearance from './Appearance';
 import MenuBar from './MenuBar';
 import OtherSetup from './OtherSetup';
-import LeadForm from './LeadForm';
+import LeadForm from './lead_form';
 import Visibility from './Visibility';
 import Statistic from './Statistic';
 import FlipbookPreview from '../TemplateEditor/FlipbookPreview.jsx';
@@ -540,6 +540,13 @@ const CustomizedEditor = () => {
       btnFill: '#3E4491',
       btnStroke: '',
       btnText: 'white'
+    },
+    enquiryButton: {
+      enabled: true,
+      text: 'Enquire Now',
+      icon: 'lucide:mail',
+      bgFill: '#4A3AFF',
+      textColor: '#FFFFFF'
     }
   });
 

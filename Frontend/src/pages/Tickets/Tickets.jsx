@@ -39,9 +39,9 @@ export default function Tickets() {
   const location = useLocation();
   const toast = useToast();
 
-  const [tickets, setTickets] = useState([]);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [tickets, setTickets] = useState(() => getStoredTickets());
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(() => getStoredTickets().length > 0);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRaiseModalOpen, setIsRaiseModalOpen] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState(null);
 
@@ -354,13 +354,6 @@ export default function Tickets() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-3">
-          {hasLoadedOnce && isLoading && (
-            <div className="flex items-center gap-2 text-xs text-stone-500 font-medium bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
-              <Loader2 size={13} className="animate-spin text-stone-600" />
-              <span>Syncing...</span>
-            </div>
-          )}
-
           {/* Raise Ticket Primary Button */}
           <button
             onClick={() => setIsRaiseModalOpen(true)}
