@@ -56,14 +56,16 @@ const hsvToHex = ({ h, s, v }) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
-export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClose, className, style, inline, smallMode, referenceMin = 0, referenceMax = 100, minLimit = 0, ...props }) {
-  const [hsv, setHsv] = useState(() => hexToHsv(color));
+export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClear, allowClear = true, onClose, className, style, inline, smallMode, referenceMin = 0, referenceMax = 100, minLimit = 0, ...props }) {
+  const [hsv, setHsv] = useState(() => hexToHsv(color && color.startsWith('#') && color.length >= 7 ? color : '#ffffff'));
   const pickerRef = useRef(null);
   const hexInputRef = useRef(null);
   const nativeColorRef = useRef(null);
 
   useEffect(() => {
-    setHsv(hexToHsv(color));
+    if (color && color.startsWith('#') && color.length >= 7) {
+      setHsv(hexToHsv(color));
+    }
   }, [color]);
 
   useEffect(() => {
@@ -156,14 +158,33 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
           <span className={`${smallMode ? 'text-[0.7vw]' : 'text-[0.85vw]'} font-bold text-gray-900 whitespace-nowrap`}>Colors Pallet</span>
           <div className="h-[1px] w-full bg-gray-100"></div>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className={`${smallMode ? 'p-[0.1vw]' : 'p-[0.35vw]'} rounded-[0.4vw] cursor-pointer text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all`}
-          >
-            <Icon icon="heroicons:x-mark" width={smallMode ? "0.7vw" : "1vw"} />
-          </button>
-        )}
+        <div className="flex items-center gap-[0.3vw] shrink-0 ml-[0.5vw]">
+          {allowClear && (
+            <button
+              type="button"
+              onClick={() => {
+                if (onClear) onClear();
+                else onChange('');
+                if (onClose) onClose();
+              }}
+              className="flex items-center gap-[0.25vw] px-[0.45vw] py-[0.15vw] rounded-[0.3vw] text-[0.6vw] font-semibold text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors border border-red-200/60"
+              title="Remove color / set transparent"
+            >
+              <div className="w-[0.6vw] h-[0.6vw] rounded-full border border-red-500 bg-white relative overflow-hidden shrink-0">
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-red-500 rotate-45" />
+              </div>
+              <span>None</span>
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className={`${smallMode ? 'p-[0.1vw]' : 'p-[0.35vw]'} rounded-[0.4vw] cursor-pointer text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all`}
+            >
+              <Icon icon="heroicons:x-mark" width={smallMode ? "0.7vw" : "1vw"} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Area */}

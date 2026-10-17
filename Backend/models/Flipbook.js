@@ -348,6 +348,17 @@ const flipbookSchema = new mongoose.Schema(
           textColor: { type: String, default: "#FFFFFF" },
           textOpacity: { type: Number, default: 100 },
         },
+        leadNotification: {
+          enabled: { type: Boolean, default: true },
+          senderName: { type: String, default: "Flipibook Lead Form" },
+          primaryRecipient: { type: String, default: "" },
+          additionalRecipients: [{ type: String }],
+          subject: { type: String, default: "" },
+          message: { type: String, default: "" },
+          sendToViewer: { type: Boolean, default: true },
+          viewerSubject: { type: String, default: "" },
+          viewerMessage: { type: String, default: "" }
+        },
       },
       Visibility: {
         shareId: {

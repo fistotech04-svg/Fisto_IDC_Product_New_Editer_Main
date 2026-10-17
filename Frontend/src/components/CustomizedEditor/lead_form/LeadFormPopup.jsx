@@ -32,6 +32,8 @@ const LeadFormPopup = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [viewerIp, setViewerIp] = useState('');
+    const [productDropdownOpen, setProductDropdownOpen] = useState({});
+    const [productSearchTerm, setProductSearchTerm] = useState({});
 
     useEffect(() => {
         let isMounted = true;
@@ -41,6 +43,16 @@ const LeadFormPopup = ({
             })
             .catch(() => {});
         return () => { isMounted = false; };
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('[data-product-dropdown]')) {
+                setProductDropdownOpen({});
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const isEnabled = leadFormSettings?.enabled === true || leadFormSettings?.enabled === 'true';
@@ -102,8 +114,8 @@ const LeadFormPopup = ({
             const rawVal = formValues[fieldKey];
             const value = typeof rawVal === 'string' ? rawVal.trim() : (Array.isArray(rawVal) ? (rawVal.length > 0 ? 'selected' : '') : (rawVal ? String(rawVal) : ''));
 
-            // 1. Required check: Mandatory mode (!allowSkip) or field.required
-            if (field.required || !leadFormSettings.appearance?.allowSkip) {
+            // 1. Required check: only fields marked as required
+            if (field.required) {
                 if (!value) {
                     newErrors[fieldKey] = `${field.label || 'This field'} is required`;
                     return;
@@ -353,7 +365,7 @@ const LeadFormPopup = ({
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                                {field.label === 'feedback' ? 'Feedback' : field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                             </label>
                                                             <textarea
                                                                 placeholder={field.placeholder || 'Enter your Feedback'}
@@ -372,6 +384,7 @@ const LeadFormPopup = ({
 
                                                 // 2. Rating - Stars
                                                 if (field.type === 'rating') {
+                                                    const currentRating = Number(formValues[fieldKey]) || 0;
                                                     return (
                                                         <div key={field.id} className="space-y-1.5 py-1">
                                                             <label 
@@ -381,16 +394,26 @@ const LeadFormPopup = ({
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                                {field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                             </label>
-                                                            <div className="flex items-center gap-3">
+                                                            <div className="flex items-center gap-1.5 py-1">
                                                                 {[1, 2, 3, 4, 5].map((star) => (
-                                                                    <Icon 
-                                                                        key={star} 
-                                                                        icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
-                                                                        className="w-7 h-7 text-yellow-400 stroke-1 cursor-pointer transition-transform active:scale-95"
-                                                                        onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
-                                                                    />
+                                                                    <button
+                                                                        key={star}
+                                                                        type="button"
+                                                                        aria-label={`Rate ${star} star`}
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            handleInputChange(fieldKey, currentRating === star ? star - 1 : star);
+                                                                        }}
+                                                                        className="p-1 rounded-md hover:bg-yellow-50 focus:outline-none transition-transform active:scale-90 select-none cursor-pointer"
+                                                                    >
+                                                                        <Icon 
+                                                                            icon={currentRating >= star ? "mdi:star" : "lucide:star"}
+                                                                            className={`w-7 h-7 ${currentRating >= star ? 'text-amber-400' : 'text-gray-300 hover:text-amber-300'} transition-colors pointer-events-none`}
+                                                                        />
+                                                                    </button>
                                                                 ))}
                                                             </div>
                                                         </div>
@@ -408,7 +431,7 @@ const LeadFormPopup = ({
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                                {field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                             </label>
                                                             <div className="relative">
                                                                 <select
@@ -445,7 +468,7 @@ const LeadFormPopup = ({
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                                {field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                             </label>
                                                             <div className="grid grid-cols-2 gap-y-2 gap-x-4">
                                                                 {(field.options || []).map((opt, idx) => {
@@ -497,7 +520,7 @@ const LeadFormPopup = ({
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                                {field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                             </label>
                                                             <div className="flex flex-col gap-2">
                                                                 {(field.options || []).map((opt, idx) => (
@@ -530,9 +553,27 @@ const LeadFormPopup = ({
                                                 if (field.type === 'products') {
                                                     const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
                                                     const showQty = field.showQuantity !== false;
+                                                    const isOpen = Boolean(productDropdownOpen[fieldKey]);
+                                                    const searchTerm = (productSearchTerm[fieldKey] || '').toLowerCase().trim();
+
+                                                    // Group products by category
+                                                    const allProducts = field.products || [];
+                                                    const filteredProducts = searchTerm
+                                                        ? allProducts.filter(p => (p.name || '').toLowerCase().includes(searchTerm) || (p.category || '').toLowerCase().includes(searchTerm))
+                                                        : allProducts;
+
+                                                    const categoriesMap = {};
+                                                    filteredProducts.forEach(prod => {
+                                                        const catName = (prod.category || 'Other Products').trim();
+                                                        if (!categoriesMap[catName]) categoriesMap[catName] = [];
+                                                        categoriesMap[catName].push(prod);
+                                                    });
+                                                    const categoryKeys = Object.keys(categoriesMap);
+
+                                                    const selectedCount = selectedProducts.length;
 
                                                     return (
-                                                        <div key={field.id} className="space-y-1.5 py-1">
+                                                        <div key={field.id} className="space-y-1.5 py-1" data-product-dropdown="true">
                                                             <label 
                                                                 className="text-[12px] font-medium block" 
                                                                 style={{ 
@@ -540,70 +581,256 @@ const LeadFormPopup = ({
                                                                     WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                                 }}
                                                             >
-                                                                {field.label || 'Select Products'} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                                {field.label || 'Select Products'} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                             </label>
-                                                            <div className="flex flex-col gap-2">
-                                                                {(field.products || []).map((prod) => {
-                                                                    const prodItem = selectedProducts.find(p => (prod.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
-                                                                    const isChecked = Boolean(prodItem);
-                                                                    const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
-                                                                    const prodKey = prod.id || prod.name;
 
-                                                                    return (
-                                                                        <div 
-                                                                            key={prodKey}
-                                                                            onClick={() => handleToggleProduct(fieldKey, prod)}
-                                                                            className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
-                                                                                isChecked 
-                                                                                    ? 'border-indigo-500 bg-indigo-50/40 shadow-xs' 
-                                                                                    : 'border-gray-200 bg-white hover:bg-gray-50'
-                                                                            }`}
-                                                                        >
-                                                                            <div className="flex items-center gap-2.5">
+                                                            {/* Dropdown Container */}
+                                                            <div className="relative">
+                                                                {/* Trigger / Header Box */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        const willOpen = !isOpen;
+                                                                        setProductDropdownOpen(prev => ({ ...prev, [fieldKey]: willOpen }));
+                                                                        if (willOpen) {
+                                                                            const targetEl = e.currentTarget;
+                                                                            setTimeout(() => {
+                                                                                targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                            }, 80);
+                                                                        }
+                                                                    }}
+                                                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all text-left bg-white ${
+                                                                        isOpen 
+                                                                            ? 'border-indigo-500 ring-2 ring-indigo-500/10 shadow-sm' 
+                                                                            : 'border-gray-200 hover:border-gray-300'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <div className="w-5 h-5 rounded flex items-center justify-center text-gray-500 shrink-0">
+                                                                            <Icon icon="lucide:package" className="w-5 h-5 text-gray-600" />
+                                                                        </div>
+                                                                        <span className="text-[13.5px] text-gray-700 truncate font-medium">
+                                                                            {selectedCount > 0 
+                                                                                ? `${selectedCount} product${selectedCount > 1 ? 's' : ''} selected` 
+                                                                                : (field.placeholder || 'Select products')}
+                                                                        </span>
+                                                                    </div>
+                                                                    <Icon 
+                                                                        icon="lucide:chevron-down" 
+                                                                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ml-2 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`} 
+                                                                    />
+                                                                </button>
+
+                                                                {/* Dropdown Menu Overlay */}
+                                                                {isOpen && (
+                                                                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[60] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                                                        {/* Search Box */}
+                                                                        <div className="p-2.5 border-b border-gray-100 bg-white">
+                                                                            <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50/60 focus-within:bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500/20 transition-all">
+                                                                                <Icon icon="lucide:search" className="w-4 h-4 text-gray-400 shrink-0" />
                                                                                 <input
-                                                                                    type="checkbox"
-                                                                                    checked={isChecked}
-                                                                                    onChange={() => {}}
-                                                                                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 pointer-events-none"
-                                                                                />
-                                                                                {prod.image ? (
-                                                                                    <img src={prod.image} alt={prod.name} className="w-8 h-8 rounded-md object-cover border border-gray-200" />
-                                                                                ) : (
-                                                                                    <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center text-gray-400">
-                                                                                        <Icon icon="lucide:package" className="w-4 h-4" />
-                                                                                    </div>
-                                                                                )}
-                                                                                <span className="text-[12px] font-medium text-gray-800" style={{ color: textFillColor }}>
-                                                                                    {prod.name}
-                                                                                </span>
-                                                                            </div>
-
-                                                                            {showQty && isChecked && (
-                                                                                <div 
-                                                                                    className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-1.5 py-0.5"
+                                                                                    type="text"
+                                                                                    value={productSearchTerm[fieldKey] || ''}
+                                                                                    onChange={(e) => setProductSearchTerm(prev => ({ ...prev, [fieldKey]: e.target.value }))}
+                                                                                    placeholder="Search products..."
+                                                                                    className="w-full bg-transparent text-[13px] text-gray-700 placeholder-gray-400 outline-none"
                                                                                     onClick={(e) => e.stopPropagation()}
-                                                                                >
+                                                                                />
+                                                                                {productSearchTerm[fieldKey] && (
                                                                                     <button
                                                                                         type="button"
-                                                                                        onClick={() => handleProductQtyChange(fieldKey, prodKey, -1)}
-                                                                                        className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-xs font-bold"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            setProductSearchTerm(prev => ({ ...prev, [fieldKey]: '' }));
+                                                                                        }}
+                                                                                        className="text-gray-400 hover:text-gray-600 p-0.5"
                                                                                     >
-                                                                                        -
+                                                                                        <Icon icon="lucide:x" className="w-3.5 h-3.5" />
                                                                                     </button>
-                                                                                    <span className="text-[11px] font-semibold text-gray-800 w-4 text-center">{qty}</span>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => handleProductQtyChange(fieldKey, prodKey, 1)}
-                                                                                        className="w-5 h-5 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-xs font-bold"
-                                                                                    >
-                                                                                        +
-                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Products Grouped by Categories List */}
+                                                                        <div className="max-h-60 overflow-y-auto lead-scroll p-2.5 divide-y divide-gray-100">
+                                                                            {categoryKeys.length === 0 ? (
+                                                                                <div className="py-7 text-center text-[13px] text-gray-400">
+                                                                                    No products found
                                                                                 </div>
+                                                                            ) : (
+                                                                                categoryKeys.map((catName) => (
+                                                                                    <div key={catName} className="py-2.5 first:pt-0 last:pb-0">
+                                                                                        {/* Category Header */}
+                                                                                        <div className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider px-2.5 py-1 mb-1">
+                                                                                            {catName}
+                                                                                        </div>
+
+                                                                                        {/* Products under this Category */}
+                                                                                        <div className="space-y-1.5">
+                                                                                            {categoriesMap[catName].map((prod) => {
+                                                                                                const prodItem = selectedProducts.find(p => (prod.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
+                                                                                                const isChecked = Boolean(prodItem);
+                                                                                                const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
+                                                                                                const prodKey = prod.id || prod.name;
+
+                                                                                                return (
+                                                                                                    <div
+                                                                                                        key={prodKey}
+                                                                                                        onClick={() => handleToggleProduct(fieldKey, prod)}
+                                                                                                        className={`flex items-center justify-between px-3 py-2 rounded-xl transition-colors cursor-pointer group/item ${
+                                                                                                            isChecked 
+                                                                                                                ? 'bg-indigo-50/70 text-indigo-950 font-medium' 
+                                                                                                                : 'hover:bg-gray-50 text-gray-800'
+                                                                                                        }`}
+                                                                                                    >
+                                                                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                                                                            <input
+                                                                                                                type="checkbox"
+                                                                                                                checked={isChecked}
+                                                                                                                onChange={() => {}}
+                                                                                                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 pointer-events-none shrink-0"
+                                                                                                            />
+                                                                                                            {/* Thumbnail Icon/Image */}
+                                                                                                            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200">
+                                                                                                                {prod.image ? (
+                                                                                                                    <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                                                                                                                ) : (
+                                                                                                                    <Icon icon="lucide:package" className="w-4 h-4 text-gray-500" />
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                            <span className="text-[13.5px] font-medium truncate">
+                                                                                                                {prod.name}
+                                                                                                            </span>
+                                                                                                        </div>
+
+                                                                                                        {/* Quantity Counter in Dropdown */}
+                                                                                                        {showQty && isChecked && (
+                                                                                                            <div
+                                                                                                                className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-0.5 ml-2 shadow-2xs"
+                                                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                                            >
+                                                                                                                <button
+                                                                                                                    type="button"
+                                                                                                                    onClick={() => handleProductQtyChange(fieldKey, prodKey, -1)}
+                                                                                                                    className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-sm font-semibold leading-none transition-colors"
+                                                                                                                >
+                                                                                                                    -
+                                                                                                                </button>
+                                                                                                                <span className="text-[13px] font-semibold text-gray-800 min-w-4 text-center select-none">{qty}</span>
+                                                                                                                <button
+                                                                                                                    type="button"
+                                                                                                                    onClick={() => handleProductQtyChange(fieldKey, prodKey, 1)}
+                                                                                                                    className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-sm font-semibold leading-none transition-colors"
+                                                                                                                >
+                                                                                                                    +
+                                                                                                                </button>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))
                                                                             )}
                                                                         </div>
-                                                                    );
-                                                                })}
+
+                                                                        {/* Dropdown Footer summary & Done button */}
+                                                                        <div className="px-3.5 py-2.5 border-t border-gray-100 bg-gray-50/70 flex items-center justify-between">
+                                                                            <span className="text-[12.5px] text-gray-600 font-medium">
+                                                                                {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+                                                                            </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setProductDropdownOpen(prev => ({ ...prev, [fieldKey]: false }));
+                                                                                }}
+                                                                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[12px] font-semibold shadow-2xs transition-colors"
+                                                                            >
+                                                                                Done
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
+
+                                                            {/* Selected Products List Container matching 3rd Image */}
+                                                            {selectedProducts.length > 0 && (
+                                                                <div className="space-y-1.5 pt-2">
+                                                                    <div className="text-[12px] text-gray-600 font-medium">
+                                                                        Selected products ({selectedProducts.length})
+                                                                    </div>
+                                                                    <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden shadow-2xs">
+                                                                        {selectedProducts.map((p) => {
+                                                                            const pKey = p.id || p.name;
+                                                                            const qty = p.quantity || 1;
+                                                                            // Resolve live product info from field.products so image & name updates in editor reflect immediately
+                                                                            const liveProd = (field.products || []).find(prod => (prod.id && p.id ? prod.id === p.id : prod.name === p.name));
+                                                                            const prodImage = (liveProd && liveProd.image) || p.image || '';
+                                                                            const prodName = (liveProd && liveProd.name) || p.name;
+                                                                            const prodCategory = (liveProd && liveProd.category) || p.category || 'Product category 1';
+
+                                                                            return (
+                                                                                <div key={pKey} className="flex items-center justify-between p-3 transition-colors hover:bg-gray-50/60">
+                                                                                    {/* Product Thumbnail & Details */}
+                                                                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                                                                                            {prodImage ? (
+                                                                                                <img src={prodImage} alt={prodName} className="w-full h-full object-contain" />
+                                                                                            ) : (
+                                                                                                <Icon icon="lucide:package" className="w-5 h-5 text-gray-400" />
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="flex flex-col min-w-0">
+                                                                                            <span className="text-[13.5px] font-semibold text-gray-900 truncate">
+                                                                                                {prodName}
+                                                                                            </span>
+                                                                                            <span className="text-[11.5px] text-gray-400 truncate">
+                                                                                                {prodCategory}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Quantity & Delete Controls */}
+                                                                                    <div className="flex items-center gap-3 shrink-0 ml-3">
+                                                                                        {showQty && (
+                                                                                            <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 bg-white shadow-2xs">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleProductQtyChange(fieldKey, pKey, -1)}
+                                                                                                    className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-base font-semibold leading-none transition-colors"
+                                                                                                >
+                                                                                                    -
+                                                                                                </button>
+                                                                                                <span className="text-[14px] font-semibold text-gray-800 min-w-5 text-center select-none">
+                                                                                                    {qty}
+                                                                                                </span>
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleProductQtyChange(fieldKey, pKey, 1)}
+                                                                                                    className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-base font-semibold leading-none transition-colors"
+                                                                                                >
+                                                                                                    +
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleToggleProduct(fieldKey, p)}
+                                                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                                                            title="Remove item"
+                                                                                        >
+                                                                                            <Icon icon="lucide:x" className="w-4.5 h-4.5" />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 }
@@ -618,7 +845,7 @@ const LeadFormPopup = ({
                                                                 WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.3px ${textStrokeColor}` : 'none'
                                                             }}
                                                         >
-                                                            {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            {field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                         </label>
                                                         <div className="relative">
                                                             <div className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${field.type === 'phone' ? 'text-gray-400' : 'text-gray-900'}`}>
@@ -708,92 +935,108 @@ const LeadFormPopup = ({
                         opacity: 0.65 !important;
                         -webkit-text-fill-color: ${textFillColor} !important;
                     }
+                    .lead-form-desktop-scope .lead-scroll::-webkit-scrollbar {
+                        width: 8px !important;
+                    }
+                    .lead-form-desktop-scope .lead-scroll::-webkit-scrollbar-track {
+                        background: #F1F5F9 !important;
+                        border-radius: 9999px !important;
+                    }
+                    .lead-form-desktop-scope .lead-scroll::-webkit-scrollbar-thumb {
+                        background: #94A3B8 !important;
+                        border-radius: 9999px !important;
+                        border: 1.5px solid #F1F5F9 !important;
+                    }
+                    .lead-form-desktop-scope .lead-scroll::-webkit-scrollbar-thumb:hover {
+                        background: #64748B !important;
+                    }
                 `}</style>
                 <div
                     className={`${
                         isTablet 
                             ? 'w-[28vw] rounded-[1vw]' 
                             : (leadFormSettings.appearance?.layoutColumns === '2' ? 'w-[42vw] max-w-[680px] rounded-[1.3vw]' : 'w-[28vw] max-w-[460px] rounded-[1.2vw]')
-                    } max-h-[85vh] flex flex-col overflow-hidden shadow-[0_1vw_4vw_rgba(0,0,0,0.12)] relative border animate-in zoom-in-95 duration-300`}
+                    } max-h-[75vh] flex flex-col overflow-hidden shadow-[0_1vw_4vw_rgba(0,0,0,0.12)] relative border animate-in zoom-in-95 duration-300`}
                     style={{
                         fontFamily: leadFormSettings.appearance?.fontStyle || 'Inter',
                         backgroundColor: bgFillColor,
                         borderColor: bgStrokeColor
                     }}
                 >
-                    <div className={`flex flex-col overflow-hidden w-full h-full ${isTablet ? 'p-[1.2vw]' : 'py-[1.4vw] px-[1.8vw]'}`}>
-                        {isSubmitted ? (
-                            <div className="py-[2vw] text-center space-y-[0.8vw] my-auto">
-                                <div className="w-[3vw] h-[3vw] rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto animate-bounce">
-                                    <Icon icon="lucide:check" className="w-[1.5vw] h-[1.5vw] stroke-[3]" />
-                                </div>
-                                <h3 className="text-[1.2vw] font-bold text-gray-900">Thank You!</h3>
-                                <p className="text-[0.75vw] text-gray-600">Your details have been submitted successfully.</p>
-                            </div>
-                        ) : (
-                            <>
-                                {/* Header & Lead Message */}
-                                <div className="relative text-center shrink-0 mb-[0.8vw]">
-                                    {leadFormSettings.appearance?.allowSkip && (() => {
-                                        const skipType = leadFormSettings.appearance?.skipType || 'text';
-                                        const skipText = leadFormSettings.appearance?.skipText || 'Skip';
-                                        const skipColor = hexToRgba(leadFormSettings.appearance?.skipColor || '#3E4491', leadFormSettings.appearance?.skipOpacity ?? 100);
-                                        const skipBgFill = hexToRgba(leadFormSettings.appearance?.skipBgFill || 'transparent', leadFormSettings.appearance?.skipBgFillOpacity ?? 100);
-                                        const skipBgStroke = hexToRgba(leadFormSettings.appearance?.skipBgStroke || 'transparent', leadFormSettings.appearance?.skipBgStrokeOpacity ?? 100);
+                        {/* Skip Button positioned at top-right corner of the modal card */}
+                        {leadFormSettings.appearance?.allowSkip && (() => {
+                            const skipType = leadFormSettings.appearance?.skipType || 'text';
+                            const skipText = leadFormSettings.appearance?.skipText || 'Skip';
+                            const skipColor = hexToRgba(leadFormSettings.appearance?.skipColor || '#3E4491', leadFormSettings.appearance?.skipOpacity ?? 100);
+                            const skipBgFill = hexToRgba(leadFormSettings.appearance?.skipBgFill || 'transparent', leadFormSettings.appearance?.skipBgFillOpacity ?? 100);
+                            const skipBgStroke = hexToRgba(leadFormSettings.appearance?.skipBgStroke || 'transparent', leadFormSettings.appearance?.skipBgStrokeOpacity ?? 100);
 
-                                        return (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onClose();
-                                                }}
-                                                style={{
-                                                    color: skipColor,
-                                                    backgroundColor: skipBgFill,
-                                                    borderColor: skipBgStroke !== 'transparent' && skipBgStroke !== '#' ? skipBgStroke : 'transparent'
-                                                }}
-                                                className={`absolute right-0 top-0 transition-all cursor-pointer z-30 flex items-center justify-center ${
-                                                    skipType === 'icon'
-                                                        ? `${isTablet ? 'w-[1.4vw] h-[1.4vw] -top-[0.2vw] -right-[0.2vw]' : 'w-[1.6vw] h-[1.6vw] -top-[0.3vw] -right-[0.3vw]'} rounded-full border hover:opacity-80 active:scale-95 shadow-sm`
-                                                        : `${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-semibold underline underline-offset-2 hover:opacity-80`
-                                                }`}
-                                                title={skipType === 'icon' ? 'Close' : skipText}
-                                            >
-                                                {skipType === 'icon' ? (
-                                                    <Icon icon="lucide:x" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1vw] h-[1vw]'} stroke-[2.5]`} />
-                                                ) : (
-                                                    skipText
-                                                )}
-                                            </button>
-                                        );
-                                    })()}
-                                    
-                                    <h2
-                                        className={`${isTablet ? 'text-[1.2vw]' : 'text-[1.5vw]'} font-semibold mb-[0.2vw] mt-[0.3vw]`}
-                                        style={{
-                                            color: textFillColor,
-                                            WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.02vw ${textStrokeColor}` : 'none'
-                                        }}
-                                    >
-                                        {leadFormSettings.formTitle || 'Request More Information'}
-                                    </h2>
-                                    
-                                    <p
-                                        className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-normal`}
-                                        style={{
-                                            color: textFillColor,
-                                            WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
-                                        }}
-                                    >
-                                        {leadFormSettings.leadText !== undefined ? leadFormSettings.leadText : 'Tell us about your requirements and our team will reach out.'}
-                                    </p>
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onClose();
+                                    }}
+                                    style={{
+                                        color: skipColor,
+                                        backgroundColor: skipBgFill,
+                                        borderColor: skipBgStroke !== 'transparent' && skipBgStroke !== '#' ? skipBgStroke : 'transparent'
+                                    }}
+                                    className={`absolute transition-all cursor-pointer z-30 flex items-center justify-center ${
+                                        skipType === 'icon'
+                                            ? `${isTablet ? 'w-[1.5vw] h-[1.5vw] top-[0.8vw] right-[0.8vw]' : 'w-[1.7vw] h-[1.7vw] top-[1vw] right-[1.2vw]'} rounded-full border hover:opacity-80 active:scale-95 shadow-sm`
+                                            : `${isTablet ? 'text-[0.65vw] top-[0.8vw] right-[1vw]' : 'text-[0.8vw] top-[1vw] right-[1.2vw]'} font-semibold px-[0.6vw] py-[0.2vw] rounded-full hover:bg-black/5 active:scale-95 transition-all`
+                                    }`}
+                                    title={skipType === 'icon' ? 'Close' : skipText}
+                                >
+                                    {skipType === 'icon' ? (
+                                        <Icon icon="lucide:x" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1vw] h-[1vw]'} stroke-[2.5]`} />
+                                    ) : (
+                                        skipText
+                                    )}
+                                </button>
+                            );
+                        })()}
+
+                        <div className={`flex flex-col overflow-hidden w-full h-full ${isTablet ? 'p-[1.2vw]' : 'py-[1.4vw] px-[1.8vw]'}`}>
+                            {isSubmitted ? (
+                                <div className="py-[2vw] text-center space-y-[0.8vw] my-auto">
+                                    <div className="w-[3vw] h-[3vw] rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto animate-bounce">
+                                        <Icon icon="lucide:check" className="w-[1.5vw] h-[1.5vw] stroke-[3]" />
+                                    </div>
+                                    <h3 className="text-[1.2vw] font-bold text-gray-900">Thank You!</h3>
+                                    <p className="text-[0.75vw] text-gray-600">Your details have been submitted successfully.</p>
                                 </div>
+                            ) : (
+                                <>
+                                    {/* Header & Lead Message */}
+                                    <div className="relative text-center shrink-0 pt-[0.8vw]">
+                                        <h2
+                                            className={`${isTablet ? 'text-[1.2vw]' : 'text-[1.5vw]'} font-semibold mb-[0.2vw] mt-[0.3vw]`}
+                                            style={{
+                                                color: textFillColor,
+                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.02vw ${textStrokeColor}` : 'none'
+                                            }}
+                                        >
+                                            {leadFormSettings.formTitle || 'Request More Information'}
+                                        </h2>
+                                        
+                                        <p
+                                            className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-normal`}
+                                            style={{
+                                                color: textFillColor,
+                                                WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
+                                            }}
+                                        >
+                                            {leadFormSettings.leadText !== undefined ? leadFormSettings.leadText : 'Tell us about your requirements and our team will reach out.'}
+                                        </p>
+                                    </div>
 
                                 {/* Form Fields */}
                                 <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden w-full mt-[0.5vw]">
-                                    <div className="flex-1 overflow-y-auto custom-scrollbar w-full pt-[0.4vw]">
-                                        <div className="w-full space-y-[0.85vw] pr-[0.3vw]">
+                                    <div className="flex-1 overflow-y-auto lead-scroll w-full pt-[0.4vw] pr-[0.3vw]">
+                                        <div className="w-full space-y-[0.85vw] pr-[0.6vw]">
                                             {(() => {
                                                 const fieldsList = leadFormSettings.fields || [];
                                                 const enableSections = Boolean(leadFormSettings.appearance?.enableSections);
@@ -852,7 +1095,7 @@ const LeadFormPopup = ({
                                                                 WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
                                                             }}
                                                         >
-                                                            {field.label} {(!leadFormSettings.appearance?.allowSkip || field.required) && <span className="text-red-500">*</span>}
+                                                            {field.label === 'feedback' ? 'Feedback' : field.label} {field.required && <span className="text-red-500 font-semibold">*</span>}
                                                         </label>
 
                                                         {/* 1. Text Area (Feedback) - No icon! Clean textarea box */}
@@ -892,16 +1135,31 @@ const LeadFormPopup = ({
                                                             </div>
                                                         ) : field.type === 'rating' ? (
                                                             /* 3. Rating Stars */
-                                                            <div className="flex items-center gap-[1.5vw] py-[0.2vw]">
-                                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                                    <Icon 
-                                                                        key={star} 
-                                                                        icon={formValues[fieldKey] >= star ? "mdi:star" : "lucide:star"}
-                                                                        className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} text-yellow-400 stroke-1 cursor-pointer transition-transform active:scale-95`} 
-                                                                        onClick={() => handleInputChange(fieldKey, formValues[fieldKey] === star ? star - 1 : star)}
-                                                                    />
-                                                                ))}
-                                                            </div>
+                                                            (() => {
+                                                                const currentRating = Number(formValues[fieldKey]) || 0;
+                                                                return (
+                                                                    <div className="flex items-center gap-[0.8vw] py-[0.2vw]">
+                                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                                            <button
+                                                                                key={star}
+                                                                                type="button"
+                                                                                aria-label={`Rate ${star} star`}
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    handleInputChange(fieldKey, currentRating === star ? star - 1 : star);
+                                                                                }}
+                                                                                className="p-[0.2vw] rounded-[0.3vw] hover:bg-yellow-50 focus:outline-none transition-transform active:scale-90 select-none cursor-pointer flex items-center justify-center"
+                                                                            >
+                                                                                <Icon 
+                                                                                    icon={currentRating >= star ? "mdi:star" : "lucide:star"}
+                                                                                    className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} ${currentRating >= star ? 'text-amber-400' : 'text-gray-300 hover:text-amber-300'} stroke-1 transition-colors pointer-events-none`} 
+                                                                                />
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                );
+                                                            })()
                                                         ) : field.type === 'checkbox' ? (
                                                             /* 4. Checkbox Multi-selection */
                                                             <div className="grid grid-cols-2 gap-y-[0.4vw] gap-x-[1vw]">
@@ -966,83 +1224,249 @@ const LeadFormPopup = ({
                                                             </div>
                                                         ) : field.type === 'products' ? (
                                                             /* 6. Products Selection */
-                                                            <div className="flex flex-col gap-[0.4vw]">
-                                                                {(() => {
-                                                                    const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
-                                                                    const showQty = field.showQuantity !== false;
+                                                            (() => {
+                                                                const selectedProducts = Array.isArray(formValues[fieldKey]) ? formValues[fieldKey] : [];
+                                                                const showQty = field.showQuantity !== false;
+                                                                const isOpen = Boolean(productDropdownOpen[fieldKey]);
+                                                                const searchTerm = (productSearchTerm[fieldKey] || '').toLowerCase().trim();
 
-                                                                    return (field.products || []).map((prod) => {
-                                                                        const prodItem = selectedProducts.find(p => (prod.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
-                                                                        const isChecked = Boolean(prodItem);
-                                                                        const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
-                                                                        const prodKey = prod.id || prod.name;
+                                                                const allProducts = field.products || [];
+                                                                const filteredProducts = searchTerm
+                                                                    ? allProducts.filter(p => (p.name || '').toLowerCase().includes(searchTerm) || (p.category || '').toLowerCase().includes(searchTerm))
+                                                                    : allProducts;
 
-                                                                        return (
-                                                                            <div
-                                                                                key={prodKey}
-                                                                                onClick={() => handleToggleProduct(fieldKey, prod)}
-                                                                                className={`flex items-center justify-between p-[0.35vw] rounded-[0.4vw] border transition-all cursor-pointer ${
-                                                                                    isChecked
-                                                                                        ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
-                                                                                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                                                                const categoriesMap = {};
+                                                                filteredProducts.forEach(prod => {
+                                                                    const catName = (prod.category || 'Other Products').trim();
+                                                                    if (!categoriesMap[catName]) categoriesMap[catName] = [];
+                                                                    categoriesMap[catName].push(prod);
+                                                                });
+                                                                const categoryKeys = Object.keys(categoriesMap);
+                                                                const selectedCount = selectedProducts.length;
+
+                                                                return (
+                                                                    <div className="flex flex-col gap-[0.4vw]" data-product-dropdown="true">
+                                                                        <div className="relative">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    const willOpen = !isOpen;
+                                                                                    setProductDropdownOpen(prev => ({ ...prev, [fieldKey]: willOpen }));
+                                                                                    if (willOpen) {
+                                                                                        const targetEl = e.currentTarget;
+                                                                                        setTimeout(() => {
+                                                                                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                                        }, 80);
+                                                                                    }
+                                                                                }}
+                                                                                className={`w-full flex items-center justify-between px-[0.7vw] py-[0.5vw] rounded-[0.4vw] border transition-all text-left bg-white ${
+                                                                                    isOpen ? 'border-indigo-500 ring-1 ring-indigo-500/20' : 'border-gray-200'
                                                                                 }`}
                                                                             >
-                                                                                <div className="flex items-center gap-[0.5vw]">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={isChecked}
-                                                                                        onChange={() => {}}
-                                                                                        className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'} text-[#3E4491] rounded border-gray-300 pointer-events-none`}
-                                                                                    />
-                                                                                    {prod.image ? (
-                                                                                        <img
-                                                                                            src={prod.image}
-                                                                                            alt={prod.name}
-                                                                                            className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} rounded-[0.3vw] object-cover border border-gray-200 shrink-0`}
-                                                                                        />
-                                                                                    ) : (
-                                                                                        <div className={`${isTablet ? 'w-[1.6vw] h-[1.6vw]' : 'w-[2vw] h-[2vw]'} rounded-[0.3vw] bg-gray-100 flex items-center justify-center text-gray-400 shrink-0`}>
-                                                                                            <Icon icon="lucide:package" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
-                                                                                        </div>
-                                                                                    )}
-                                                                                    <span
-                                                                                        className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-medium`}
-                                                                                        style={{
-                                                                                            color: textFillColor,
-                                                                                            WebkitTextStroke: textStrokeColor !== 'transparent' && textStrokeColor !== '#' ? `0.01vw ${textStrokeColor}` : 'none'
-                                                                                        }}
-                                                                                    >
-                                                                                        {prod.name}
+                                                                                <div className="flex items-center gap-[0.4vw] min-w-0">
+                                                                                    <Icon icon="lucide:package" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1vw] h-[1vw]'} text-gray-500 shrink-0`} />
+                                                                                    <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.72vw]'} text-gray-700 truncate font-normal`}>
+                                                                                        {selectedCount > 0
+                                                                                            ? `${selectedCount} product${selectedCount > 1 ? 's' : ''} selected`
+                                                                                            : (field.placeholder || 'Select products')}
                                                                                     </span>
                                                                                 </div>
+                                                                                <Icon
+                                                                                    icon="lucide:chevron-down"
+                                                                                    className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'} text-gray-400 transition-transform ${isOpen ? 'rotate-180 text-indigo-600' : ''}`}
+                                                                                />
+                                                                            </button>
 
-                                                                                {showQty && isChecked && (
-                                                                                    <div
-                                                                                        className="flex items-center gap-[0.3vw] bg-white border border-gray-200 rounded-[0.3vw] px-[0.3vw] py-[0.1vw]"
-                                                                                        onClick={(e) => e.stopPropagation()}
-                                                                                    >
+                                                                            {isOpen && (
+                                                                                <div className="absolute left-0 right-0 top-[calc(100%+0.3vw)] z-[60] bg-white rounded-[0.4vw] border border-gray-200 shadow-xl overflow-hidden">
+                                                                                    <div className="p-[0.4vw] border-b border-gray-100 bg-white">
+                                                                                        <div className="flex items-center gap-[0.3vw] px-[0.4vw] py-[0.25vw] rounded-[0.3vw] border border-gray-200 bg-gray-50/60">
+                                                                                            <Icon icon="lucide:search" className="w-[0.7vw] h-[0.7vw] text-gray-400 shrink-0" />
+                                                                                            <input
+                                                                                                type="text"
+                                                                                                value={productSearchTerm[fieldKey] || ''}
+                                                                                                onChange={(e) => setProductSearchTerm(prev => ({ ...prev, [fieldKey]: e.target.value }))}
+                                                                                                placeholder="Search products..."
+                                                                                                className="w-full bg-transparent text-[0.65vw] text-gray-700 outline-none"
+                                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    <div className="max-h-[14vw] overflow-y-auto lead-scroll p-[0.4vw] divide-y divide-gray-100">
+                                                                                        {categoryKeys.length === 0 ? (
+                                                                                            <div className="py-[1vw] text-center text-[0.65vw] text-gray-400">
+                                                                                                No products found
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            categoryKeys.map((catName) => (
+                                                                                                <div key={catName} className="py-[0.3vw]">
+                                                                                                    <div className="text-[0.6vw] font-semibold text-gray-500 uppercase tracking-wider px-[0.3vw] mb-[0.2vw]">
+                                                                                                        {catName}
+                                                                                                    </div>
+                                                                                                    <div className="space-y-[0.2vw]">
+                                                                                                        {categoriesMap[catName].map((prod) => {
+                                                                                                            const prodItem = selectedProducts.find(p => (prod.id ? p.id === prod.id : (typeof p === 'string' ? p : p.name) === prod.name));
+                                                                                                            const isChecked = Boolean(prodItem);
+                                                                                                            const qty = typeof prodItem === 'object' && prodItem?.quantity ? prodItem.quantity : 1;
+                                                                                                            const prodKey = prod.id || prod.name;
+
+                                                                                                            return (
+                                                                                                                <div
+                                                                                                                    key={prodKey}
+                                                                                                                    onClick={() => handleToggleProduct(fieldKey, prod)}
+                                                                                                                    className={`flex items-center justify-between px-[0.4vw] py-[0.25vw] rounded-[0.3vw] cursor-pointer ${
+                                                                                                                        isChecked ? 'bg-indigo-50/60 text-indigo-900' : 'hover:bg-gray-50 text-gray-800'
+                                                                                                                    }`}
+                                                                                                                >
+                                                                                                                    <div className="flex items-center gap-[0.4vw] min-w-0 flex-1">
+                                                                                                                        <input
+                                                                                                                            type="checkbox"
+                                                                                                                            checked={isChecked}
+                                                                                                                            onChange={() => {}}
+                                                                                                                            className="w-[0.8vw] h-[0.8vw] text-indigo-600 rounded border-gray-300 pointer-events-none shrink-0"
+                                                                                                                        />
+                                                                                                                        <div className="w-[1.4vw] h-[1.4vw] rounded-[0.2vw] bg-gray-100 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200">
+                                                                                                                            {prod.image ? (
+                                                                                                                                <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                                                                                                                            ) : (
+                                                                                                                                <Icon icon="lucide:package" className="w-[0.8vw] h-[0.8vw] text-gray-500" />
+                                                                                                                            )}
+                                                                                                                        </div>
+                                                                                                                        <span className="text-[0.65vw] font-medium truncate">
+                                                                                                                            {prod.name}
+                                                                                                                        </span>
+                                                                                                                    </div>
+
+                                                                                                                    {showQty && isChecked && (
+                                                                                                                        <div
+                                                                                                                            className="flex items-center gap-[0.2vw] bg-white border border-gray-200 rounded-[0.2vw] px-[0.25vw] py-[0.1vw] ml-[0.3vw]"
+                                                                                                                            onClick={(e) => e.stopPropagation()}
+                                                                                                                        >
+                                                                                                                            <button
+                                                                                                                                type="button"
+                                                                                                                                onClick={() => handleProductQtyChange(fieldKey, prodKey, -1)}
+                                                                                                                                className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-[0.75vw] font-bold leading-none transition-colors"
+                                                                                                                            >
+                                                                                                                                -
+                                                                                                                            </button>
+                                                                                                                            <span className="text-[0.68vw] font-semibold text-gray-800 min-w-[0.9vw] text-center select-none">{qty}</span>
+                                                                                                                            <button
+                                                                                                                                type="button"
+                                                                                                                                onClick={() => handleProductQtyChange(fieldKey, prodKey, 1)}
+                                                                                                                                className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-[0.75vw] font-bold leading-none transition-colors"
+                                                                                                                            >
+                                                                                                                                +
+                                                                                                                            </button>
+                                                                                                                        </div>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            );
+                                                                                                        })}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ))
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    <div className="px-[0.5vw] py-[0.3vw] border-t border-gray-100 bg-gray-50/70 flex items-center justify-between">
+                                                                                        <span className="text-[0.6vw] text-gray-500">
+                                                                                            {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+                                                                                        </span>
                                                                                         <button
                                                                                             type="button"
-                                                                                            onClick={() => handleProductQtyChange(fieldKey, prodKey, -1)}
-                                                                                            className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-[0.7vw] font-bold"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                setProductDropdownOpen(prev => ({ ...prev, [fieldKey]: false }));
+                                                                                            }}
+                                                                                            className="px-[0.5vw] py-[0.2vw] bg-indigo-600 text-white rounded-[0.2vw] text-[0.6vw] font-medium"
                                                                                         >
-                                                                                            -
-                                                                                        </button>
-                                                                                        <span className="text-[0.7vw] font-semibold text-gray-800 w-[1vw] text-center">{qty}</span>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => handleProductQtyChange(fieldKey, prodKey, 1)}
-                                                                                            className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded text-[0.7vw] font-bold"
-                                                                                        >
-                                                                                            +
+                                                                                            Done
                                                                                         </button>
                                                                                     </div>
-                                                                                )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Selected Products List Container matching 3rd Image */}
+                                                                        {selectedProducts.length > 0 && (
+                                                                            <div className="space-y-[0.3vw] pt-[0.2vw]">
+                                                                                <div className="text-[0.65vw] text-gray-600 font-medium">
+                                                                                    Selected products ({selectedProducts.length})
+                                                                                </div>
+                                                                                <div className="bg-white border border-gray-200 rounded-[0.4vw] divide-y divide-gray-100 overflow-hidden shadow-2xs">
+                                                                                    {selectedProducts.map((p) => {
+                                                                                        const pKey = p.id || p.name;
+                                                                                        const qty = p.quantity || 1;
+                                                                                        // Resolve live product info from field.products so image & name updates in editor reflect immediately
+                                                                                        const liveProd = (field.products || []).find(prod => (prod.id && p.id ? prod.id === p.id : prod.name === p.name));
+                                                                                        const prodImage = (liveProd && liveProd.image) || p.image || '';
+                                                                                        const prodName = (liveProd && liveProd.name) || p.name;
+                                                                                        const prodCategory = (liveProd && liveProd.category) || p.category || 'Product category 1';
+
+                                                                                        return (
+                                                                                            <div key={pKey} className="flex items-center justify-between p-[0.4vw] transition-colors hover:bg-gray-50/60">
+                                                                                                {/* Product Thumbnail & Details */}
+                                                                                                <div className="flex items-center gap-[0.4vw] min-w-0 flex-1">
+                                                                                                    <div className="w-[1.6vw] h-[1.6vw] rounded-[0.25vw] bg-gray-50 border border-gray-200 p-[0.1vw] flex items-center justify-center shrink-0 overflow-hidden">
+                                                                                                        {prodImage ? (
+                                                                                                            <img src={prodImage} alt={prodName} className="w-full h-full object-contain" />
+                                                                                                        ) : (
+                                                                                                            <Icon icon="lucide:package" className="w-[0.9vw] h-[0.9vw] text-gray-400" />
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                    <div className="flex flex-col min-w-0">
+                                                                                                        <span className="text-[0.68vw] font-semibold text-gray-900 truncate">
+                                                                                                            {prodName}
+                                                                                                        </span>
+                                                                                                        <span className="text-[0.58vw] text-gray-400 truncate">
+                                                                                                            {prodCategory}
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                {/* Quantity & Delete Controls */}
+                                                                                                 <div className="flex items-center gap-[0.4vw] shrink-0 ml-[0.3vw]">
+                                                                                                     {showQty && (
+                                                                                                         <div className="flex items-center gap-[0.2vw] border border-gray-200 rounded-[0.25vw] px-[0.35vw] py-[0.15vw] bg-white shadow-2xs">
+                                                                                                             <button
+                                                                                                                 type="button"
+                                                                                                                 onClick={() => handleProductQtyChange(fieldKey, pKey, -1)}
+                                                                                                                 className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-[0.8vw] font-bold leading-none"
+                                                                                                             >
+                                                                                                                 -
+                                                                                                             </button>
+                                                                                                             <span className="text-[0.7vw] font-semibold text-gray-800 min-w-[1vw] text-center select-none">
+                                                                                                                 {qty}
+                                                                                                             </span>
+                                                                                                             <button
+                                                                                                                 type="button"
+                                                                                                                 onClick={() => handleProductQtyChange(fieldKey, pKey, 1)}
+                                                                                                                 className="w-[1vw] h-[1vw] flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded text-[0.8vw] font-bold leading-none"
+                                                                                                             >
+                                                                                                                 +
+                                                                                                             </button>
+                                                                                                         </div>
+                                                                                                     )}
+
+                                                                                                     <button
+                                                                                                         type="button"
+                                                                                                         onClick={() => handleToggleProduct(fieldKey, p)}
+                                                                                                         className="w-[1.2vw] h-[1.2vw] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                                                         title="Remove item"
+                                                                                                     >
+                                                                                                         <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw]" />
+                                                                                                     </button>
+                                                                                                 </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
                                                                             </div>
-                                                                        );
-                                                                    });
-                                                                })()}
-                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()
                                                         ) : (
                                                             /* 7. Standard Input Box (Email, Phone, Company, Services, Enquiry, Name, etc.) */
                                                             <div className="relative">
@@ -1078,7 +1502,7 @@ const LeadFormPopup = ({
                             </div>
                         </div>
                                     
-                                    <div className="shrink-0 mt-[0.8vw] pt-[0.4vw] border-t border-gray-100 w-full">
+                                    <div className="shrink-0 mt-[0.6vw] pt-[0.8vw] border-t border-gray-100 shadow-[0_-0.4vw_1vw_rgba(0,0,0,0.02)] w-full">
                                         <div className="w-full">
                                             {Object.values(errors).filter(Boolean).length > 0 && (
                                                 <div className="w-full bg-red-50 border border-red-200 text-red-600 rounded-[0.4vw] py-[0.3vw] px-[0.6vw] text-[0.68vw] font-medium text-center flex items-center justify-center gap-[0.3vw] animate-in fade-in duration-200 mb-[0.6vw]">

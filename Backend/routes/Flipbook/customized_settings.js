@@ -46,6 +46,7 @@ const getAssetTypeFolder = (type) => {
   if (lower === 'video' || lower === 'videos') return 'Video';
   if (lower === 'image' || lower === 'images') return 'Image';
   if (lower === 'gallery' || lower === 'gallery_image' || lower === 'galleryimage') return 'Gallery_Image';
+  if (lower === 'lead_product' || lower === 'leadproduct') return 'Lead_Product';
   if (lower === 'audio' || lower === 'sound' || lower === 'bgaudio') return 'Audio';
   return 'Logo';
 };
@@ -1369,8 +1370,62 @@ router.post("/update-settings", async (req, res) => {
           enquiryButton: {
             ...(currentLeadForm.enquiryButton || {}),
             ...(rawLeadForm.enquiryButton || {})
+          },
+          leadNotification: {
+            ...(currentLeadForm.leadNotification || {}),
+            ...(rawLeadForm.leadNotification || {})
           }
         };
+
+        // Process product images to Supabase Storage and cleanup deleted ones
+        if (Array.isArray(mergedLeadForm.fields)) {
+          const currentFields = Array.isArray(currentLeadForm.fields) ? currentLeadForm.fields : [];
+          const oldProductImages = new Set();
+          currentFields.forEach(f => {
+            if (f.type === 'products' && Array.isArray(f.products)) {
+              f.products.forEach(p => {
+                if (p.image && typeof p.image === 'string' && !p.image.startsWith('data:')) {
+                  oldProductImages.add(p.image);
+                }
+              });
+            }
+          });
+
+          const newProductImages = new Set();
+          for (let f of mergedLeadForm.fields) {
+            if (f.type === 'products' && Array.isArray(f.products)) {
+              for (let p of f.products) {
+                if (p.image && typeof p.image === 'string') {
+                  if (p.image.startsWith('data:')) {
+                    try {
+                      p.image = await ensureBrandingAssetInSupabase(
+                        p.image,
+                        sanitizedEmail,
+                        physicalFolder,
+                        bookName,
+                        'lead_product'
+                      );
+                    } catch (e) {
+                      console.warn('[Supabase] Failed to auto-upload base64 product image:', e);
+                    }
+                  }
+                  if (p.image && !p.image.startsWith('data:')) {
+                    newProductImages.add(p.image);
+                  }
+                }
+              }
+            }
+          }
+
+          // Automatically delete any old product images that were removed or replaced
+          for (const oldImg of oldProductImages) {
+            if (!newProductImages.has(oldImg)) {
+              deleteOldCustomizedAsset(oldImg).catch(err =>
+                console.warn('[Supabase] Auto-delete removed product image error:', err)
+              );
+            }
+          }
+        }
       }
 
       const mergedCustomizedSettings = {
