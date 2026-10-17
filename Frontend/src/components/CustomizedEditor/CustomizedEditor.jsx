@@ -522,11 +522,14 @@ const CustomizedEditor = () => {
 
   const [leadFormSettings, setLeadFormSettings] = useState({
     enabled: false,
-    leadText: 'Share your information to get personalized updates.',
+    selectedTemplateId: 'basic-contact',
+    formTitle: 'Get in Touch',
+    leadText: 'Share your details and we will contact you shortly',
+    buttonText: 'SUBMIT',
     fields: [
-      { id: '1', type: 'name', placeholder: 'Enter your Name' },
-      { id: '2', type: 'email', placeholder: 'Enter your Gmail' },
-      { id: '3', type: 'feedback', placeholder: 'Enter your Feedback' }
+      { id: '1', type: 'name', label: 'Full Name', placeholder: 'Enter your Name', required: true },
+      { id: '2', type: 'email', label: 'Email Address', placeholder: 'Enter your Email', required: true },
+      { id: '3', type: 'phone', label: 'Phone Number', placeholder: 'Enter your Phone Number', required: true }
     ],
     appearance: {
       timing: 'after-pages',
@@ -1774,6 +1777,9 @@ const CustomizedEditor = () => {
             settings={leadFormSettings}
             onUpdate={setLeadFormSettings}
             pages={pages}
+            folderName={folder}
+            bookName={bookName}
+            v_id={v_id}
           />
         );
       case 'visibility':

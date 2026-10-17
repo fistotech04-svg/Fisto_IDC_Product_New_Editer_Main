@@ -9,6 +9,7 @@ import MyFlipbooks from './pages/MyFlipbooks';
 import SettingsLayout from './pages/Settings/Profile/Settings';
 import Profile from './pages/Settings/Profile/Profile';
 import Account from './pages/Settings/Account';
+import LeadFormData from './pages/Settings/LeadFormData';
 import Notifications from './pages/Settings/Notifications';
 import MyShelf from './pages/Settings/MyShelf';
 import EditorDefaults from './pages/Settings/EditorDefaults';
@@ -39,6 +40,7 @@ import Viewprofile from './pages/Viewprofile';
 import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
+import PublicRoute from './components/PublicRoute';
 import PresetAdmin from './pages/PresetAdmin';
 import NetworkStatus from './pages/NetworkStatus';
 
@@ -65,9 +67,9 @@ function App() {
         <Router>
           <NetworkStatus />
           <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Signin />} />
-            <Route path="/signup" element={<Signup />} />
+            {/* Guest / Public Routes (Redirect to /home if already logged in) */}
+            <Route path="/" element={<PublicRoute><Signin /></PublicRoute>} />
+            <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/share=public/:shareId" element={<ShareViewBook />} />
             <Route path="/share=private/:shareId" element={<ShareViewBook />} />
@@ -118,6 +120,7 @@ function App() {
                 <Route path="profile" element={<Profile />} />
                 <Route path="profile/:useremail" element={<Profile />} />
                 <Route path="account" element={<Account />} />
+                <Route path="lead-form-data" element={<LeadFormData />} />
                 <Route path="notifications" element={<Notifications />} />
                 <Route path="my-shelf" element={<MyShelf />} />
                 <Route path="editor-defaults" element={<EditorDefaults />} />

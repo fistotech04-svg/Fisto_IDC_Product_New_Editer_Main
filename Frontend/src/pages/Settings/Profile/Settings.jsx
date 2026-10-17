@@ -157,6 +157,7 @@ const SettingsLayout = () => {
       items: [
         { path: profilePath, id: 'profile', label: 'Profile', icon: 'mingcute:profile-line' },
         { path: 'account', id: 'account', label: 'Account', icon: 'iconamoon:profile' },
+        { path: 'lead-form-data', id: 'lead-form-data', label: 'Lead form Data', icon: 'solar:clipboard-list-bold-duotone' },
         { path: 'notifications', id: 'notifications', label: 'Notifications', icon: 'basil:notification-on-outline' },
         { path: 'my-shelf', id: 'my-shelf', label: 'My Shelf', icon: 'clarity:library-line' },
       ]
